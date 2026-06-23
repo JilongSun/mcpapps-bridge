@@ -1,0 +1,95 @@
+:root {
+  color: #f3f4f6;
+  background: radial-gradient(circle at top, #0f172a, #020617 62%);
+  font-family: "Segoe UI", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.shell {
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.shell__header {
+  align-items: end;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.eyebrow {
+  color: #38bdf8;
+  letter-spacing: 0.08em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(2rem, 3vw, 3rem);
+}
+
+h2 {
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+}
+
+.status {
+  color: #94a3b8;
+}
+
+.layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.panel {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 20px;
+  min-height: 280px;
+  padding: 20px;
+}
+
+.panel--app {
+  background: rgba(30, 41, 59, 0.92);
+}
+
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .shell {
+    padding: 20px;
+  }
+
+  .shell__header {
+    align-items: start;
+    flex-direction: column;
+  }
+}
