@@ -7,10 +7,12 @@ from typing import Any
 
 from mcp import types
 from mcp.server import Server
+from mcp.types import Annotations, ToolAnnotations
 from mcp.server.lowlevel import NotificationOptions
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
+from pydantic import AnyUrl
 
 from mcpapps_bridge.models import AppResource, ResourceDescriptor, ToolCallResult, ToolDescriptor
 from mcpapps_bridge.session import BridgeSessionState
@@ -81,7 +83,7 @@ class StdioProxyServer:
             return [self._to_mcp_resource(resource) for resource in resources]
 
         @self._server.read_resource()
-        async def read_resource(uri: str) -> list[ReadResourceContents]:
+        async def read_resource(uri: AnyUrl) -> list[ReadResourceContents]:
             resource = await self._read_and_cache_resource(str(uri))
             return [self._to_read_resource_contents(resource)]
 
@@ -146,7 +148,7 @@ class StdioProxyServer:
             description=tool.description,
             inputSchema=tool.input_schema,
             outputSchema=tool.output_schema,
-            annotations=tool.annotations or None,
+            annotations=ToolAnnotations(**tool.annotations) if tool.annotations else None,
             _meta=meta or None,
         )
 
@@ -192,10 +194,10 @@ class StdioProxyServer:
         return types.Resource(
             name=resource.name,
             title=resource.title,
-            uri=resource.uri,
+            uri=AnyUrl(resource.uri),
             description=resource.description,
             mimeType=resource.mime_type,
-            annotations=resource.annotations or None,
+            annotations=Annotations(**resource.annotations) if resource.annotations else None,
             size=resource.size,
             _meta=resource.metadata or None,
         )
