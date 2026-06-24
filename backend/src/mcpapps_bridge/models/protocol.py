@@ -41,6 +41,7 @@ class ToolDescriptor(BaseModel):
     title: str | None = None
     description: str | None = None
     input_schema: dict[str, Any] = Field(default_factory=dict)
+    output_schema: dict[str, Any] | None = None
     annotations: dict[str, Any] = Field(default_factory=dict)
     ui_resource_uri: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -70,6 +71,17 @@ class AppResource(BaseModel):
     blob: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     loaded_at: datetime = Field(default_factory=utc_now)
+
+
+class ResourceDescriptor(BaseModel):
+    name: str
+    uri: str
+    title: str | None = None
+    description: str | None = None
+    mime_type: str | None = None
+    annotations: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    size: int | None = None
 
 
 class BridgeSessionSnapshot(BaseModel):

@@ -11,7 +11,13 @@ from mcp.client.stdio import stdio_client
 from pydantic import AnyUrl
 from pydantic import BaseModel, Field
 
-from mcpapps_bridge.models import AppResource, ToolCallResult, ToolDescriptor, UpstreamInitialization
+from mcpapps_bridge.models import (
+    AppResource,
+    ResourceDescriptor,
+    ToolCallResult,
+    ToolDescriptor,
+    UpstreamInitialization,
+)
 
 
 class StdioServerConfig(BaseModel):
@@ -29,6 +35,9 @@ class UpstreamMcpClient(Protocol):
         ...
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult:
+        ...
+
+    async def list_resources(self) -> list[ResourceDescriptor]:
         ...
 
     async def read_resource(self, uri: str) -> AppResource:
@@ -82,6 +91,11 @@ class StdioUpstreamMcpClient:
             is_error=result.isError,
             metadata=self._dump_model_or_none(result.meta) or {},
         )
+
+    async def list_resources(self) -> list[ResourceDescriptor]:
+        session = self._require_session()
+        result = await session.list_resources()
+        return [self._map_resource(resource) for resource in result.resources]
 
     async def read_resource(self, uri: str) -> AppResource:
         session = self._require_session()
@@ -137,9 +151,24 @@ class StdioUpstreamMcpClient:
             title=getattr(tool, "title", None),
             description=getattr(tool, "description", None),
             input_schema=self._dump_model_or_none(getattr(tool, "inputSchema", None)) or {},
+            output_schema=self._dump_model_or_none(getattr(tool, "outputSchema", None)),
             annotations=annotations,
             ui_resource_uri=self._extract_ui_resource_uri(metadata),
             metadata=metadata,
+        )
+
+    def _map_resource(self, resource: Any) -> ResourceDescriptor:
+        metadata = self._dump_model_or_none(getattr(resource, "meta", None)) or {}
+        annotations = self._dump_model_or_none(getattr(resource, "annotations", None)) or {}
+        return ResourceDescriptor(
+            name=resource.name,
+            uri=str(resource.uri),
+            title=getattr(resource, "title", None),
+            description=getattr(resource, "description", None),
+            mime_type=getattr(resource, "mimeType", None),
+            annotations=annotations,
+            metadata=metadata,
+            size=getattr(resource, "size", None),
         )
 
     def _extract_ui_resource_uri(self, metadata: dict[str, Any]) -> str | None:

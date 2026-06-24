@@ -3,6 +3,7 @@
 from .protocol import (
 	AppResource,
 	BridgeSessionSnapshot,
+	ResourceDescriptor,
 	SessionStatus,
 	ToolCallRecord,
 	ToolCallResult,
@@ -14,6 +15,7 @@ from .protocol import (
 __all__ = [
 	"AppResource",
 	"BridgeSessionSnapshot",
+	"ResourceDescriptor",
 	"SessionStatus",
 	"ToolCallRecord",
 	"ToolCallResult",
