@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from mcpfront_bridge.models import AppResource, ToolCallRecord, ToolDescriptor, UpstreamInitialization
+from mcpapps_bridge.models import AppResource, ToolCallRecord, ToolDescriptor, UpstreamInitialization
 
 
 def utc_now() -> datetime:

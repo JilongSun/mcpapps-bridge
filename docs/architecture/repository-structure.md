@@ -11,13 +11,13 @@ This repository uses a traditional frontend/backend split.
 
 ## Backend Layout
 
-- `backend/src/mcpfront_bridge/api/` for HTTP and WebSocket surfaces
-- `backend/src/mcpfront_bridge/agent_adapters/` for Hermes and future agent adapters
-- `backend/src/mcpfront_bridge/host/` for MCP Apps host behavior
-- `backend/src/mcpfront_bridge/mcp/` for proxy, transport, and resource modules
-- `backend/src/mcpfront_bridge/session/` for single-session lifecycle and state
-- `backend/src/mcpfront_bridge/events/` for backend event envelopes and event bus helpers
-- `backend/src/mcpfront_bridge/models/` for typed backend models
+- `backend/src/mcpapps_bridge/api/` for HTTP and WebSocket surfaces
+- `backend/src/mcpapps_bridge/agent_adapters/` for Hermes and future agent adapters
+- `backend/src/mcpapps_bridge/host/` for MCP Apps host behavior
+- `backend/src/mcpapps_bridge/mcp/` for proxy, transport, and resource modules
+- `backend/src/mcpapps_bridge/session/` for single-session lifecycle and state
+- `backend/src/mcpapps_bridge/events/` for backend event envelopes and event bus helpers
+- `backend/src/mcpapps_bridge/models/` for typed backend models
 
 ## Frontend Layout
 

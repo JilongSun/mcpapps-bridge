@@ -11,7 +11,7 @@ from mcp.client.stdio import stdio_client
 from pydantic import AnyUrl
 from pydantic import BaseModel, Field
 
-from mcpfront_bridge.models import AppResource, ToolCallResult, ToolDescriptor, UpstreamInitialization
+from mcpapps_bridge.models import AppResource, ToolCallResult, ToolDescriptor, UpstreamInitialization
 
 
 class StdioServerConfig(BaseModel):

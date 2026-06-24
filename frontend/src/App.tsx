@@ -4,7 +4,7 @@ export function App() {
       <header className="shell__header">
         <div>
           <p className="eyebrow">MCP Apps Bridge Host</p>
-          <h1>mcpfront</h1>
+          <h1>mcpapps-bridge</h1>
         </div>
         <p className="status">v0.1 scaffold</p>
       </header>

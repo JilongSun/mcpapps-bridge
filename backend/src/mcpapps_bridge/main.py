@@ -1,10 +1,10 @@
-"""Backend entry points for the mcpfront bridge host."""
+"""Backend entry points for the mcpapps bridge host."""
 
 from __future__ import annotations
 
 import uvicorn
 
-from mcpfront_bridge.api import create_app
+from mcpapps_bridge.api import create_app
 
 app = create_app()
 

@@ -1,4 +1,4 @@
-"""mcpfront bridge backend package."""
+"""mcpapps bridge backend package."""
 
 __all__ = ["__version__"]
 

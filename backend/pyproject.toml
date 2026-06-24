@@ -1,5 +1,5 @@
 [project]
-name = "mcpfront-bridge"
+name = "mcpapps-bridge"
 version = "0.1.0"
 description = "Backend bridge host for MCP Apps-enabled agent runtimes."
 readme = "README.md"
@@ -25,7 +25,7 @@ requires = ["hatchling>=1.25.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/mcpfront_bridge"]
+packages = ["src/mcpapps_bridge"]
 
 [tool.ruff]
 line-length = 100

@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import anyio
 
-from mcpfront_bridge.events import (
+from mcpapps_bridge.events import (
     AppResourceLoadedEvent,
     ErrorRaisedEvent,
     SessionEvent,
@@ -16,7 +16,7 @@ from mcpfront_bridge.events import (
     ToolCallStartedEvent,
     ToolDiscoveredEvent,
 )
-from mcpfront_bridge.models import (
+from mcpapps_bridge.models import (
     AppResource,
     BridgeSessionSnapshot,
     SessionStatus,

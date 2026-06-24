@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from mcpfront_bridge.session import BridgeSessionState
+from mcpapps_bridge.session import BridgeSessionState
 
 
 def create_app(session_state: BridgeSessionState | None = None) -> FastAPI:
-    app = FastAPI(title="mcpfront bridge", version="0.1.0")
+    app = FastAPI(title="mcpapps bridge", version="0.1.0")
     state = session_state or BridgeSessionState(session_id="local-dev-session")
 
     @app.get("/health")
