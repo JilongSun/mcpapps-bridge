@@ -92,7 +92,9 @@ class BridgeSessionState:
             if call_id not in self._active_tool_calls:
                 raise KeyError(f"Unknown active tool call: {call_id}")
             call = self._active_tool_calls.pop(call_id)
-            call.status = ToolCallStatus.FAILED if failed or result.is_error else ToolCallStatus.COMPLETED
+            call.status = (
+                ToolCallStatus.FAILED if failed or result.is_error else ToolCallStatus.COMPLETED
+            )
             call.result = result
             call.completed_at = utc_now()
             self._snapshot.active_tool_calls = list(self._active_tool_calls.values())

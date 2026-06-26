@@ -8,6 +8,7 @@ applyTo: ["**/*.py"]
 
 - Use `uv` for all dependency and environment operations.
 - Run `uv run pytest` for tests, `uv run ruff check` for linting, `uv run pyright` for type checking.
+- After every Python code change, run `uv run ruff format <changed-file>` to keep formatting consistent. For changes that touch several files, run `uv run ruff format` at the project root to format the entire Python project.
 - Prefer `uv add <package>` and `uv remove <package>` for dependency changes.
 - Authoritative configuration lives in `pyproject.toml`, not scattered across setup.cfg and requirements files.
 - Prefer mature SDKs and established Python packages when they fit the requirement well. Avoid writing custom protocol, transport, or validation plumbing when a stable package already solves it.

@@ -28,23 +28,17 @@ class StdioServerConfig(BaseModel):
 
 
 class UpstreamMcpClient(Protocol):
-    async def connect(self, config: StdioServerConfig) -> UpstreamInitialization:
-        ...
+    async def connect(self, config: StdioServerConfig) -> UpstreamInitialization: ...
 
-    async def list_tools(self) -> list[ToolDescriptor]:
-        ...
+    async def list_tools(self) -> list[ToolDescriptor]: ...
 
-    async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult:
-        ...
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult: ...
 
-    async def list_resources(self) -> list[ResourceDescriptor]:
-        ...
+    async def list_resources(self) -> list[ResourceDescriptor]: ...
 
-    async def read_resource(self, uri: str) -> AppResource:
-        ...
+    async def read_resource(self, uri: str) -> AppResource: ...
 
-    async def close(self) -> None:
-        ...
+    async def close(self) -> None: ...
 
 
 class StdioUpstreamMcpClient:
@@ -174,7 +168,9 @@ class StdioUpstreamMcpClient:
     def _extract_ui_resource_uri(self, metadata: dict[str, Any]) -> str | None:
         candidates = [
             metadata.get("ui"),
-            metadata.get("_meta", {}).get("ui") if isinstance(metadata.get("_meta"), dict) else None,
+            metadata.get("_meta", {}).get("ui")
+            if isinstance(metadata.get("_meta"), dict)
+            else None,
             metadata.get("openai"),
         ]
         for candidate in candidates:

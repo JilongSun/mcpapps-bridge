@@ -215,7 +215,9 @@ class StdioProxyServer:
                 mime_type=resource.mime_type,
                 meta=resource.metadata or None,
             )
-        return ReadResourceContents(content="", mime_type=resource.mime_type, meta=resource.metadata or None)
+        return ReadResourceContents(
+            content="", mime_type=resource.mime_type, meta=resource.metadata or None
+        )
 
 
 def build_stdio_proxy_server(
