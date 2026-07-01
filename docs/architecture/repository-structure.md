@@ -1,32 +1,58 @@
 # Repository Structure
 
-This repository uses a traditional frontend/backend split.
+```
+mcpapps-bridge/
+│
+├── backend/                          # Python bridge host
+│   ├── pyproject.toml
+│   └── src/mcpapps_bridge/
+│       ├── main.py                   # CLI entry point (control plane or combined runtime)
+│       ├── api/                      # FastAPI HTTP + WebSocket control plane
+│       ├── host/                     # Runtime orchestration (proxy + API co-location)
+│       ├── mcp/
+│       │   ├── upstream.py           # Upstream MCP client (stdio → SDK session)
+│       │   └── proxy.py              # Downstream stdio MCP proxy server surface
+│       ├── session/                  # Single-session state container + event store
+│       ├── events/                   # Typed event envelopes
+│       ├── models/                   # Shared Pydantic models (session, tool, resource)
+│       └── agent_adapters/           # Agent-specific wiring (future)
+│
+├── frontend/                         # React debugging + session surface
+│   ├── package.json
+│   ├── vite.config.ts                # Dev server with /api proxy to backend
+│   └── src/
+│       ├── main.tsx                  # React entry point
+│       ├── App.tsx                   # Three-panel shell (transcript, activity, app)
+│       ├── types.ts                  # Mirror of backend session/event models
+│       ├── hooks/
+│       │   └── useBridgeSession.ts   # WebSocket subscription + snapshot fetcher
+│       └── styles.css
+│
+├── scripts/
+│   └── dev.py                        # Cross-platform full-stack dev launcher
+│
+├── docs/
+│   └── architecture/                 # Architecture notes and ADRs
+│
+├── .github/
+│   └── instructions/                 # Committed project instructions for devs and agents
+│
+├── justfile                          # Root task commands (install, backend, frontend, dev)
+├── README.md
+└── LICENSE
+```
 
-## Top-Level Layout
+## Layer Responsibilities
 
-- `backend/` contains the Python bridge host, MCP proxy logic, session runtime, and agent adapters.
-- `frontend/` contains the React application that will render transcript output, bridge activity, and MCP App widgets.
-- `docs/architecture/` contains architecture notes and stable repository decisions.
-- `.github/instructions/` contains committed project instructions for developers and agents.
+| Layer | Module | Role |
+|-------|--------|------|
+| **Proxy** | `mcp/proxy.py` | Presents a stdio MCP server to the agent; mirrors upstream tools and resources |
+| **Upstream** | `mcp/upstream.py` | Connects to real MCP servers via stdio and maps SDK objects to internal models |
+| **Session** | `session/state.py` | Single-session state container; event store; thread-safe snapshot access |
+| **Events** | `events/models.py` | Typed event envelopes consumed by the control plane and frontend |
+| **Models** | `models/protocol.py` | Canonical Pydantic models shared across the backend |
+| **API** | `api/app.py` | FastAPI HTTP + WebSocket surface for session snapshot and event streaming |
+| **Host** | `host/runtime.py` | Co-locates the proxy and API in one process, sharing `BridgeSessionState` |
+| **Frontend** | `frontend/src/` | Consumes `/api/session` and `/api/events/ws`; renders three-panel debug UI |
+| **Dev launcher** | `scripts/dev.py` | Starts backend + frontend concurrently (`just dev`) |
 
-## Backend Layout
-
-- `backend/src/mcpapps_bridge/api/` for HTTP and WebSocket surfaces
-- `backend/src/mcpapps_bridge/agent_adapters/` for Hermes and future agent adapters
-- `backend/src/mcpapps_bridge/host/` for MCP Apps host behavior
-- `backend/src/mcpapps_bridge/mcp/` for proxy, transport, and resource modules
-- `backend/src/mcpapps_bridge/session/` for single-session lifecycle and state
-- `backend/src/mcpapps_bridge/events/` for backend event envelopes and event bus helpers
-- `backend/src/mcpapps_bridge/models/` for typed backend models
-
-## Frontend Layout
-
-- `frontend/src/` for the session UI and bridge debugging surface
-- The frontend starts as a lightweight Vite app rather than a product-scale chat scaffold.
-- MCP App rendering will be integrated into the frontend through `@mcp-ui/client`.
-
-## Notes
-
-- Shared frontend/backend contracts should be defined before large feature expansion.
-- Cross-platform behavior is required for scripts, paths, and runtime assumptions.
-- In the early project phase, the repository favors executable validation and integration-critical checks over default unit-test scaffolding.
