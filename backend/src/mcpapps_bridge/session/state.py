@@ -40,6 +40,7 @@ class BridgeSessionState:
         self._tools: dict[str, ToolDescriptor] = {}
         self._active_tool_calls: dict[str, ToolCallRecord] = {}
         self._resources: dict[str, AppResource] = {}
+        self._next_event = anyio.Event()
 
     async def start(self, upstream: UpstreamInitialization | None = None) -> SessionStartedEvent:
         async with self._lock:
@@ -137,6 +138,17 @@ class BridgeSessionState:
         async with self._lock:
             return [event.model_copy(deep=True) for event in self._events[after_index:]]
 
+    async def wait_for_events(self, after_index: int = 0) -> list[SessionEvent]:
+        while True:
+            async with self._lock:
+                if after_index < len(self._events):
+                    return [event.model_copy(deep=True) for event in self._events[after_index:]]
+                next_event = self._next_event
+            await next_event.wait()
+
     def _append_event(self, event: SessionEvent) -> None:
         self._events.append(event)
         self._snapshot.event_count = len(self._events)
+        current_waiter = self._next_event
+        self._next_event = anyio.Event()
+        current_waiter.set()
