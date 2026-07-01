@@ -1,3 +1,5 @@
+import { AppRenderer } from "@mcp-ui/client";
+
 import { useBridgeSession } from "./hooks/useBridgeSession";
 
 function formatEventLabel(kind: string) {
@@ -6,6 +8,9 @@ function formatEventLabel(kind: string) {
 
 export function App() {
   const { snapshot, latestEvents, latestResource, connectionState, error } = useBridgeSession();
+  const resourceTool = latestResource
+    ? snapshot.discovered_tools.find((tool) => tool.ui_resource_uri === latestResource.uri) ?? null
+    : null;
 
   return (
     <main className="shell">
@@ -67,8 +72,7 @@ export function App() {
         <article className="panel panel--app">
           <h2>MCP App Surface</h2>
           <p className="panel-copy">
-            The host runtime is already discovering tools and loading UI resources. The next step
-            is wiring this surface into `@mcp-ui/client`.
+            This surface renders the latest discovered MCP App resource through `@mcp-ui/client`.
           </p>
           <div className="resource-summary">
             <p>
@@ -83,7 +87,31 @@ export function App() {
               <p className="resource-preview__title">Latest resource</p>
               <p>{latestResource.uri}</p>
               <p>{latestResource.mime_type}</p>
-              <pre>{latestResource.text ?? "Binary resource payload"}</pre>
+              {latestResource.text && resourceTool ? (
+                <div className="resource-renderer">
+                  <AppRenderer
+                    html={latestResource.text}
+                    onError={(renderError) => {
+                      console.error("Failed to render MCP App resource", renderError);
+                    }}
+                    onOpenLink={async ({ url }) => {
+                      if (url.startsWith("https://") || url.startsWith("http://")) {
+                        window.open(url, "_blank", "noopener,noreferrer");
+                        return { isError: false };
+                      }
+                      return { isError: true };
+                    }}
+                    onMessage={async () => ({ isError: false })}
+                    sandbox={{
+                      url: new URL("/sandbox_proxy.html", window.location.origin),
+                    }}
+                    toolName={resourceTool.name}
+                    toolResourceUri={latestResource.uri}
+                  />
+                </div>
+              ) : (
+                <pre>{latestResource.text ?? "Binary resource payload"}</pre>
+              )}
             </div>
           ) : (
             <p className="event-list__empty">No MCP App resource has been loaded yet.</p>

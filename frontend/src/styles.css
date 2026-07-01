@@ -173,6 +173,15 @@ h2 {
   padding: 14px;
 }
 
+.resource-renderer {
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 14px;
+  margin-top: 12px;
+  min-height: 240px;
+  overflow: hidden;
+  padding: 8px;
+}
+
 .resource-preview__title {
   color: #38bdf8;
   margin-bottom: 8px;

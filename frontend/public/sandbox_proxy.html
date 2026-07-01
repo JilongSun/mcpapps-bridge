@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MCP Apps Sandbox Proxy</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+
+      iframe {
+        border: 0;
+        display: block;
+        height: 100%;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      let innerFrame = null;
+
+      function ensureInnerFrame(sandboxPermissions) {
+        if (innerFrame) {
+          return innerFrame;
+        }
+
+        innerFrame = document.createElement("iframe");
+        innerFrame.setAttribute(
+          "sandbox",
+          sandboxPermissions || "allow-scripts allow-same-origin allow-forms",
+        );
+        document.body.appendChild(innerFrame);
+
+        window.addEventListener("message", (event) => {
+          if (event.source === innerFrame?.contentWindow) {
+            window.parent.postMessage(event.data, "*");
+          }
+        });
+
+        return innerFrame;
+      }
+
+      window.addEventListener("message", (event) => {
+        if (event.source === window.parent) {
+          const payload = event.data;
+
+          if (payload?.method === "ui/notifications/sandbox-resource-ready") {
+            const frame = ensureInnerFrame(payload.params?.sandbox);
+            frame.srcdoc = payload.params?.html || "";
+            return;
+          }
+
+          if (innerFrame?.contentWindow) {
+            innerFrame.contentWindow.postMessage(payload, "*");
+          }
+        }
+      });
+
+      window.parent.postMessage(
+        {
+          method: "ui/notifications/sandbox-proxy-ready",
+          params: {},
+        },
+        "*",
+      );
+    </script>
+  </body>
+</html>
