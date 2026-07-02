@@ -1,18 +1,21 @@
-"""stdio MCP proxy server that mirrors upstream tools and resources."""
+"""MCP proxy server that mirrors upstream tools and resources."""
 
 from __future__ import annotations
 
 from base64 import b64decode
 from typing import Any
 
+import anyio
 from mcp import types
 from mcp.server import Server
-from mcp.types import Annotations, ToolAnnotations
 from mcp.server.lowlevel import NotificationOptions
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.server.models import InitializationOptions
+from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
+from mcp.types import Annotations, ToolAnnotations
 from pydantic import AnyUrl
+from starlette.types import Receive, Scope, Send
 
 from mcpapps_bridge.models import AppResource, ResourceDescriptor, ToolCallResult, ToolDescriptor
 from mcpapps_bridge.session import BridgeSessionState
@@ -20,7 +23,7 @@ from mcpapps_bridge.session import BridgeSessionState
 from .upstream import StdioServerConfig, StdioUpstreamMcpClient, UpstreamMcpClient
 
 
-class StdioProxyServer:
+class BridgeProxyServer:
     def __init__(
         self,
         upstream_config: StdioServerConfig,
@@ -39,24 +42,63 @@ class StdioProxyServer:
         self._resource_cache: dict[str, AppResource] = {}
         self._resource_descriptors: dict[str, ResourceDescriptor] = {}
         self._server = Server(name=name, version=version)
+        self._sse_transport = SseServerTransport("/mcp/messages/")
+        self._lifecycle_lock = anyio.Lock()
+        self._started = False
         self._register_handlers()
 
-    async def serve(self) -> None:
-        upstream = await self._upstream_client.connect(self._upstream_config)
-        try:
-            await self._session_state.start(upstream)
-            await self._refresh_tools()
-            await self._refresh_resources()
-            initialization = InitializationOptions(
-                server_name=self._name,
-                server_version=self._version,
-                capabilities=self._server.get_capabilities(NotificationOptions(), {}),
-                instructions="Protocol-aware MCP Apps stdio proxy.",
-            )
-            async with stdio_server() as (read_stream, write_stream):
-                await self._server.run(read_stream, write_stream, initialization)
-        finally:
+    async def start(self) -> None:
+        async with self._lifecycle_lock:
+            if self._started:
+                return
+            upstream = await self._upstream_client.connect(self._upstream_config)
+            try:
+                await self._session_state.start(upstream)
+                await self._refresh_tools()
+                await self._refresh_resources()
+            except Exception:
+                await self._upstream_client.close()
+                raise
+            self._started = True
+
+    async def close(self) -> None:
+        async with self._lifecycle_lock:
+            if not self._started:
+                return
+            self._started = False
             await self._upstream_client.close()
+
+    async def serve_stdio(self) -> None:
+        await self.start()
+        try:
+            async with stdio_server() as (read_stream, write_stream):
+                await self._server.run(
+                    read_stream,
+                    write_stream,
+                    self._create_initialization_options("Protocol-aware MCP Apps stdio proxy."),
+                )
+        finally:
+            await self.close()
+
+    async def handle_sse(self, scope: Scope, receive: Receive, send: Send) -> None:
+        await self.start()
+        async with self._sse_transport.connect_sse(scope, receive, send) as streams:
+            await self._server.run(
+                streams[0],
+                streams[1],
+                self._create_initialization_options("Protocol-aware MCP Apps SSE proxy."),
+            )
+
+    async def handle_sse_post(self, scope: Scope, receive: Receive, send: Send) -> None:
+        await self._sse_transport.handle_post_message(scope, receive, send)
+
+    def _create_initialization_options(self, instructions: str) -> InitializationOptions:
+        return InitializationOptions(
+            server_name=self._name,
+            server_version=self._version,
+            capabilities=self._server.get_capabilities(NotificationOptions(), {}),
+            instructions=instructions,
+        )
 
     def _register_handlers(self) -> None:
         @self._server.list_tools()
@@ -220,15 +262,15 @@ class StdioProxyServer:
         )
 
 
-def build_stdio_proxy_server(
+def build_proxy_server(
     upstream_config: StdioServerConfig,
     session_state: BridgeSessionState,
     *,
     name: str = "mcpapps-proxy",
     version: str = "0.1.0",
     upstream_client: UpstreamMcpClient | None = None,
-) -> StdioProxyServer:
-    return StdioProxyServer(
+) -> BridgeProxyServer:
+    return BridgeProxyServer(
         upstream_config,
         session_state,
         name=name,

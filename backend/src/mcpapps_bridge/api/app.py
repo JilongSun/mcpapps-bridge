@@ -2,15 +2,43 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
 
+from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
+from starlette.routing import Mount
+
+from mcpapps_bridge.mcp import BridgeProxyServer
 from mcpapps_bridge.session import BridgeSessionState
 
 
-def create_app(session_state: BridgeSessionState | None = None) -> FastAPI:
-    app = FastAPI(title="mcpapps bridge", version="0.1.0")
+def create_app(
+    session_state: BridgeSessionState | None = None,
+    proxy_server: BridgeProxyServer | None = None,
+) -> FastAPI:
     state = session_state or BridgeSessionState(session_id="local-dev-session")
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        if proxy_server is not None:
+            await proxy_server.start()
+        try:
+            yield
+        finally:
+            if proxy_server is not None:
+                await proxy_server.close()
+
+    app = FastAPI(title="mcpapps bridge", version="0.1.0", lifespan=lifespan)
     app.state.session_state = state
+    app.state.proxy_server = proxy_server
+
+    if proxy_server is not None:
+
+        async def sse_endpoint(request: Request) -> Response:
+            return await proxy_server.handle_sse(request.scope, request.receive, request._send)  # type: ignore[reportPrivateUsage]
+
+        app.add_api_route("/mcp/sse", sse_endpoint, methods=["GET"], include_in_schema=False)
+        app.router.routes.append(Mount("/mcp/messages", app=proxy_server.handle_sse_post))
 
     @app.get("/health")
     async def health() -> dict[str, str]:

@@ -10,7 +10,7 @@ import uvicorn
 
 from mcpapps_bridge.api import create_app
 from mcpapps_bridge.host import BridgeHostRuntime
-from mcpapps_bridge.mcp import StdioServerConfig, build_stdio_proxy_server
+from mcpapps_bridge.mcp import StdioServerConfig, build_proxy_server
 from mcpapps_bridge.session import BridgeSessionState
 
 app = create_app()
@@ -25,17 +25,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--upstream-command")
     parser.add_argument("--upstream-arg", action="append", default=[])
     parser.add_argument("--upstream-cwd")
+    parser.add_argument("--upstream-env", action="append", default=[], dest="upstream_env")
     return parser.parse_args()
 
 
 async def serve_runtime(args: argparse.Namespace) -> None:
     session_state = BridgeSessionState(session_id=args.session_id)
+    upstream_env: dict[str, str] = {}
+    for item in args.upstream_env:
+        if "=" in item:
+            key, _, value = item.partition("=")
+            upstream_env[key] = value
+
     upstream_config = StdioServerConfig(
         command=args.upstream_command,
         args=args.upstream_arg,
         cwd=Path(args.upstream_cwd) if args.upstream_cwd else None,
+        env=upstream_env,
     )
-    proxy_server = build_stdio_proxy_server(
+    proxy_server = build_proxy_server(
         upstream_config,
         session_state,
         name=args.proxy_name,
