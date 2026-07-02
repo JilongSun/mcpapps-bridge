@@ -36,10 +36,13 @@ def create_app(
     app = FastAPI(title="mcpapps bridge", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:6274", "http://127.0.0.1:6274"],
+        allow_origins=[
+            "*",
+        ],
         allow_credentials=False,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["*"],
+        expose_headers=["mcp-session-id"],
     )
     app.state.session_state = state
     app.state.proxy_server = proxy_server
