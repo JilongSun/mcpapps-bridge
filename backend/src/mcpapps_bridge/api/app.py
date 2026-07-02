@@ -5,8 +5,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
-from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.routing import Mount
+from starlette.types import Receive, Scope, Send
 
 from mcpapps_bridge.mcp import BridgeProxyServer
 from mcpapps_bridge.session import BridgeSessionState
@@ -29,16 +31,44 @@ def create_app(
                 await proxy_server.close()
 
     app = FastAPI(title="mcpapps bridge", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:6274", "http://127.0.0.1:6274"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+    )
     app.state.session_state = state
     app.state.proxy_server = proxy_server
 
     if proxy_server is not None:
 
-        async def sse_endpoint(request: Request) -> Response:
-            return await proxy_server.handle_sse(request.scope, request.receive, request._send)  # type: ignore[reportPrivateUsage]
+        async def mcp_transport_app(scope: Scope, receive: Receive, send: Send) -> None:
+            if scope["type"] != "http":
+                response = Response(status_code=404)
+                await response(scope, receive, send)
+                return
 
-        app.add_api_route("/mcp/sse", sse_endpoint, methods=["GET"], include_in_schema=False)
-        app.router.routes.append(Mount("/mcp/messages", app=proxy_server.handle_sse_post))
+            path = scope.get("path", "")
+            method = scope.get("method", "GET")
+
+            if method == "GET" and path in {"/sse", "/mcp/sse", "/mcp/sse/"}:
+                await proxy_server.handle_sse(scope, receive, send)
+                return
+
+            if method == "POST" and path in {
+                "/messages",
+                "/messages/",
+                "/mcp/messages",
+                "/mcp/messages/",
+            }:
+                await proxy_server.handle_sse_post(scope, receive, send)
+                return
+
+            response = Response(status_code=404)
+            await response(scope, receive, send)
+
+        app.router.routes.append(Mount("/mcp", app=mcp_transport_app))
 
     @app.get("/health")
     async def health() -> dict[str, str]:

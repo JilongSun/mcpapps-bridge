@@ -42,7 +42,7 @@ class BridgeProxyServer:
         self._resource_cache: dict[str, AppResource] = {}
         self._resource_descriptors: dict[str, ResourceDescriptor] = {}
         self._server = Server(name=name, version=version)
-        self._sse_transport = SseServerTransport("/mcp/messages/")
+        self._sse_transport = SseServerTransport("/messages")
         self._lifecycle_lock = anyio.Lock()
         self._started = False
         self._register_handlers()
@@ -90,6 +90,10 @@ class BridgeProxyServer:
             )
 
     async def handle_sse_post(self, scope: Scope, receive: Receive, send: Send) -> None:
+        query_string = scope.get("query_string", b"")
+        if b"sessionId=" in query_string and b"session_id=" not in query_string:
+            scope = dict(scope)
+            scope["query_string"] = query_string.replace(b"sessionId=", b"session_id=")
         await self._sse_transport.handle_post_message(scope, receive, send)
 
     def _create_initialization_options(self, instructions: str) -> InitializationOptions:
