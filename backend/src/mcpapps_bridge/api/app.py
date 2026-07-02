@@ -22,13 +22,16 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        if proxy_server is not None:
-            await proxy_server.start()
-        try:
+        if proxy_server is None:
             yield
+            return
+
+        await proxy_server.start()
+        try:
+            async with proxy_server.run_http_transports():
+                yield
         finally:
-            if proxy_server is not None:
-                await proxy_server.close()
+            await proxy_server.close()
 
     app = FastAPI(title="mcpapps bridge", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
@@ -51,6 +54,10 @@ def create_app(
 
             path = scope.get("path", "")
             method = scope.get("method", "GET")
+
+            if method in {"GET", "POST", "DELETE"} and path in {"", "/", "/mcp", "/mcp/"}:
+                await proxy_server.handle_streamable_http(scope, receive, send)
+                return
 
             if method == "GET" and path in {"/sse", "/mcp/sse", "/mcp/sse/"}:
                 await proxy_server.handle_sse(scope, receive, send)

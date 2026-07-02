@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
+import httpx
 from mcp import ClientSession, StdioServerParameters
+from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamable_http_client
 from pydantic import AnyUrl
 from pydantic import BaseModel, Field
 
@@ -20,15 +23,18 @@ from mcpapps_bridge.models import (
 )
 
 
-class StdioServerConfig(BaseModel):
-    command: str
+class UpstreamServerConfig(BaseModel):
+    transport: Literal["stdio", "sse", "streamable-http"] = "stdio"
+    command: str | None = None
     args: list[str] = Field(default_factory=list)
     cwd: Path | None = None
     env: dict[str, str] = Field(default_factory=dict)
+    url: str | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
 
 
 class UpstreamMcpClient(Protocol):
-    async def connect(self, config: StdioServerConfig) -> UpstreamInitialization: ...
+    async def connect(self, config: UpstreamServerConfig) -> UpstreamInitialization: ...
 
     async def list_tools(self) -> list[ToolDescriptor]: ...
 
@@ -41,35 +47,11 @@ class UpstreamMcpClient(Protocol):
     async def close(self) -> None: ...
 
 
-class StdioUpstreamMcpClient:
+class BaseSessionUpstreamMcpClient:
     def __init__(self) -> None:
         self._stack: AsyncExitStack | None = None
         self._session: ClientSession | None = None
-        self._config: StdioServerConfig | None = None
-
-    async def connect(self, config: StdioServerConfig) -> UpstreamInitialization:
-        if self._session is not None:
-            await self.close()
-
-        stack = AsyncExitStack()
-        try:
-            server = StdioServerParameters(
-                command=config.command,
-                args=config.args,
-                cwd=str(config.cwd) if config.cwd is not None else None,
-                env=config.env or None,
-            )
-            read_stream, write_stream = await stack.enter_async_context(stdio_client(server))
-            session = await stack.enter_async_context(ClientSession(read_stream, write_stream))
-            result = await session.initialize()
-        except Exception:
-            await stack.aclose()
-            raise
-
-        self._stack = stack
-        self._session = session
-        self._config = config
-        return self._map_initialize_result(result)
+        self._config: UpstreamServerConfig | None = None
 
     async def list_tools(self) -> list[ToolDescriptor]:
         session = self._require_session()
@@ -190,3 +172,92 @@ class StdioUpstreamMcpClient:
         if hasattr(value, "model_dump"):
             return value.model_dump(mode="json")
         return value
+
+
+class StdioUpstreamMcpClient(BaseSessionUpstreamMcpClient):
+    async def connect(self, config: UpstreamServerConfig) -> UpstreamInitialization:
+        if config.command is None:
+            raise ValueError("stdio upstream transport requires a command")
+        if self._session is not None:
+            await self.close()
+
+        stack = AsyncExitStack()
+        try:
+            server = StdioServerParameters(
+                command=config.command,
+                args=config.args,
+                cwd=str(config.cwd) if config.cwd is not None else None,
+                env=config.env or None,
+            )
+            read_stream, write_stream = await stack.enter_async_context(stdio_client(server))
+            session = await stack.enter_async_context(ClientSession(read_stream, write_stream))
+            result = await session.initialize()
+        except Exception:
+            await stack.aclose()
+            raise
+
+        self._stack = stack
+        self._session = session
+        self._config = config
+        return self._map_initialize_result(result)
+
+
+class SseUpstreamMcpClient(BaseSessionUpstreamMcpClient):
+    async def connect(self, config: UpstreamServerConfig) -> UpstreamInitialization:
+        if config.url is None:
+            raise ValueError("sse upstream transport requires a URL")
+        if self._session is not None:
+            await self.close()
+
+        stack = AsyncExitStack()
+        try:
+            read_stream, write_stream = await stack.enter_async_context(
+                sse_client(config.url, headers=config.headers or None)
+            )
+            session = await stack.enter_async_context(ClientSession(read_stream, write_stream))
+            result = await session.initialize()
+        except Exception:
+            await stack.aclose()
+            raise
+
+        self._stack = stack
+        self._session = session
+        self._config = config
+        return self._map_initialize_result(result)
+
+
+class StreamableHttpUpstreamMcpClient(BaseSessionUpstreamMcpClient):
+    async def connect(self, config: UpstreamServerConfig) -> UpstreamInitialization:
+        if config.url is None:
+            raise ValueError("streamable-http upstream transport requires a URL")
+        if self._session is not None:
+            await self.close()
+
+        stack = AsyncExitStack()
+        try:
+            http_client = await stack.enter_async_context(
+                httpx.AsyncClient(headers=config.headers or None)
+            )
+            read_stream, write_stream, _ = await stack.enter_async_context(
+                streamable_http_client(config.url, http_client=http_client)
+            )
+            session = await stack.enter_async_context(ClientSession(read_stream, write_stream))
+            result = await session.initialize()
+        except Exception:
+            await stack.aclose()
+            raise
+
+        self._stack = stack
+        self._session = session
+        self._config = config
+        return self._map_initialize_result(result)
+
+
+def build_upstream_client(config: UpstreamServerConfig) -> UpstreamMcpClient:
+    if config.transport == "stdio":
+        return StdioUpstreamMcpClient()
+    if config.transport == "sse":
+        return SseUpstreamMcpClient()
+    if config.transport == "streamable-http":
+        return StreamableHttpUpstreamMcpClient()
+    raise ValueError(f"Unsupported upstream transport: {config.transport}")

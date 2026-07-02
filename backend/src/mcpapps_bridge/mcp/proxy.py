@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from base64 import b64decode
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 import anyio
@@ -13,6 +15,7 @@ from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.server.models import InitializationOptions
 from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.types import Annotations, ToolAnnotations
 from pydantic import AnyUrl
 from starlette.types import Receive, Scope, Send
@@ -20,13 +23,13 @@ from starlette.types import Receive, Scope, Send
 from mcpapps_bridge.models import AppResource, ResourceDescriptor, ToolCallResult, ToolDescriptor
 from mcpapps_bridge.session import BridgeSessionState
 
-from .upstream import StdioServerConfig, StdioUpstreamMcpClient, UpstreamMcpClient
+from .upstream import UpstreamMcpClient, UpstreamServerConfig, build_upstream_client
 
 
 class BridgeProxyServer:
     def __init__(
         self,
-        upstream_config: StdioServerConfig,
+        upstream_config: UpstreamServerConfig,
         session_state: BridgeSessionState,
         *,
         name: str = "mcpapps-proxy",
@@ -37,12 +40,13 @@ class BridgeProxyServer:
         self._session_state = session_state
         self._name = name
         self._version = version
-        self._upstream_client = upstream_client or StdioUpstreamMcpClient()
+        self._upstream_client = upstream_client or build_upstream_client(upstream_config)
         self._tool_cache: dict[str, ToolDescriptor] = {}
         self._resource_cache: dict[str, AppResource] = {}
         self._resource_descriptors: dict[str, ResourceDescriptor] = {}
         self._server = Server(name=name, version=version)
         self._sse_transport = SseServerTransport("/messages")
+        self._streamable_http = StreamableHTTPSessionManager(app=self._server)
         self._lifecycle_lock = anyio.Lock()
         self._started = False
         self._register_handlers()
@@ -79,6 +83,14 @@ class BridgeProxyServer:
                 )
         finally:
             await self.close()
+
+    @asynccontextmanager
+    async def run_http_transports(self) -> AsyncIterator[None]:
+        async with self._streamable_http.run():
+            yield
+
+    async def handle_streamable_http(self, scope: Scope, receive: Receive, send: Send) -> None:
+        await self._streamable_http.handle_request(scope, receive, send)
 
     async def handle_sse(self, scope: Scope, receive: Receive, send: Send) -> None:
         await self.start()
@@ -267,7 +279,7 @@ class BridgeProxyServer:
 
 
 def build_proxy_server(
-    upstream_config: StdioServerConfig,
+    upstream_config: UpstreamServerConfig,
     session_state: BridgeSessionState,
     *,
     name: str = "mcpapps-proxy",
