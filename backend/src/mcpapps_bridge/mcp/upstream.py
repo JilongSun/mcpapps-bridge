@@ -149,6 +149,8 @@ class BaseSessionUpstreamMcpClient:
 
     def _extract_ui_resource_uri(self, metadata: dict[str, Any]) -> str | None:
         candidates = [
+            metadata.get("openai/outputTemplate"),
+            metadata.get("openai/resourceUri"),
             metadata.get("ui"),
             metadata.get("_meta", {}).get("ui")
             if isinstance(metadata.get("_meta"), dict)
@@ -156,6 +158,8 @@ class BaseSessionUpstreamMcpClient:
             metadata.get("openai"),
         ]
         for candidate in candidates:
+            if isinstance(candidate, str) and candidate:
+                return candidate
             if not isinstance(candidate, dict):
                 continue
             resource_uri = candidate.get("resourceUri") or candidate.get("outputTemplate")
@@ -236,7 +240,7 @@ class StreamableHttpUpstreamMcpClient(BaseSessionUpstreamMcpClient):
         stack = AsyncExitStack()
         try:
             http_client = await stack.enter_async_context(
-                httpx.AsyncClient(headers=config.headers or None)
+                httpx.AsyncClient(headers=config.headers or None, trust_env=False)
             )
             read_stream, write_stream, _ = await stack.enter_async_context(
                 streamable_http_client(config.url, http_client=http_client)
