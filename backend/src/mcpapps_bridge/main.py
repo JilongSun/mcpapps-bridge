@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from collections.abc import Sequence
 
 import anyio
 import uvicorn
@@ -16,7 +17,7 @@ from mcpapps_bridge.session import BridgeSessionState
 app = create_app()
 
 
-def parse_args() -> argparse.Namespace:
+def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the mcpapps bridge backend.")
     parser.add_argument("--api-host", default="127.0.0.1")
     parser.add_argument("--api-port", type=int, default=8765)
@@ -33,31 +34,38 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--upstream-env", action="append", default=[], dest="upstream_env")
     parser.add_argument("--upstream-url")
     parser.add_argument("--upstream-header", action="append", default=[], dest="upstream_headers")
-    return parser.parse_args()
+    return parser
 
 
-async def serve_runtime(args: argparse.Namespace) -> None:
-    session_state = BridgeSessionState(session_id=args.session_id)
-    upstream_env: dict[str, str] = {}
-    upstream_headers: dict[str, str] = {}
-    for item in args.upstream_env:
-        if "=" in item:
-            key, _, value = item.partition("=")
-            upstream_env[key] = value
-    for item in args.upstream_headers:
-        if "=" in item:
-            key, _, value = item.partition("=")
-            upstream_headers[key] = value
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    return build_arg_parser().parse_args(argv)
 
-    upstream_config = UpstreamServerConfig(
+
+def parse_key_value_items(items: list[str]) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for item in items:
+        if "=" not in item:
+            continue
+        key, _, value = item.partition("=")
+        values[key] = value
+    return values
+
+
+def build_upstream_config(args: argparse.Namespace) -> UpstreamServerConfig:
+    return UpstreamServerConfig(
         transport=args.upstream_transport,
         command=args.upstream_command,
         args=args.upstream_arg,
         cwd=Path(args.upstream_cwd) if args.upstream_cwd else None,
-        env=upstream_env,
+        env=parse_key_value_items(args.upstream_env),
         url=args.upstream_url,
-        headers=upstream_headers,
+        headers=parse_key_value_items(args.upstream_headers),
     )
+
+
+async def serve_runtime(args: argparse.Namespace) -> None:
+    session_state = BridgeSessionState(session_id=args.session_id)
+    upstream_config = build_upstream_config(args)
     proxy_server = build_proxy_server(
         upstream_config,
         session_state,

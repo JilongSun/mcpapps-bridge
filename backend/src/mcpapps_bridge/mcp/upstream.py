@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any, Literal, Protocol
+from urllib.parse import SplitResult, urlsplit, urlunsplit
 
 import httpx
 from mcp import ClientSession, StdioServerParameters
@@ -242,8 +244,9 @@ class StreamableHttpUpstreamMcpClient(BaseSessionUpstreamMcpClient):
             http_client = await stack.enter_async_context(
                 httpx.AsyncClient(headers=config.headers or None, trust_env=False)
             )
+            selected_url = await self._select_url(http_client, config.url)
             read_stream, write_stream, _ = await stack.enter_async_context(
-                streamable_http_client(config.url, http_client=http_client)
+                streamable_http_client(selected_url, http_client=http_client)
             )
             session = await stack.enter_async_context(ClientSession(read_stream, write_stream))
             result = await session.initialize()
@@ -253,8 +256,75 @@ class StreamableHttpUpstreamMcpClient(BaseSessionUpstreamMcpClient):
 
         self._stack = stack
         self._session = session
-        self._config = config
+        self._config = config.model_copy(update={"url": selected_url})
         return self._map_initialize_result(result)
+
+    async def _select_url(self, http_client: httpx.AsyncClient, configured_url: str) -> str:
+        errors: list[str] = []
+        for candidate in self._iter_url_candidates(configured_url):
+            try:
+                await http_client.options(
+                    candidate,
+                    follow_redirects=True,
+                    timeout=httpx.Timeout(connect=2.0, read=2.0, write=2.0, pool=2.0),
+                )
+                return candidate
+            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout) as exc:
+                errors.append(f"{candidate}: {exc}")
+
+        joined_errors = "; ".join(errors) if errors else "no candidates generated"
+        raise RuntimeError(
+            f"Unable to reach streamable HTTP upstream at '{configured_url}'. Attempts: {joined_errors}"
+        )
+
+    def _iter_url_candidates(self, configured_url: str) -> list[str]:
+        candidates = [configured_url]
+        parts = urlsplit(configured_url)
+        if parts.hostname not in {"127.0.0.1", "localhost", "::1"}:
+            return candidates
+
+        for host in self._localhost_fallback_hosts():
+            candidate = self._replace_host(parts, host)
+            if candidate not in candidates:
+                candidates.append(candidate)
+        return candidates
+
+    def _localhost_fallback_hosts(self) -> list[str]:
+        hosts: list[str] = []
+        if self._running_in_wsl():
+            gateway = self._read_wsl_gateway()
+            if gateway is not None:
+                hosts.append(gateway)
+        hosts.append("host.docker.internal")
+        return hosts
+
+    def _running_in_wsl(self) -> bool:
+        if "WSL_DISTRO_NAME" in os.environ:
+            return True
+        try:
+            version = Path("/proc/version").read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return False
+        return "microsoft" in version.lower()
+
+    def _read_wsl_gateway(self) -> str | None:
+        resolv_conf = Path("/etc/resolv.conf")
+        try:
+            for line in resolv_conf.read_text(encoding="utf-8", errors="ignore").splitlines():
+                if not line.startswith("nameserver "):
+                    continue
+                _, _, value = line.partition(" ")
+                host = value.strip()
+                if host:
+                    return host
+        except OSError:
+            return None
+        return None
+
+    def _replace_host(self, parts: SplitResult, host: str) -> str:
+        port = f":{parts.port}" if parts.port is not None else ""
+        netloc = f"{host}{port}"
+        return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
 
 
 def build_upstream_client(config: UpstreamServerConfig) -> UpstreamMcpClient:

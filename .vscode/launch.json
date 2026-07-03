@@ -1,0 +1,99 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend: Streamable HTTP Upstream",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "mcpapps_bridge.debug_main",
+      "cwd": "${workspaceFolder}/backend",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/backend/src"
+      },
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "console": "integratedTerminal",
+      "args": [
+        "--api-port",
+        "8767",
+        "--proxy-name",
+        "mcpapps-http-proxy",
+        "--upstream-transport",
+        "streamable-http",
+        "--upstream-url",
+        "${input:mcpUpstreamUrl}",
+        "--probe-upstream",
+        "--probe-tool",
+        "search-users",
+        "--probe-resource-uri",
+        "ui://widget/user-search-results.html"
+      ]
+    },
+    {
+      "name": "Backend: Streamable HTTP Probe Only",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "mcpapps_bridge.debug_main",
+      "cwd": "${workspaceFolder}/backend",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/backend/src"
+      },
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "console": "integratedTerminal",
+      "args": [
+        "--upstream-transport",
+        "streamable-http",
+        "--upstream-url",
+        "${input:mcpUpstreamUrl}",
+        "--probe-upstream",
+        "--probe-tool",
+        "search-users",
+        "--probe-resource-uri",
+        "ui://widget/user-search-results.html",
+        "--probe-only"
+      ]
+    },
+    {
+      "name": "Backend: Stdio Upstream",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "mcpapps_bridge.debug_main",
+      "cwd": "${workspaceFolder}/backend",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/backend/src"
+      },
+      "python": "${workspaceFolder}/backend/.venv/bin/python",
+      "console": "integratedTerminal",
+      "args": [
+        "--api-port",
+        "8765",
+        "--proxy-name",
+        "mcpapps-proxy",
+        "--upstream-transport",
+        "stdio",
+        "--upstream-command",
+        "npx",
+        "--upstream-arg",
+        "tsx",
+        "--upstream-arg",
+        "src/stdio.ts",
+        "--upstream-cwd",
+        "${workspaceFolder}/../mock_mcp",
+        "--upstream-env",
+        "WIDGET_PORT=8761",
+        "--probe-upstream",
+        "--probe-tool",
+        "search-users",
+        "--probe-resource-uri",
+        "ui://widget/user-search-results.html"
+      ]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "mcpUpstreamUrl",
+      "type": "promptString",
+      "description": "Streamable HTTP upstream MCP URL",
+      "default": "http://10.255.255.254:8760/mcp"
+    }
+  ]
+}
