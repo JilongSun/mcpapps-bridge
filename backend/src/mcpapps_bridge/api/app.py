@@ -10,13 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.routing import Mount
 from starlette.types import Receive, Scope, Send
 
-from mcpapps_bridge.mcp import BridgeProxyServer
+from mcpapps_bridge.mcp import BridgeDownstreamServer
 from mcpapps_bridge.session import BridgeSessionState
 
 
 def create_app(
     session_state: BridgeSessionState | None = None,
-    proxy_server: BridgeProxyServer | None = None,
+    proxy_server: BridgeDownstreamServer | None = None,
 ) -> FastAPI:
     state = session_state or BridgeSessionState(session_id="local-dev-session")
 

@@ -1,6 +1,8 @@
 """MCP proxy, transport, and resource handling modules."""
 
-from .proxy import BridgeProxyServer, build_proxy_server
+from .downstream import BridgeDownstreamServer
+from .proxy import build_proxy_server
+from .runtime import BridgeRuntime
 from .upstream import (
     SseUpstreamMcpClient,
     StdioUpstreamMcpClient,
@@ -11,7 +13,8 @@ from .upstream import (
 )
 
 __all__ = [
-    "BridgeProxyServer",
+    "BridgeDownstreamServer",
+    "BridgeRuntime",
     "UpstreamServerConfig",
     "build_upstream_client",
     "SseUpstreamMcpClient",

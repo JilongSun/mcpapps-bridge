@@ -5,14 +5,14 @@ from __future__ import annotations
 import uvicorn
 
 from mcpapps_bridge.api import create_app
-from mcpapps_bridge.mcp import BridgeProxyServer
+from mcpapps_bridge.mcp import BridgeDownstreamServer
 from mcpapps_bridge.session import BridgeSessionState
 
 
 class BridgeHostRuntime:
     def __init__(
         self,
-        proxy_server: BridgeProxyServer,
+        proxy_server: BridgeDownstreamServer,
         session_state: BridgeSessionState,
         *,
         api_host: str = "127.0.0.1",
