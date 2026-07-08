@@ -23,6 +23,7 @@ from starlette.types import Receive, Scope, Send
 from mcpapps_bridge.models import AppResource, ResourceDescriptor, ToolCallResult, ToolDescriptor
 from mcpapps_bridge.session import BridgeSessionState
 
+from .handlers import register_proxy_handlers
 from .upstream import UpstreamMcpClient, UpstreamServerConfig, build_upstream_client
 
 
@@ -117,33 +118,19 @@ class BridgeProxyServer:
         )
 
     def _register_handlers(self) -> None:
-        @self._server.list_tools()
-        async def list_tools() -> list[types.Tool]:
-            tools = await self._refresh_tools()
-            return [self._to_mcp_tool(tool) for tool in tools]
-
-        @self._server.call_tool(validate_input=True)
-        async def call_tool(tool_name: str, arguments: dict[str, Any]) -> types.CallToolResult:
-            started_event = await self._session_state.start_tool_call(tool_name, arguments)
-            result = await self._upstream_client.call_tool(tool_name, arguments)
-            await self._session_state.complete_tool_call(
-                started_event.call.call_id,
-                result,
-                failed=result.is_error,
-            )
-
-            await self._preload_tool_resource(tool_name)
-            return self._to_mcp_call_tool_result(result)
-
-        @self._server.list_resources()
-        async def list_resources() -> list[types.Resource]:
-            resources = await self._refresh_resources()
-            return [self._to_mcp_resource(resource) for resource in resources]
-
-        @self._server.read_resource()
-        async def read_resource(uri: AnyUrl) -> list[ReadResourceContents]:
-            resource = await self._read_and_cache_resource(str(uri))
-            return [self._to_read_resource_contents(resource)]
+        register_proxy_handlers(
+            self._server,
+            self._session_state,
+            refresh_tools=self._refresh_tools,
+            refresh_resources=self._refresh_resources,
+            call_upstream_tool=self._upstream_client.call_tool,
+            read_and_cache_resource=self._read_and_cache_resource,
+            preload_tool_resource=self._preload_tool_resource,
+            to_mcp_tool=self._to_mcp_tool,
+            to_mcp_call_tool_result=self._to_mcp_call_tool_result,
+            to_mcp_resource=self._to_mcp_resource,
+            to_read_resource_contents=self._to_read_resource_contents,
+        )
 
     async def _refresh_tools(self) -> list[ToolDescriptor]:
         tools = await self._upstream_client.list_tools()
