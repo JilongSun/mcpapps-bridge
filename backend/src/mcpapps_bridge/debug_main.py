@@ -22,6 +22,9 @@ _COMMAND = """
     --api-port 8767
 """
 
+# ── Debug timeout (seconds) — set to 0 for no timeout ───────────────────
+_DEBUG_HTTPX_TIMEOUT: float = 3600
+
 
 def _parse_command(command: str) -> list[str]:
     """Split a shell command string into argv, skipping the uv/python prefix."""
@@ -44,6 +47,7 @@ async def run() -> None:
 
     session_state = BridgeSessionState(session_id=args.session_id)
     upstream_config = build_upstream_config(args)
+    upstream_config.httpx_timeout_seconds = _DEBUG_HTTPX_TIMEOUT
     from mcpapps_bridge.mcp import build_proxy_server
 
     proxy = build_proxy_server(upstream_config, session_state, name=args.proxy_name)

@@ -33,6 +33,7 @@ class UpstreamServerConfig(BaseModel):
     env: dict[str, str] = Field(default_factory=dict)
     url: str | None = None
     headers: dict[str, str] = Field(default_factory=dict)
+    httpx_timeout_seconds: float | None = None
 
 
 class UpstreamMcpClient(Protocol):
@@ -241,8 +242,15 @@ class StreamableHttpUpstreamMcpClient(BaseSessionUpstreamMcpClient):
 
         stack = AsyncExitStack()
         try:
+            client_timeout = (
+                httpx.Timeout(config.httpx_timeout_seconds)
+                if config.httpx_timeout_seconds is not None
+                else httpx.Timeout(30.0)
+            )
             http_client = await stack.enter_async_context(
-                httpx.AsyncClient(headers=config.headers or None, trust_env=False)
+                httpx.AsyncClient(
+                    headers=config.headers or None, trust_env=False, timeout=client_timeout
+                )
             )
             selected_url = await self._select_url(http_client, config.url)
             read_stream, write_stream, _ = await stack.enter_async_context(
