@@ -23,6 +23,7 @@ Desktop.ini
 .env
 .env.local
 .env.*.local
+mcpapps-bridge.yaml
 
 # Logs
 *.log

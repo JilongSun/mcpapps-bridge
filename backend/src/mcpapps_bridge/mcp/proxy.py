@@ -20,6 +20,7 @@ from mcp.types import Annotations, ToolAnnotations
 from pydantic import AnyUrl
 from starlette.types import Receive, Scope, Send
 
+from mcpapps_bridge.models import UpstreamInitialization
 from mcpapps_bridge.models import AppResource, ResourceDescriptor, ToolCallResult, ToolDescriptor
 from mcpapps_bridge.session import BridgeSessionState
 
@@ -49,6 +50,10 @@ class BridgeProxyServer:
         self._sse_transport = SseServerTransport("/messages")
         self._streamable_http = StreamableHTTPSessionManager(app=self._server)
         self._lifecycle_lock = anyio.Lock()
+        self._upstream_identity = UpstreamInitialization(
+            server_name=name,
+            server_version=version,
+        )
         self._started = False
         self._register_handlers()
 
@@ -58,6 +63,7 @@ class BridgeProxyServer:
                 return
             upstream = await self._upstream_client.connect(self._upstream_config)
             try:
+                self._upstream_identity = upstream
                 await self._session_state.start(upstream)
                 await self._refresh_tools()
                 await self._refresh_resources()
@@ -71,6 +77,10 @@ class BridgeProxyServer:
             if not self._started:
                 return
             self._started = False
+            self._upstream_identity = UpstreamInitialization(
+                server_name=self._name,
+                server_version=self._version,
+            )
             await self._upstream_client.close()
 
     async def serve_stdio(self) -> None:
@@ -111,10 +121,10 @@ class BridgeProxyServer:
 
     def _create_initialization_options(self, instructions: str) -> InitializationOptions:
         return InitializationOptions(
-            server_name=self._name,
-            server_version=self._version,
+            server_name=self._upstream_identity.server_name,
+            server_version=self._upstream_identity.server_version or self._version,
             capabilities=self._server.get_capabilities(NotificationOptions(), {}),
-            instructions=instructions,
+            instructions=self._upstream_identity.instructions or instructions,
         )
 
     def _register_handlers(self) -> None:

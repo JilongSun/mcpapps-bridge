@@ -11,7 +11,11 @@
                 "PYTHONPATH": "${workspaceFolder}/backend/src"
             },
             "python": "${workspaceFolder}/backend/.venv/bin/python",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "args": [
+                "--config",
+                "${workspaceFolder}/mcpapps-bridge.yaml"
+            ]
         }
     ]
 }

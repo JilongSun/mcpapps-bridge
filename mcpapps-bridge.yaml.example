@@ -1,0 +1,22 @@
+bridge:
+  apiHost: 127.0.0.1
+  apiPort: 8765
+  sessionId: local-dev-session
+  # proxyName: enterprise-ops-hub  # uncomment to set a fixed downstream name
+  # httpxTimeoutSeconds: 30  # HTTP request timeout in seconds (default: 30)
+
+defaultUpstream: enterprise-ops-hub-http
+
+upstreams:
+  enterprise-ops-hub-http:
+    transport: streamable-http
+    url: http://localhost:8760/mcp
+    # headers: {}
+
+  enterprise-ops-hub-stdio:
+    transport: stdio
+    command: npx
+    args:
+      - tsx
+      - src/stdio.ts
+    cwd: ../mock_mcp
