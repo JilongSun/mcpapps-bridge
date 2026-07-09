@@ -1,187 +1,200 @@
 # MCP Layer Architecture
 
-The `mcp/` folder is the protocol-aware boundary between upstream MCP servers and the agent runtime (or inspector). Every request from the agent flows through a pipeline of narrow, single-responsibility modules before reaching the real upstream server, and every response follows the same pipeline in reverse.
+The `mcp/` package is the protocol-aware bridge boundary between downstream MCP clients and real upstream MCP servers. Downstream clients should experience the selected upstream as a normal MCP server: tools, resources, initialization metadata, and MCP Apps annotations are proxied without exposing bridge management concepts to the model.
 
-## Data Flow
+## Responsibility Model
 
 ```mermaid
 flowchart TD
-    Agent["Agent Runtime / Inspector"] --> |"streamable HTTP / SSE / stdio"| DS["Downstream Server (downstream.py)"]
-    DS --> |"tools/list, tools/call, resources/read, ..."| HL["Handlers (handlers.py)"]
-    HL --> |"refresh_tools, call_tool, read_resource, ..."| RT["Bridge Runtime (runtime.py)"]
-    RT --> |"list_tools, call_tool, list_resources, read_resource"| UP["Upstream Client (upstream.py)"]
-    UP --> |"stdio / SSE / streamable HTTP"| Real["Real MCP Server"]
+    Client["Agent Runtime / Inspector"] --> |"streamable HTTP / SSE"| API["FastAPI route mount"]
+    API --> Manager["BridgeManager"]
+    Manager --> Route["BridgeRoute"]
+    Route --> Downstream["BridgeDownstreamServer"]
+    Downstream --> Handlers["ProxyHandlers"]
+    Handlers --> Runtime["UpstreamRuntime"]
+    Runtime --> Upstream["UpstreamMcpClient"]
+    Upstream --> Real["Real MCP Server"]
 
-    RT --> |"tool/resource cache"| Cache[("In-memory cache")]
-    RT --> |"session events"| SS["Session State (session/state.py)"]
-    RT --> |"UI resource synthesis"| Synth[("Synthesized Resources")]
-    HL --> MP["Mapper (mapper.py)"]
-    MP --> |"ToolDescriptor → types.Tool"| DS
+    Route --> Store["BridgeSessionStore"]
+    Runtime --> Store
+    Handlers --> Store
+    Runtime --> Cache[("Tool/resource cache")]
+    Handlers --> Mapper["mapper.py"]
 
-    subgraph "mcp/ folder"
-        DS
-        HL
-        RT
-        UP
-        MP
+    subgraph "mcp/ package"
+        Manager
+        Route
+        Downstream
+        Handlers
+        Runtime
+        Upstream
+        Mapper
     end
 ```
 
-## Module Responsibilities
+The important ownership rule is that lifecycle flows from the host into `BridgeManager`, then into routes and upstream runtimes. The downstream server hosts MCP transports, but it does not own upstream lifecycle or session state.
 
-### 1. `upstream.py` — Upstream MCP Clients
+## Modules
 
-**What it does:** Connects to real MCP servers. Owns the transport layer for each supported protocol.
+### `manager.py` - Route and Lifecycle Ownership
 
-**Key types:**
+`BridgeManager` is the system-level MCP owner for the backend process. It owns one or more `BridgeRoute` objects and provides the lifecycle context used by FastAPI.
+
+`BridgeRoute` binds one downstream endpoint to one upstream runtime and one route-scoped session store:
+
+- `path`: downstream MCP endpoint, currently `/mcp`.
+- `runtime`: the upstream MCP session runtime.
+- `downstream`: the downstream MCP server and transport host.
+- `session_store`: the state/event store for this route.
+
+Future multi-upstream support should add more routes rather than aggregating unrelated upstream servers behind one model-visible tool surface by default.
+
+### `upstream.py` - Upstream MCP Clients
+
+`upstream.py` connects to real MCP servers and normalizes SDK responses into bridge models.
+
+Key types:
 
 | Type | Role |
 |------|------|
-| `UpstreamServerConfig` | Transport-agnostic config model (`stdio` / `sse` / `streamable-http`) |
-| `UpstreamMcpClient` | Protocol defining the upstream interface (`connect`, `list_tools`, `call_tool`, `list_resources`, `read_resource`, `close`) |
-| `StdioUpstreamMcpClient` | stdio transport implementation using `mcp.client.stdio` |
-| `SseUpstreamMcpClient` | SSE transport implementation using `mcp.client.sse` |
-| `StreamableHttpUpstreamMcpClient` | Streamable HTTP transport using `mcp.client.streamable_http`, with WSL localhost fallback |
-| `build_upstream_client()` | Factory selecting the right client for a given config |
+| `UpstreamServerConfig` | Transport-agnostic upstream config for `stdio`, `sse`, or `streamable-http` |
+| `UpstreamMcpClient` | Protocol implemented by all upstream clients |
+| `StdioUpstreamMcpClient` | stdio upstream transport |
+| `SseUpstreamMcpClient` | legacy SSE upstream transport |
+| `StreamableHttpUpstreamMcpClient` | streamable HTTP upstream transport |
+| `build_upstream_client()` | Factory for selecting the transport client |
 
-**Boundary rules:**
-- Does not know about downstream transport, session state, or UI resource synthesis.
-- Returns typed internal models (`ToolDescriptor`, `ToolCallResult`, `AppResource`, `UpstreamInitialization`).
+Boundary rules:
 
----
+- Does not know about FastAPI, downstream routes, or session event storage.
+- Returns internal models such as `ToolDescriptor`, `ToolCallResult`, `AppResource`, and `UpstreamInitialization`.
 
-### 2. `runtime.py` — Bridge Runtime
+### `runtime.py` - Single-Upstream Runtime
 
-**What it does:** The middle layer. Owns the upstream lifecycle, maintains tool/resource caches, synchronizes session events, and handles bridge-specific logic like UI resource preloading and resource synthesis.
+`UpstreamRuntime` owns one upstream MCP session. It connects to the upstream server, tracks upstream identity, refreshes tool/resource metadata, caches loaded resources, synthesizes UI resources when needed, and records state changes through `BridgeSessionStore`.
 
-**Key class: `BridgeRuntime`**
-
-| Method | Role |
-|--------|------|
-| `start()` / `close()` | Upstream lifecycle with identity tracking |
-| `refresh_tools()` | Pull tools from upstream, update cache, notify session state |
-| `refresh_resources()` | Pull resources from upstream, fall back to synthesized UI resources |
-| `call_tool()` | Delegate tool invocation to upstream client |
-| `preload_tool_resource()` | After a tool call, fetch the tool's UI resource (if any) into cache |
-| `read_and_cache_resource()` | Read-once-then-cache resource access, notifies session state |
-| `identity` | Exposes the upstream server's real `serverInfo` so the downstream can present it |
-
-**Boundary rules:**
-- Knows about upstream clients and session state.
-- Does not know about MCP SDK `Server`, transport protocols, or HTTP routing.
-- Does not know about FastAPI, starlette scopes, or agent-facing MCP handlers.
-
----
-
-### 3. `downstream.py` — Downstream MCP Server
-
-**What it does:** Hosts the MCP protocol surface that the agent (or inspector) connects to. Manages the SDK `Server`, streamable HTTP sessions, SSE fallback, and stdio transport.
-
-**Key class: `BridgeDownstreamServer`**
+Key methods:
 
 | Method | Role |
 |--------|------|
-| `start()` / `close()` | Delegates to `BridgeRuntime` |
-| `handle_streamable_http(scope, receive, send)` | Single-endpoint streamable HTTP dispatch |
-| `handle_sse(scope, receive, send)` | Legacy SSE connect flow |
+| `start()` / `close()` | Connect and disconnect the upstream MCP client |
+| `refresh_tools()` | Pull tools from upstream, update cache, register tools in the session store |
+| `refresh_resources()` | Pull resources, or synthesize UI resources from tool metadata when upstream listing is unavailable |
+| `call_tool()` | Forward `tools/call` to the upstream client |
+| `preload_tool_resource()` | Load a tool's MCP App UI resource after a tool call when metadata provides one |
+| `read_and_cache_resource()` | Read and cache upstream resources, then record loaded resources in the session store |
+| `identity` | Exposes upstream `serverInfo` for downstream initialization responses |
+
+Boundary rules:
+
+- Knows about upstream clients, route session storage, and bridge-side caches.
+- Does not know about the MCP SDK `Server`, Starlette scopes, FastAPI, or HTTP routing.
+
+### `downstream.py` - Downstream MCP Transport Host
+
+`BridgeDownstreamServer` owns the MCP SDK `Server` and downstream transports: streamable HTTP, SSE fallback, and stdio serving when needed.
+
+Key methods:
+
+| Method | Role |
+|--------|------|
+| `handle_streamable_http(scope, receive, send)` | Streamable HTTP request dispatch |
+| `handle_sse(scope, receive, send)` | Legacy SSE connection flow |
 | `handle_sse_post(scope, receive, send)` | Legacy SSE message posting |
-| `serve_stdio()` | stdio transport loop for agent-side MCP connections |
-| `run_http_transports()` | Async context manager for the streamable HTTP session manager |
+| `run_http_transports()` | Async context for the streamable HTTP session manager |
+| `serve_stdio()` | stdio transport loop |
 
-**Identity presentation:** Uses `runtime.identity` to populate `serverInfo` in `initialize` responses, so downstream clients see the upstream server's name and version rather than a bridge-internal name.
+Identity presentation uses a runtime-provided identity callback, so downstream initialization can reflect the real upstream server rather than a bridge-internal name.
 
-**Boundary rules:**
-- Knows about `BridgeRuntime` and MCP SDK transport primitives.
-- Does not know about cache internals, upstream transport details, or session events.
+Boundary rules:
 
----
+- Knows about MCP SDK transport primitives and `ProxyHandlers`.
+- Does not start, close, or otherwise own the upstream runtime.
+- Does not access caches or session state directly.
 
-### 4. `handlers.py` — MCP Method Handlers
+### `handlers.py` - MCP Method Handlers
 
-**What it does:** Registers `list_tools`, `call_tool`, `list_resources`, and `read_resource` on a given `Server` instance. All dependencies are injected as callables, so handlers remain testable and reusable across different upstream or downstream configurations.
+`ProxyHandlers` registers and implements the MCP methods exposed by one downstream server:
 
-**Key function: `register_proxy_handlers(server, session_state, ...)`**
+- `tools/list`
+- `tools/call`
+- `resources/list`
+- `resources/read`
 
-Takes nine injectable callables:
-- `refresh_tools`, `refresh_resources` — from `BridgeRuntime`
-- `call_upstream_tool` — from `BridgeRuntime.call_tool`
-- `read_and_cache_resource`, `preload_tool_resource` — from `BridgeRuntime`
-- `to_mcp_tool`, `to_mcp_call_tool_result`, `to_mcp_resource`, `to_read_resource_contents` — from `mapper`
+It records tool call events in the route session store, delegates protocol work to `UpstreamRuntime`, and uses `mapper.py` for SDK type conversion.
 
-**Boundary rules:**
-- Knows about `Server`, `BridgeSessionState`, and mapper function signatures.
-- Does not own any state or cache.
+Boundary rules:
 
----
+- Owns MCP method behavior, not transport setup.
+- May call `UpstreamRuntime` and `BridgeSessionStore`.
+- Should remain a class so debugging and future handler-level dependencies stay explicit.
 
-### 5. `mapper.py` — Protocol Type Mapping
+### `mapper.py` - Pure Protocol Mapping
 
-**What it does:** Pure, stateless conversion between internal Pydantic models and MCP SDK types. No side effects, no I/O.
+`mapper.py` is stateless conversion code between internal bridge models and MCP SDK types.
 
-**Key functions:**
+Key functions:
 
 | Function | Converts |
 |----------|----------|
-| `to_mcp_tool(tool)` | `ToolDescriptor` → `mcp.types.Tool` |
-| `to_mcp_call_tool_result(result)` | `ToolCallResult` → `mcp.types.CallToolResult` |
-| `to_mcp_resource(resource)` | `ResourceDescriptor` → `mcp.types.Resource` |
-| `to_read_resource_contents(resource)` | `AppResource` → `ReadResourceContents` |
-| `to_content_block(item)` | `dict` → `mcp.types.ContentBlock` (text / image / audio / embedded resource) |
+| `to_mcp_tool(tool)` | `ToolDescriptor` to `mcp.types.Tool` |
+| `to_mcp_call_tool_result(result)` | `ToolCallResult` to `mcp.types.CallToolResult` |
+| `to_mcp_resource(resource)` | `ResourceDescriptor` to `mcp.types.Resource` |
+| `to_read_resource_contents(resource)` | `AppResource` to `ReadResourceContents` |
+| `to_content_block(item)` | bridge content dictionaries to MCP content blocks |
 
-**Boundary rules:**
-- Pure functions only. No async, no state, no side effects.
+Boundary rules:
 
----
+- Pure functions only.
+- No async, no I/O, no session state, no transport objects.
 
-### 6. `proxy.py` — Assembly Layer
+### `proxy.py` - Assembly Factory
 
-**What it does:** Thin factory that wires a `BridgeRuntime` and `BridgeDownstreamServer` together from an `UpstreamServerConfig`. This is the only place where the runtime and downstream boundaries meet during construction.
+`proxy.py` is the construction layer for the current single-route runtime. `build_bridge_manager()` creates the session-bound `UpstreamRuntime`, `ProxyHandlers`, `BridgeDownstreamServer`, `BridgeRoute`, and `BridgeManager`.
 
-**Key function: `build_proxy_server(upstream_config, session_state, ...)`**
+Boundary rules:
 
-Returns a `BridgeDownstreamServer` ready to be mounted in the FastAPI app or stdio loop.
+- Assembly is allowed to import multiple MCP submodules because it wires ownership boundaries together.
+- Runtime behavior should live in the owning modules, not in the factory.
 
-**Boundary rules:**
-- The only module allowed to import both `BridgeRuntime` and `BridgeDownstreamServer` simultaneously.
-
----
-
-## Request Lifecycle Example: `tools/call`
+## Request Lifecycle: `tools/call`
 
 ```mermaid
 sequenceDiagram
-    participant Agent as Agent Runtime
+    participant Client as Agent / Inspector
+    participant API as FastAPI Mount
     participant DS as Downstream Server
-    participant H as Handlers
-    participant RT as Bridge Runtime
+    participant H as ProxyHandlers
+    participant RT as UpstreamRuntime
     participant UP as Upstream Client
     participant Real as Real MCP Server
-    participant SS as Session State
+    participant Store as BridgeSessionStore
 
-    Agent->>DS: tools/call {"name":"search-users","arguments":{...}}
-    DS->>H: call_tool("search-users", {...})
-    H->>SS: start_tool_call(...) → event
-    H->>RT: call_tool("search-users", {...})
-    RT->>UP: call_tool("search-users", {...})
-    UP->>Real: tools/call via MCP transport
-    Real-->>UP: result { content: [...], ... }
+    Client->>API: tools/call
+    API->>DS: handle_streamable_http(...)
+    DS->>H: call_tool(name, arguments)
+    H->>Store: start_tool_call(...)
+    H->>RT: call_tool(name, arguments)
+    RT->>UP: call_tool(name, arguments)
+    UP->>Real: MCP tools/call
+    Real-->>UP: tool result
     UP-->>RT: ToolCallResult
     RT-->>H: ToolCallResult
-    H->>SS: complete_tool_call(...) → event
-    H->>RT: preload_tool_resource("search-users")
+    H->>Store: complete_tool_call(...)
+    H->>RT: preload_tool_resource(name)
     RT->>RT: read_and_cache_resource(ui_resource_uri)
-    H-->>DS: types.CallToolResult (via mapper)
-    DS-->>Agent: tool result
+    H-->>DS: mapped CallToolResult
+    DS-->>Client: MCP response
 ```
 
-## Future: Multi-Upstream
+## Future Expansion
 
-The current design supports one upstream ↔ one downstream. For multi-upstream, the natural extension is one `BridgeRuntime` + `BridgeDownstreamServer` per upstream, with a **router** (not shown) that maps agent-facing MCP endpoints to the correct downstream server:
+For multi-upstream support, prefer one route per upstream:
 
 ```text
-/mcp/mock_http    → BridgeDownstreamServer(mock_http_runtime)
-/mcp/github       → BridgeDownstreamServer(github_runtime)
-/mcp/filesystem   → BridgeDownstreamServer(filesystem_runtime)
+/mcp/github       -> BridgeRoute(github runtime, github session store)
+/mcp/filesystem   -> BridgeRoute(filesystem runtime, filesystem session store)
+/mcp/mock-http    -> BridgeRoute(mock-http runtime, mock-http session store)
 ```
 
-The router sits above the `mcp/` folder (likely in `api/` or a new `host/` module) and does not need to know about cache, transport, or protocol mapping internals.
+Aggregation can be added later if a product need proves it, but it should be a deliberate layer above route ownership. The default bridge behavior should remain transparent: from the model's perspective, it is interacting with the intended MCP server and tools, not with bridge administration APIs.

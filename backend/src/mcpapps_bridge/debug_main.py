@@ -17,7 +17,7 @@ import sys
 # to bypass the YAML default, e.g. _DEBUG_UPSTREAM = "mock_stdio"
 _DEBUG_CONFIG: str | None = None  # e.g. "mcpapps-bridge.yaml"
 _DEBUG_UPSTREAM = ""  # set to "" to use YAML default
-_DEBUG_HTTPX_TIMEOUT: float = 0  # seconds, 0 = no timeout
+_DEBUG_HTTPX_TIMEOUT: float | None = 9999.999  # seconds, None = use YAML default; set e.g. 30.0 to override
 # ─────────────────────────────────────────────────────────────────────────
 
 from mcpapps_bridge.main import main  # noqa: E402

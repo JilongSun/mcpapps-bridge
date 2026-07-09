@@ -1,68 +1,72 @@
 # Repository Structure
 
-```
+```text
 mcpapps-bridge/
-│
+|
 ├── backend/                          # Python bridge host
 │   ├── pyproject.toml
 │   └── src/mcpapps_bridge/
-│       ├── main.py                   # CLI entry point (control plane or combined runtime)
+│       ├── main.py                   # YAML-driven backend CLI entry point
 │       ├── api/                      # FastAPI HTTP + WebSocket control plane
-│       ├── host/                     # Runtime orchestration (proxy + API co-location)
+│       ├── host/                     # Process-level Uvicorn orchestration
+│       ├── config/                   # Typed YAML config loading and runtime selection
 │       ├── mcp/
 │       │   ├── __init__.py
-│       │   ├── upstream.py           # Upstream MCP clients (stdio, SSE, streamable HTTP)
-│       │   ├── runtime.py            # Bridge runtime: lifecycle, cache, state sync, UI resource synthesis
-│       │   ├── downstream.py         # Downstream MCP server + HTTP/SSE/stdio transports
-│       │   ├── handlers.py           # MCP method handler registration (tools, resources)
-│       │   ├── mapper.py             # Protocol type conversion (internal models ↔ MCP SDK types)
-│       │   └── proxy.py              # Assembly helper: wires runtime + downstream together
-│       ├── session/                  # Single-session state container + event store
+│       │   ├── manager.py            # BridgeManager and BridgeRoute lifecycle ownership
+│       │   ├── upstream.py           # Upstream MCP clients: stdio, SSE, streamable HTTP
+│       │   ├── runtime.py            # UpstreamRuntime: upstream lifecycle, cache, state sync
+│       │   ├── downstream.py         # Downstream MCP Server + HTTP/SSE/stdio transports
+│       │   ├── handlers.py           # ProxyHandlers for tools and resources methods
+│       │   ├── mapper.py             # Internal models <-> MCP SDK type conversion
+│       │   └── proxy.py              # Assembly helper that builds the current manager
+│       ├── session/                  # Session store protocol and in-memory implementation
 │       ├── events/                   # Typed event envelopes
-│       ├── models/                   # Shared Pydantic models (session, tool, resource)
+│       ├── models/                   # Shared Pydantic protocol/session/resource models
 │       └── agent_adapters/           # Agent-specific wiring (future)
 │
 ├── frontend/                         # React debugging + session surface
 │   ├── package.json
-│   ├── vite.config.ts                # Dev server with /api proxy to backend
+│   ├── vite.config.ts
 │   └── src/
-│       ├── main.tsx                  # React entry point
-│       ├── App.tsx                   # Three-panel shell (transcript, activity, app)
-│       ├── types.ts                  # Mirror of backend session/event models
+│       ├── main.tsx
+│       ├── App.tsx
+│       ├── types.ts
 │       ├── hooks/
-│       │   └── useBridgeSession.ts   # WebSocket subscription + snapshot fetcher
 │       └── styles.css
 │
-├── scripts/
-│   └── dev.py                        # Cross-platform full-stack dev launcher
-│
-├── docs/
-│   └── architecture/                 # Architecture notes and ADRs
-│
-├── .github/
-│   └── instructions/                 # Committed project instructions for devs and agents
-│
-├── justfile                          # Root task commands (install, backend, frontend, dev)
+├── scripts/                          # Development launchers and support scripts
+├── docs/architecture/                # Architecture notes and ADR-style documentation
+├── .github/instructions/             # Committed project and agent instructions
+├── mcpapps-bridge.yaml.example       # Example bridge runtime configuration
+├── mcpapps-bridge.yaml               # Local bridge runtime configuration
+├── justfile                          # Root task commands
 ├── README.md
 └── LICENSE
 ```
 
-## Layer Responsibilities
+## Backend Layer Responsibilities
 
 | Layer | Module | Role |
 |-------|--------|------|
-| **Upstream** | `mcp/upstream.py` | Connects to real MCP servers via stdio, SSE, or streamable HTTP; maps SDK objects to internal models |
-| **Runtime** | `mcp/runtime.py` | Owns upstream lifecycle, tool/resource caches, session sync, UI resource preloading, and synthesized resource descriptors |
-| **Downstream** | `mcp/downstream.py` | Hosts the downstream MCP `Server` with streamable HTTP, SSE fallback, and stdio transports; presents upstream identity to downstream clients |
-| **Handlers** | `mcp/handlers.py` | Registers `list_tools`, `call_tool`, `list_resources`, `read_resource` on the MCP Server with dependency injection |
-| **Mapper** | `mcp/mapper.py` | Pure protocol type conversion: `ToolDescriptor → types.Tool`, `ToolCallResult → types.CallToolResult`, content blocks, resource contents |
-| **Assembly** | `mcp/proxy.py` | Thin factory function that constructs a `BridgeRuntime` + `BridgeDownstreamServer` from config |
-| **Session** | `session/state.py` | Single-session state container; event store; thread-safe snapshot access |
-| **Events** | `events/models.py` | Typed event envelopes consumed by the control plane and frontend |
-| **Models** | `models/protocol.py` | Canonical Pydantic models shared across the backend |
-| **API** | `api/app.py` | FastAPI HTTP + WebSocket surface for session snapshot and event streaming |
-| **Host** | `host/runtime.py` | Co-locates the proxy and API in one process, sharing `BridgeSessionState` |
-| **Config** | `config/` | YAML-based bridge configuration (upstreams, runtime settings) |
-| **Frontend** | `frontend/src/` | Consumes `/api/session` and `/api/events/ws`; renders three-panel debug UI |
-| **Dev launcher** | `scripts/dev.py` | Starts backend + frontend concurrently (`just dev`) |
+| Config | `config/` | Loads YAML, validates bridge/upstream config, resolves runtime selection |
+| Host | `host/runtime.py` | Starts Uvicorn with one `BridgeManager`-backed FastAPI app |
+| API | `api/app.py` | Mounts MCP routes and exposes session snapshot/event APIs |
+| Manager | `mcp/manager.py` | Owns routes, lifecycle, and route-scoped session stores |
+| Assembly | `mcp/proxy.py` | Builds the current single-route `BridgeManager` from config |
+| Downstream | `mcp/downstream.py` | Hosts the downstream MCP SDK `Server` and transport sessions |
+| Handlers | `mcp/handlers.py` | Implements MCP methods and records session events |
+| Runtime | `mcp/runtime.py` | Owns one upstream MCP session, caches, resource preloading, and state sync |
+| Upstream | `mcp/upstream.py` | Connects to real MCP servers via stdio, SSE, or streamable HTTP |
+| Mapper | `mcp/mapper.py` | Pure conversion between bridge models and MCP SDK types |
+| Session | `session/` | Defines `BridgeSessionStore` and the in-memory `BridgeSessionState` |
+| Events | `events/` | Typed events emitted by session/runtime operations |
+| Models | `models/` | Canonical Pydantic models shared across backend layers |
 
+## Ownership Rules
+
+- `BridgeManager` is the lifecycle owner for MCP routes in the backend process.
+- `BridgeRoute` binds one downstream endpoint, one upstream runtime, and one session store.
+- `BridgeDownstreamServer` owns downstream MCP transports only; it does not start or close the upstream runtime.
+- `UpstreamRuntime` owns upstream protocol state and bridge-side caches, but it does not know about HTTP routing or MCP SDK transport serving.
+- `ProxyHandlers` own method behavior and session event recording, while `mapper.py` remains pure conversion logic.
+- Future persistent session storage should satisfy `BridgeSessionStore` rather than forcing runtime or handler code to depend on a database directly.

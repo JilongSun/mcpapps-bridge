@@ -245,7 +245,7 @@ class StreamableHttpUpstreamMcpClient(BaseSessionUpstreamMcpClient):
         try:
             client_timeout = (
                 httpx.Timeout(config.httpx_timeout_seconds)
-                if config.httpx_timeout_seconds is not None
+                if config.httpx_timeout_seconds is not None and config.httpx_timeout_seconds > 0
                 else httpx.Timeout(30.0)
             )
             http_client = await stack.enter_async_context(
