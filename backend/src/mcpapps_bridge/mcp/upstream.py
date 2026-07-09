@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from contextlib import AsyncExitStack
 from pathlib import Path
@@ -257,7 +258,18 @@ class StreamableHttpUpstreamMcpClient(BaseSessionUpstreamMcpClient):
                 streamable_http_client(selected_url, http_client=http_client)
             )
             session = await stack.enter_async_context(ClientSession(read_stream, write_stream))
-            result = await session.initialize()
+            initialize_timeout = (
+                config.httpx_timeout_seconds if config.httpx_timeout_seconds is not None else 30.0
+            )
+            try:
+                result = await asyncio.wait_for(session.initialize(), timeout=initialize_timeout)
+            except asyncio.TimeoutError:
+                raise RuntimeError(
+                    f"Timed out waiting for upstream MCP server to respond to 'initialize' "
+                    f"at '{selected_url}'. The server accepted the connection but did not "
+                    f"complete the MCP handshake within {initialize_timeout:.0f} seconds. "
+                    f"Verify that the upstream server is running and supports Streamable HTTP."
+                ) from None
         except Exception:
             await stack.aclose()
             raise
@@ -277,7 +289,12 @@ class StreamableHttpUpstreamMcpClient(BaseSessionUpstreamMcpClient):
                     timeout=httpx.Timeout(connect=2.0, read=2.0, write=2.0, pool=2.0),
                 )
                 return candidate
-            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout) as exc:
+            except (
+                httpx.ConnectError,
+                httpx.ConnectTimeout,
+                httpx.ReadTimeout,
+                httpx.WriteTimeout,
+            ) as exc:
                 errors.append(f"{candidate}: {exc}")
 
         joined_errors = "; ".join(errors) if errors else "no candidates generated"

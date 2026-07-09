@@ -50,7 +50,14 @@ class BridgeRuntime:
         async with self._lifecycle_lock:
             if self._started:
                 return
-            upstream = await self._upstream_client.connect(self._upstream_config)
+            try:
+                upstream = await self._upstream_client.connect(self._upstream_config)
+            except Exception:
+                raise RuntimeError(
+                    f"Failed to connect to upstream MCP server "
+                    f"(transport={self._upstream_config.transport}). "
+                    f"Check that the upstream server is running and the bridge configuration is correct."
+                ) from None
             try:
                 self._upstream_identity = upstream
                 await self._session_state.start(upstream)
