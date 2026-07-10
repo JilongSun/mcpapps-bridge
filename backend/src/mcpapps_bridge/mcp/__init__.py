@@ -2,7 +2,7 @@
 
 from .downstream import BridgeDownstreamServer
 from .manager import BridgeManager, BridgeRoute
-from .proxy import build_bridge_manager
+from .builder import build_bridge_manager
 from .runtime import UpstreamRuntime
 from .upstream import (
     SseUpstreamMcpClient,
