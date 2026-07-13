@@ -51,6 +51,15 @@ class UpstreamMcpClient(Protocol):
     async def close(self) -> None: ...
 
 
+class UpstreamMcpClientFactory(Protocol):
+    def create(self, config: UpstreamServerConfig) -> UpstreamMcpClient: ...
+
+
+class DefaultUpstreamMcpClientFactory:
+    def create(self, config: UpstreamServerConfig) -> UpstreamMcpClient:
+        return build_upstream_client(config)
+
+
 class BaseSessionUpstreamMcpClient:
     def __init__(self) -> None:
         self._stack: AsyncExitStack | None = None

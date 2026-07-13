@@ -23,7 +23,7 @@ from mcpapps_bridge.repositories import (
 from mcpapps_bridge.session import InMemoryBridgeSessionStoreFactory
 
 from .manager import BridgeManager
-from .upstream import UpstreamMcpClient, UpstreamServerConfig
+from .upstream import UpstreamMcpClientFactory, UpstreamServerConfig
 
 HTTP_URL_ADAPTER = TypeAdapter(AnyHttpUrl)
 
@@ -34,7 +34,7 @@ async def build_bridge_manager(
     upstream_name: str,
     display_name: str | None = None,
     version: str = "0.1.0",
-    upstream_client: UpstreamMcpClient | None = None,
+    upstream_client_factory: UpstreamMcpClientFactory | None = None,
 ) -> BridgeManager:
     slug = _normalize_slug(upstream_name)
     server = UpstreamServerDefinition(
@@ -52,10 +52,11 @@ async def build_bridge_manager(
         InMemoryEndpointRepository(),
         InMemoryBridgeSessionRepository(),
         InMemoryBridgeSessionStoreFactory(),
+        upstream_client_factory=upstream_client_factory,
         version=version,
     )
     await manager.add_upstream_server(server)
-    await manager.add_endpoint(endpoint, upstream_client=upstream_client)
+    await manager.add_endpoint(endpoint)
     return manager
 
 

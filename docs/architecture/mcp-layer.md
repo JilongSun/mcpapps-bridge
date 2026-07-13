@@ -2,20 +2,23 @@
 
 The `mcp/` package is the protocol-aware bridge boundary between downstream MCP clients and real upstream MCP servers. Downstream clients should experience the selected upstream as a normal MCP server: tools, resources, initialization metadata, and MCP Apps annotations are proxied without exposing bridge management concepts to the model.
 
-> **Transition note:** `BridgeManager` now creates all bridge session records and stores through async repository and factory ports. Each currently published endpoint still uses one manager-created bootstrap session. The next transport-dispatch phase will replace that bootstrap runtime with one bridge session per downstream `mcp-session-id`, as defined by [ADR 0001](decisions/0001-managed-endpoints-and-session-ownership.md).
+`BridgeManager` creates all bridge session records and stores through async repository and factory ports. The stable `/mcp/{endpoint_slug}` dispatcher correlates each downstream `mcp-session-id` with one isolated passthrough session runtime, as defined by [ADR 0001](decisions/0001-managed-endpoints-and-session-ownership.md).
 
 ## Responsibility Model
 
 ```mermaid
 flowchart TD
-    Client["Agent Runtime / Inspector"] --> |"streamable HTTP / SSE"| API["FastAPI route mount"]
+    Client["Agent Runtime / Inspector"] --> |"streamable HTTP / SSE fallback"| API["Stable MCP dispatcher"]
     API --> Manager["BridgeManager"]
     Manager --> Endpoint["PublishedEndpoint"]
     Manager --> Repositories["Async repositories"]
     Manager --> Factory["BridgeSessionStoreFactory"]
-    Endpoint --> Downstream["BridgeDownstreamServer"]
+    Manager --> SessionRuntime["PassthroughSessionRuntime"]
+    Endpoint --> SessionRuntime
+    SessionRuntime --> Downstream["BridgeDownstreamServer"]
     Downstream --> Handlers["ProxyHandlers"]
-    Handlers --> Runtime["UpstreamRuntime"]
+    SessionRuntime --> Runtime["UpstreamRuntime"]
+    Handlers --> Runtime
     Runtime --> Upstream["UpstreamMcpClient"]
     Upstream --> Real["Real MCP Server"]
 
@@ -28,6 +31,7 @@ flowchart TD
     subgraph "mcp/ package"
         Manager
         Endpoint
+        SessionRuntime
         Downstream
         Handlers
         Runtime
@@ -36,7 +40,7 @@ flowchart TD
     end
 ```
 
-The important ownership rule is that lifecycle flows from the host into `BridgeManager`, then into published endpoints, bridge sessions, and upstream runtimes. The CLI and FastAPI application never construct session stores. The downstream server hosts MCP transports, but it does not own upstream lifecycle or session state.
+The important ownership rule is that lifecycle flows from the host into `BridgeManager`, then into isolated passthrough session runtimes. The CLI and FastAPI application never construct session stores or upstream clients. The dispatcher identifies endpoints and transports requests, while the manager creates and closes the downstream server, upstream runtime, and store as one bridge-session-scoped unit.
 
 ## Modules
 
@@ -44,15 +48,20 @@ The important ownership rule is that lifecycle flows from the host into `BridgeM
 
 `BridgeManager` is the system-level MCP owner for the backend process. It registers upstream definitions, publishes endpoints, creates session records and stores, tracks transport-session bindings, and provides the lifecycle context used by FastAPI.
 
-`PublishedEndpoint` currently binds:
+`PublishedEndpoint` binds stable topology only:
 
 - `definition`: the persistent endpoint domain definition.
 - `path`: the derived downstream path `/mcp/{slug}`.
-- `session_id`: the manager-created bootstrap session used during this transition.
-- `runtime`: the bootstrap upstream runtime.
-- `downstream`: the downstream MCP server and transport host.
+- `upstream_server`: the enabled upstream definition selected by the passthrough binding.
 
-Session creation is repository-backed and atomic with session-store creation. The manager exposes lookup, list, touch, close, transport binding, and reverse transport resolution operations. FastAPI accesses session snapshots and events only through these manager operations.
+`PassthroughSessionRuntime` owns the live objects for one bridge session:
+
+- The bridge domain session ID and endpoint ID.
+- One `UpstreamRuntime` and upstream MCP client.
+- One `BridgeDownstreamServer` and streamable HTTP session manager.
+- Structured stop and closed events managed by the manager task group.
+
+Session creation is repository-backed and atomic with session-store creation. A new streamable HTTP initialization request starts a session runtime before dispatch. The dispatcher captures the SDK-generated `mcp-session-id` response header and persists the binding before sending that header to the client. Later requests resolve the same runtime through the repository binding. `DELETE` is handled by the MCP SDK first and then closes only the correlated bridge session runtime. For SSE fallback, the dispatcher captures the SDK session ID from the initial `endpoint` event, routes `/mcp/{slug}/messages` by that query ID, and closes the isolated runtime when the SSE connection ends.
 
 ### `upstream.py` - Upstream MCP Clients
 
@@ -64,6 +73,7 @@ Key types:
 | --- | --- |
 | `UpstreamServerConfig` | Transport-agnostic upstream config for `stdio`, `sse`, or `streamable-http` |
 | `UpstreamMcpClient` | Protocol implemented by all upstream clients |
+| `UpstreamMcpClientFactory` | Creates a fresh upstream client for each isolated bridge session |
 | `StdioUpstreamMcpClient` | stdio upstream transport |
 | `SseUpstreamMcpClient` | legacy SSE upstream transport |
 | `StreamableHttpUpstreamMcpClient` | streamable HTTP upstream transport |
@@ -155,7 +165,7 @@ Boundary rules:
 
 ### `builder.py` - Application Assembly
 
-`builder.py` converts the selected YAML upstream into seed domain definitions and wires in-memory repository and session-store adapters. It then asks `BridgeManager` to register the upstream and publish the passthrough endpoint. It never constructs session state directly.
+`builder.py` converts the selected YAML upstream into seed domain definitions and wires in-memory repository, session-store, and upstream-client factory adapters. It then asks `BridgeManager` to register the upstream and publish the passthrough endpoint. It never constructs live session state directly.
 
 Boundary rules:
 
@@ -167,7 +177,8 @@ Boundary rules:
 ```mermaid
 sequenceDiagram
     participant Client as Agent / Inspector
-    participant API as FastAPI Mount
+    participant API as Stable Dispatcher
+    participant Manager as BridgeManager
     participant DS as Downstream Server
     participant H as ProxyHandlers
     participant RT as UpstreamRuntime
@@ -176,6 +187,8 @@ sequenceDiagram
     participant Store as BridgeSessionStore
 
     Client->>API: tools/call
+    API->>Manager: resolve mcp-session-id
+    Manager-->>API: PassthroughSessionRuntime
     API->>DS: handle_streamable_http(...)
     DS->>H: call_tool(name, arguments)
     H->>Store: start_tool_call(...)
@@ -202,9 +215,9 @@ Multiple MCP endpoints share one listener and are distinguished by path:
 /mcp/all          -> aggregate endpoint   -> GitHub + Filesystem
 ```
 
-Each endpoint owns an independent MCP SDK `Server` and downstream transport session manager, but endpoints do not require separate TCP ports. A stable `/mcp/{endpoint_slug}` dispatcher will resolve the endpoint at request time so the administrative control plane can publish topology changes without rebuilding FastAPI routes.
+Endpoints do not require separate TCP ports or static FastAPI route declarations. The stable `/mcp/{endpoint_slug}` dispatcher resolves endpoint definitions at request time. Each active passthrough bridge session owns an independent MCP SDK `Server` and downstream transport session manager so its handlers cannot accidentally share an upstream runtime with another client.
 
-Passthrough endpoints remain transparent and bind one upstream. Aggregate endpoints are explicit and use binding namespaces to route tool names and resource URIs without collisions.
+Passthrough endpoints remain transparent and bind one upstream. Aggregate endpoints remain an explicit future extension and will use binding namespaces to route tool names and resource URIs without collisions.
 
 `BridgeManager` owns the domain side of the following session relationship:
 
@@ -217,4 +230,4 @@ flowchart LR
 
 Upstream sessions are isolated per bridge session and opened lazily by default. Shared upstream sessions are an explicit policy, never a transport-derived assumption. Streamable HTTP remains the strategic transport; stdio follows the same lifecycle contracts and does not introduce a separate process-pooling architecture.
 
-The manager already provides transport-session binding and reverse lookup. The current static endpoint mount does not yet call those operations, so all downstream requests to one published endpoint still reach its bootstrap runtime. The next implementation phase replaces static mounts with a stable dispatcher that captures the SDK response `mcp-session-id`, creates the corresponding bridge session, and resolves the correct per-session runtime on later requests.
+The dispatcher and manager now implement transport-session binding, reverse lookup, isolated upstream lifecycle, and per-session deletion. SQLAlchemy-backed repositories can replace the in-memory adapters without changing the MCP runtime or ASGI dispatch contracts.

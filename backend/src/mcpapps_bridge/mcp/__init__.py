@@ -2,13 +2,15 @@
 
 from .builder import build_bridge_manager
 from .downstream import BridgeDownstreamServer
-from .manager import BridgeManager, PublishedEndpoint
+from .manager import BridgeManager, PassthroughSessionRuntime, PublishedEndpoint
 from .runtime import UpstreamRuntime
 from .upstream import (
     SseUpstreamMcpClient,
     StdioUpstreamMcpClient,
     StreamableHttpUpstreamMcpClient,
+    DefaultUpstreamMcpClientFactory,
     UpstreamMcpClient,
+    UpstreamMcpClientFactory,
     UpstreamServerConfig,
     build_upstream_client,
 )
@@ -16,6 +18,7 @@ from .upstream import (
 __all__ = [
     "BridgeManager",
     "BridgeDownstreamServer",
+    "PassthroughSessionRuntime",
     "PublishedEndpoint",
     "UpstreamRuntime",
     "UpstreamServerConfig",
@@ -23,6 +26,8 @@ __all__ = [
     "SseUpstreamMcpClient",
     "StdioUpstreamMcpClient",
     "StreamableHttpUpstreamMcpClient",
+    "DefaultUpstreamMcpClientFactory",
     "UpstreamMcpClient",
+    "UpstreamMcpClientFactory",
     "build_bridge_manager",
 ]

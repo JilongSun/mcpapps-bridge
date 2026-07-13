@@ -17,8 +17,9 @@ This project is a transparent MCP Apps bridge host. To the downstream agent runt
 ## Ownership Decisions From The Manager Refactor
 
 - `BridgeManager` owns managed endpoint lifecycle and all bridge session creation, lookup, activity tracking, and closure.
-- A published endpoint owns one downstream MCP SDK `Server` and transport session manager, but not one global bridge session store.
+- A published endpoint owns stable routing and upstream binding definitions, not live MCP transport state.
 - Each downstream MCP transport session is correlated with a bridge domain session. The transport session ID is not the domain session ID.
+- Each passthrough bridge session owns one downstream MCP SDK `Server`, one transport session manager, one `UpstreamRuntime`, and one bridge session store.
 - `UpstreamRuntime` belongs to one bridge session by default and owns one upstream MCP session, upstream identity, tool/resource caches, resource preloading, and state synchronization.
 - `BridgeDownstreamServer` owns the downstream MCP SDK `Server` and transport sessions only.
 - `ProxyHandlers` own MCP method behavior and session event recording.

@@ -41,7 +41,7 @@ All downstream MCP endpoints share one ASGI listener and one configured host/por
 /mcp/all          -> aggregate endpoint
 ```
 
-The host will eventually use a stable dispatcher such as `/mcp/{endpoint_slug}`. Adding or removing a managed endpoint must not require another TCP port or a dynamic FastAPI route declaration.
+The host uses a stable dispatcher at `/mcp/{endpoint_slug}`. Adding or removing a managed endpoint does not require another TCP port or a dynamic FastAPI route declaration.
 
 ### Hybrid endpoint modes
 
@@ -90,17 +90,17 @@ SQLite with `aiosqlite` is the first supported database. The persistence API rem
 ## Consequences
 
 - Multi-server support does not multiply listening ports.
-- Each published endpoint still owns an independent MCP SDK `Server` and transport session manager.
-- Process-level session construction and the fixed `BridgeSessionState` have been removed. The current published endpoint still uses one manager-created bootstrap session until transport-session dispatch is implemented.
+- Each active passthrough bridge session owns an independent MCP SDK `Server`, transport session manager, upstream runtime, and session store.
+- Process-level session construction, the fixed `BridgeSessionState`, and endpoint bootstrap sessions have been removed.
 - Aggregate endpoint support requires explicit tool-name and resource-URI routing tables.
 - Isolated sessions may open multiple upstream connections, but correctness takes priority over implicit connection sharing.
 - Administrative CRUD can change managed topology without making YAML the runtime source of truth.
 
 ## Implementation Sequence
 
-1. Introduce topology and session domain contracts without changing runtime behavior.
-2. Add in-memory repositories and refactor `BridgeManager` around endpoint and session ownership.
-3. Replace static route mounts with a stable endpoint dispatcher.
+1. Introduce topology and session domain contracts without changing runtime behavior. Complete.
+2. Add in-memory repositories and refactor `BridgeManager` around endpoint and session ownership. Complete.
+3. Replace static route mounts with a stable endpoint dispatcher and isolated passthrough runtimes. Complete.
 4. Add async SQLAlchemy persistence, repositories, a unit of work, and a session store factory.
 5. Implement multiple passthrough endpoints.
 6. Implement aggregate tool/resource routing and lazy per-session upstream connections.

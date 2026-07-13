@@ -55,7 +55,7 @@ mcpapps-bridge/
 | Domain | `domain/` | Defines persistence-independent upstream, endpoint, binding, policy, and session contracts |
 | Repositories | `repositories/` | Defines async topology/session repository ports and concurrency-safe in-memory adapters |
 | Host | `host/runtime.py` | Starts Uvicorn with one `BridgeManager`-backed FastAPI app |
-| API | `api/app.py` | Mounts published endpoints and exposes manager-backed session snapshot/event APIs |
+| API | `api/app.py` | Dispatches stable `/mcp/{slug}` routes and exposes manager-backed session snapshot/event APIs |
 | Manager | `mcp/manager.py` | Owns topology registration, session creation, endpoint runtime assembly, and lifecycle |
 | Assembly | `mcp/builder.py` | Converts the selected YAML upstream to seed definitions and injects in-memory adapters |
 | Downstream | `mcp/downstream.py` | Hosts the downstream MCP SDK `Server` and transport sessions |
@@ -71,7 +71,8 @@ mcpapps-bridge/
 
 - `BridgeManager` is the lifecycle owner for MCP endpoints and creates, resolves, and closes bridge sessions.
 - `main.py`, FastAPI, and builders do not create session stores; they depend on manager operations and injected ports.
-- The current `PublishedEndpoint` bootstrap session is transitional until the downstream transport dispatcher activates one manager-owned session per `mcp-session-id`.
+- `PublishedEndpoint` contains stable topology only; it does not own a bootstrap session or live transport objects.
+- Each `PassthroughSessionRuntime` owns one downstream MCP SDK server, one upstream runtime, and one bridge session store correlated with one `mcp-session-id`.
 - `BridgeDownstreamServer` owns downstream MCP transports only; it does not start or close the upstream runtime.
 - An upstream runtime belongs to a bridge session by default; it owns upstream protocol state and caches but does not know about HTTP routing.
 - `ProxyHandlers` own method behavior and session event recording, while `mapper.py` remains pure conversion logic.
