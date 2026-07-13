@@ -1,7 +1,6 @@
 bridge:
   apiHost: 127.0.0.1
   apiPort: 8765
-  sessionId: local-dev-session
   # proxyName: enterprise-ops-hub  # uncomment to set a fixed downstream name
   # httpxTimeoutSeconds: 30  # HTTP request timeout in seconds (default: 30)
 

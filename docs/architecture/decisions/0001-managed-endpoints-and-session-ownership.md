@@ -91,7 +91,7 @@ SQLite with `aiosqlite` is the first supported database. The persistence API rem
 
 - Multi-server support does not multiply listening ports.
 - Each published endpoint still owns an independent MCP SDK `Server` and transport session manager.
-- The current single-route manager and fixed `BridgeSessionState` are transitional and must be replaced rather than extended.
+- Process-level session construction and the fixed `BridgeSessionState` have been removed. The current published endpoint still uses one manager-created bootstrap session until transport-session dispatch is implemented.
 - Aggregate endpoint support requires explicit tool-name and resource-URI routing tables.
 - Isolated sessions may open multiple upstream connections, but correctness takes priority over implicit connection sharing.
 - Administrative CRUD can change managed topology without making YAML the runtime source of truth.

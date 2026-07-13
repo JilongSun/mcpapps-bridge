@@ -10,7 +10,6 @@ import anyio
 from mcpapps_bridge.config import ConfigError, resolve_runtime_selection
 from mcpapps_bridge.host import BridgeHostRuntime
 from mcpapps_bridge.mcp import build_bridge_manager
-from mcpapps_bridge.session import BridgeSessionState
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -19,7 +18,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--upstream")
     parser.add_argument("--api-host")
     parser.add_argument("--api-port", type=int)
-    parser.add_argument("--session-id")
     parser.add_argument("--proxy-name")
     parser.add_argument("--httpx-timeout", type=float, dest="httpx_timeout_seconds")
     return parser
@@ -35,15 +33,13 @@ async def serve_runtime(args: argparse.Namespace) -> None:
         upstream_name=args.upstream,
         api_host=args.api_host,
         api_port=args.api_port,
-        session_id=args.session_id,
         proxy_name=args.proxy_name,
         httpx_timeout_seconds=args.httpx_timeout_seconds,
     )
-    session_state = BridgeSessionState(session_id=runtime_selection.bridge.session_id)
-    manager = build_bridge_manager(
+    manager = await build_bridge_manager(
         runtime_selection.upstream,
-        session_state,
-        name=runtime_selection.bridge.proxy_name or runtime_selection.upstream_name,
+        upstream_name=runtime_selection.upstream_name,
+        display_name=runtime_selection.bridge.proxy_name,
     )
     runtime = BridgeHostRuntime(
         manager,

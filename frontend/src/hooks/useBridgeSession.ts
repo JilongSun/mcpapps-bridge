@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { BridgeSessionSnapshot, EventBatch, SessionEvent } from "../types";
+import type {
+  BridgeSessionDetail,
+  BridgeSessionRecord,
+  BridgeSessionSnapshot,
+  EventBatch,
+  SessionEvent,
+} from "../types";
 
 type ConnectionState = "connecting" | "open" | "closed" | "error";
 
@@ -20,39 +26,60 @@ function buildWebSocketUrl(path: string): string {
 }
 
 export function useBridgeSession() {
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<BridgeSessionSnapshot>(EMPTY_SNAPSHOT);
   const [events, setEvents] = useState<SessionEvent[]>([]);
   const [connectionState, setConnectionState] = useState<ConnectionState>("connecting");
   const [error, setError] = useState<string | null>(null);
   const afterRef = useRef(0);
 
-  async function refreshSnapshot(signal?: AbortSignal) {
-    const response = await fetch("/api/session", { signal });
+  async function refreshSnapshot(currentSessionId: string, signal?: AbortSignal) {
+    const response = await fetch(`/api/sessions/${currentSessionId}`, { signal });
     if (!response.ok) {
       throw new Error(`Failed to load session snapshot: ${response.status}`);
     }
-    const nextSnapshot = (await response.json()) as BridgeSessionSnapshot;
-    setSnapshot(nextSnapshot);
+    const detail = (await response.json()) as BridgeSessionDetail;
+    setSnapshot(detail.snapshot);
   }
 
   useEffect(() => {
     const controller = new AbortController();
 
-    void refreshSnapshot(controller.signal).catch((loadError: Error) => {
-      setError(loadError.message);
-    });
+    void fetch("/api/sessions", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to list bridge sessions: ${response.status}`);
+        }
+        const sessions = (await response.json()) as BridgeSessionRecord[];
+        const currentSession = sessions.find((session) => session.status !== "closed") ?? sessions[0];
+        if (currentSession === undefined) {
+          throw new Error("The bridge has no managed sessions.");
+        }
+        setSessionId(currentSession.session_id);
+        await refreshSnapshot(currentSession.session_id, controller.signal);
+      })
+      .catch((loadError: Error) => {
+        if (loadError.name !== "AbortError") {
+          setError(loadError.message);
+        }
+      });
 
     return () => controller.abort();
   }, []);
 
   useEffect(() => {
+    if (sessionId === null) {
+      return;
+    }
     let closed = false;
     let socket: WebSocket | null = null;
     let reconnectTimer: number | null = null;
 
     const connect = () => {
       setConnectionState("connecting");
-      socket = new WebSocket(buildWebSocketUrl(`/api/events/ws?after=${afterRef.current}`));
+      socket = new WebSocket(
+        buildWebSocketUrl(`/api/sessions/${sessionId}/events/ws?after=${afterRef.current}`),
+      );
 
       socket.addEventListener("open", () => {
         if (!closed) {
@@ -65,7 +92,7 @@ export function useBridgeSession() {
         const batch = JSON.parse(messageEvent.data) as EventBatch;
         afterRef.current = batch.after;
         setEvents((previous) => [...previous, ...batch.events]);
-        void refreshSnapshot().catch((loadError: Error) => {
+        void refreshSnapshot(sessionId).catch((loadError: Error) => {
           setError(loadError.message);
         });
       });
@@ -94,7 +121,7 @@ export function useBridgeSession() {
       }
       socket?.close();
     };
-  }, []);
+  }, [sessionId]);
 
   const latestEvents = useMemo(() => events.slice(-8).reverse(), [events]);
   const latestResource = useMemo(() => {

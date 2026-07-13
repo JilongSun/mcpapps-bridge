@@ -32,6 +32,22 @@ export interface BridgeSessionSnapshot {
   event_count: number;
 }
 
+export interface BridgeSessionRecord {
+  session_id: string;
+  endpoint_id: string;
+  downstream_transport_session_id?: string | null;
+  status: string;
+  created_at: string;
+  last_activity_at: string;
+  closed_at?: string | null;
+  error_message?: string | null;
+}
+
+export interface BridgeSessionDetail {
+  session: BridgeSessionRecord;
+  snapshot: BridgeSessionSnapshot;
+}
+
 export interface SessionEvent {
   event_id: string;
   session_id: string;

@@ -56,7 +56,6 @@ def resolve_runtime_selection(
     upstream_name: str | None,
     api_host: str | None,
     api_port: int | None,
-    session_id: str | None,
     proxy_name: str | None,
     httpx_timeout_seconds: float | None = None,
 ) -> RuntimeSelection:
@@ -67,7 +66,6 @@ def resolve_runtime_selection(
         upstream_name=selected_upstream_name,
         api_host=api_host,
         api_port=api_port,
-        session_id=session_id,
         proxy_name=proxy_name,
         httpx_timeout_seconds=httpx_timeout_seconds,
     )
@@ -130,7 +128,6 @@ def _apply_bridge_overrides(
     upstream_name: str,
     api_host: str | None,
     api_port: int | None,
-    session_id: str | None,
     proxy_name: str | None,
     httpx_timeout_seconds: float | None = None,
 ) -> BridgeRuntimeConfig:
@@ -139,8 +136,6 @@ def _apply_bridge_overrides(
         updates["api_host"] = api_host
     if api_port is not None:
         updates["api_port"] = api_port
-    if session_id is not None:
-        updates["session_id"] = session_id
     if proxy_name is not None:
         updates["proxy_name"] = proxy_name
     else:

@@ -1,4 +1,4 @@
-"""In-memory single-session state for the early bridge runtime."""
+"""In-memory event and snapshot store for one bridge session."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class BridgeSessionState:
+class InMemoryBridgeSessionStore:
     def __init__(self, session_id: str):
         self._lock = anyio.Lock()
         self._snapshot = BridgeSessionSnapshot(session_id=session_id)

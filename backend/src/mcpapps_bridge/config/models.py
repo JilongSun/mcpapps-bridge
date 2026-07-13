@@ -24,7 +24,6 @@ class CamelModel(BaseModel):
 class BridgeRuntimeConfig(CamelModel):
     api_host: str = "127.0.0.1"
     api_port: int = 8765
-    session_id: str = "local-dev-session"
     proxy_name: str | None = None
     httpx_timeout_seconds: float | None = None
 
