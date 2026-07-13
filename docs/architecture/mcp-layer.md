@@ -2,6 +2,8 @@
 
 The `mcp/` package is the protocol-aware bridge boundary between downstream MCP clients and real upstream MCP servers. Downstream clients should experience the selected upstream as a normal MCP server: tools, resources, initialization metadata, and MCP Apps annotations are proxied without exposing bridge management concepts to the model.
 
+> **Transition note:** The module descriptions below document the current single-route implementation. [ADR 0001](decisions/0001-managed-endpoints-and-session-ownership.md) defines the accepted target architecture for managed endpoints and per-client sessions. In that target, `BridgeManager` creates bridge sessions and a route no longer owns one fixed session store or one upstream connection shared by every downstream client.
+
 ## Responsibility Model
 
 ```mermaid
@@ -56,7 +58,7 @@ Future multi-upstream support should add more routes rather than aggregating unr
 Key types:
 
 | Type | Role |
-|------|------|
+| --- | --- |
 | `UpstreamServerConfig` | Transport-agnostic upstream config for `stdio`, `sse`, or `streamable-http` |
 | `UpstreamMcpClient` | Protocol implemented by all upstream clients |
 | `StdioUpstreamMcpClient` | stdio upstream transport |
@@ -76,7 +78,7 @@ Boundary rules:
 Key methods:
 
 | Method | Role |
-|--------|------|
+| --- | --- |
 | `start()` / `close()` | Connect and disconnect the upstream MCP client |
 | `refresh_tools()` | Pull tools from upstream, update cache, register tools in the session store |
 | `refresh_resources()` | Pull resources, or synthesize UI resources from tool metadata when upstream listing is unavailable |
@@ -97,7 +99,7 @@ Boundary rules:
 Key methods:
 
 | Method | Role |
-|--------|------|
+| --- | --- |
 | `handle_streamable_http(scope, receive, send)` | Streamable HTTP request dispatch |
 | `handle_sse(scope, receive, send)` | Legacy SSE connection flow |
 | `handle_sse_post(scope, receive, send)` | Legacy SSE message posting |
@@ -136,7 +138,7 @@ Boundary rules:
 Key functions:
 
 | Function | Converts |
-|----------|----------|
+| --- | --- |
 | `to_mcp_tool(tool)` | `ToolDescriptor` to `mcp.types.Tool` |
 | `to_mcp_call_tool_result(result)` | `ToolCallResult` to `mcp.types.CallToolResult` |
 | `to_mcp_resource(resource)` | `ResourceDescriptor` to `mcp.types.Resource` |
@@ -187,14 +189,27 @@ sequenceDiagram
     DS-->>Client: MCP response
 ```
 
-## Future Expansion
+## Accepted Managed-Host Topology
 
-For multi-upstream support, prefer one route per upstream:
+Multiple MCP endpoints share one listener and are distinguished by path:
 
 ```text
-/mcp/github       -> BridgeRoute(github runtime, github session store)
-/mcp/filesystem   -> BridgeRoute(filesystem runtime, filesystem session store)
-/mcp/mock-http    -> BridgeRoute(mock-http runtime, mock-http session store)
+/mcp/github       -> passthrough endpoint -> GitHub upstream
+/mcp/filesystem   -> passthrough endpoint -> Filesystem upstream
+/mcp/all          -> aggregate endpoint   -> GitHub + Filesystem
 ```
 
-Aggregation can be added later if a product need proves it, but it should be a deliberate layer above route ownership. The default bridge behavior should remain transparent: from the model's perspective, it is interacting with the intended MCP server and tools, not with bridge administration APIs.
+Each endpoint owns an independent MCP SDK `Server` and downstream transport session manager, but endpoints do not require separate TCP ports. A stable `/mcp/{endpoint_slug}` dispatcher will resolve the endpoint at request time so the administrative control plane can publish topology changes without rebuilding FastAPI routes.
+
+Passthrough endpoints remain transparent and bind one upstream. Aggregate endpoints are explicit and use binding namespaces to route tool names and resource URIs without collisions.
+
+`BridgeManager` will own the following session relationship:
+
+```mermaid
+flowchart LR
+    Transport["MCP transport session ID"] --> Bridge["BridgeSession"]
+    Bridge --> One["UpstreamSession: github"]
+    Bridge --> Two["UpstreamSession: filesystem"]
+```
+
+Upstream sessions are isolated per bridge session and opened lazily by default. Shared upstream sessions are an explicit policy, never a transport-derived assumption. Streamable HTTP remains the strategic transport; stdio follows the same lifecycle contracts and does not introduce a separate process-pooling architecture.

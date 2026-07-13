@@ -16,9 +16,10 @@ This project is a transparent MCP Apps bridge host. To the downstream agent runt
 
 ## Ownership Decisions From The Manager Refactor
 
-- `BridgeManager` owns MCP route lifecycle at the backend-process level.
-- `BridgeRoute` owns the binding between one downstream endpoint, one upstream runtime, and one route-scoped session store.
-- `UpstreamRuntime` owns one upstream MCP session, upstream identity, tool/resource caches, resource preloading, and state synchronization.
+- `BridgeManager` owns managed endpoint lifecycle and all bridge session creation, lookup, activity tracking, and closure.
+- A published endpoint owns one downstream MCP SDK `Server` and transport session manager, but not one global bridge session store.
+- Each downstream MCP transport session is correlated with a bridge domain session. The transport session ID is not the domain session ID.
+- `UpstreamRuntime` belongs to one bridge session by default and owns one upstream MCP session, upstream identity, tool/resource caches, resource preloading, and state synchronization.
 - `BridgeDownstreamServer` owns the downstream MCP SDK `Server` and transport sessions only.
 - `ProxyHandlers` own MCP method behavior and session event recording.
 - `mapper.py` must stay pure: no I/O, no session state, no transport logic.
@@ -27,11 +28,14 @@ Avoid designs where downstream transport code starts upstream runtimes, or where
 
 ## Future Extension Rules
 
-- Default multi-upstream design is one upstream per downstream route, for example `/mcp/github` and `/mcp/filesystem`.
-- Add aggregation only as an explicit layer above route ownership, after a concrete use case proves it is needed.
-- Treat session storage as a route-owned dependency. New persistent stores should implement `BridgeSessionStore` rather than leaking database APIs into runtimes or handlers.
+- Use one ASGI listener with path-addressed endpoints such as `/mcp/github`, `/mcp/filesystem`, and `/mcp/all`; never allocate a port per managed server.
+- Support both explicit endpoint modes: passthrough endpoints bind one upstream, while aggregate endpoints use unique binding namespaces for collision-safe routing.
+- Isolate upstream MCP sessions per bridge session by default and open aggregate upstream connections lazily. Shared sessions require explicit configuration.
+- Treat session storage as a manager-created, bridge-session-scoped dependency. Persistent stores must not leak database sessions into runtimes or handlers.
+- Keep SQLAlchemy ORM models inside the persistence layer and translate them to persistence-independent domain models through async repositories.
 - Keep agent adapters isolated from the generic bridge runtime. Adapter-specific behavior should not enter core MCP modules.
-- Prefer config-level choices over low-level CLI flags. Runtime startup should remain YAML-driven and friendly to local debugging.
+- Keep host/database settings in YAML or environment variables. Store managed servers, endpoints, bindings, and policies in the database; YAML topology import must be explicit.
+- Prefer streamable HTTP. Keep stdio support on the same lifecycle contracts without adding special process pooling or process-count architecture.
 
 ## Documentation Expectations
 

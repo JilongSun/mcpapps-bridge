@@ -10,6 +10,7 @@ mcpapps-bridge/
 │       ├── api/                      # FastAPI HTTP + WebSocket control plane
 │       ├── host/                     # Process-level Uvicorn orchestration
 │       ├── config/                   # Typed YAML config loading and runtime selection
+│       ├── domain/                   # Managed topology and session domain contracts
 │       ├── mcp/
 │       │   ├── __init__.py
 │       │   ├── manager.py            # BridgeManager and BridgeRoute lifecycle ownership
@@ -35,7 +36,8 @@ mcpapps-bridge/
 │       └── styles.css
 │
 ├── scripts/                          # Development launchers and support scripts
-├── docs/architecture/                # Architecture notes and ADR-style documentation
+├── docs/architecture/                # Architecture notes
+│   └── decisions/                    # Accepted architecture decision records
 ├── .github/instructions/             # Committed project and agent instructions
 ├── mcpapps-bridge.yaml.example       # Example bridge runtime configuration
 ├── mcpapps-bridge.yaml               # Local bridge runtime configuration
@@ -47,8 +49,9 @@ mcpapps-bridge/
 ## Backend Layer Responsibilities
 
 | Layer | Module | Role |
-|-------|--------|------|
+| --- | --- | --- |
 | Config | `config/` | Loads YAML, validates bridge/upstream config, resolves runtime selection |
+| Domain | `domain/` | Defines persistence-independent upstream, endpoint, binding, policy, and session contracts |
 | Host | `host/runtime.py` | Starts Uvicorn with one `BridgeManager`-backed FastAPI app |
 | API | `api/app.py` | Mounts MCP routes and exposes session snapshot/event APIs |
 | Manager | `mcp/manager.py` | Owns routes, lifecycle, and route-scoped session stores |
@@ -64,9 +67,9 @@ mcpapps-bridge/
 
 ## Ownership Rules
 
-- `BridgeManager` is the lifecycle owner for MCP routes in the backend process.
-- `BridgeRoute` binds one downstream endpoint, one upstream runtime, and one session store.
+- `BridgeManager` is the lifecycle owner for MCP endpoints and creates, resolves, and closes bridge sessions.
+- The current `BridgeRoute` with one fixed session store is transitional; managed endpoints and per-client bridge sessions replace it.
 - `BridgeDownstreamServer` owns downstream MCP transports only; it does not start or close the upstream runtime.
-- `UpstreamRuntime` owns upstream protocol state and bridge-side caches, but it does not know about HTTP routing or MCP SDK transport serving.
+- An upstream runtime belongs to a bridge session by default; it owns upstream protocol state and caches but does not know about HTTP routing.
 - `ProxyHandlers` own method behavior and session event recording, while `mapper.py` remains pure conversion logic.
 - Future persistent session storage should satisfy `BridgeSessionStore` rather than forcing runtime or handler code to depend on a database directly.
