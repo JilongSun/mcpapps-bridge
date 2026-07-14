@@ -217,7 +217,7 @@ Multiple MCP endpoints share one listener and are distinguished by path:
 
 Endpoints do not require separate TCP ports or static FastAPI route declarations. The stable `/mcp/{endpoint_slug}` dispatcher resolves endpoint definitions at request time. Each active passthrough bridge session owns an independent MCP SDK `Server` and downstream transport session manager so its handlers cannot accidentally share an upstream runtime with another client.
 
-Passthrough endpoints remain transparent and bind one upstream. Aggregate endpoints remain an explicit future extension and will use binding namespaces to route tool names and resource URIs without collisions.
+Passthrough endpoints remain transparent and bind one upstream. Aggregate endpoints are the next core gateway capability after persistence and management foundations; they use stable binding namespaces to route tool names and resource URIs without collisions.
 
 `BridgeManager` owns the domain side of the following session relationship:
 

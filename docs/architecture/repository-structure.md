@@ -3,7 +3,7 @@
 ```text
 mcpapps-bridge/
 |
-├── backend/                          # Python bridge host
+├── backend/                          # Python MCP Apps Gateway backend
 │   ├── pyproject.toml
 │   └── src/mcpapps_bridge/
 │       ├── main.py                   # YAML-driven backend CLI entry point

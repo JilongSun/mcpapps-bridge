@@ -8,11 +8,13 @@ applyTo:
 
 ## Product Boundary
 
-This project is a transparent MCP Apps bridge host. To the downstream agent runtime and model, the bridge should look like the intended MCP server and tools, not like a model-visible bridge administration layer.
+This project is an MCP Apps Gateway. To the downstream agent runtime and model, the gateway should look like the intended MCP server and tools, not like a model-visible administration layer.
 
 - Preserve MCP protocol semantics for `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`, and MCP Apps metadata.
 - Keep bridge management, routing, storage, and frontend debugging concerns out of model-visible tool descriptions unless a task explicitly requires exposing them.
 - Prefer streamable HTTP as the primary downstream transport. Keep SSE compatibility as fallback behavior, not the main design axis.
+- Use explicit MCP-aware aggregate endpoints for configure-once clients. Do not use transparent TCP/HTTP interception as a substitute for MCP aggregation.
+- Treat an adapter-driven Agent Host and its Run/Event API as an optional plane. Final assistant text is not observable from MCP server traffic alone.
 
 ## Ownership Decisions From The Manager Refactor
 

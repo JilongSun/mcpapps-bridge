@@ -6,9 +6,9 @@ applyTo: "**"
 
 ## Scope
 
-This project is an MCP Apps bridge host for agent runtimes that do not natively render MCP App UIs.
+This project is an MCP Apps Gateway for agent runtimes, with MCP Apps UI hosting as a core capability and an optional adapter-driven Agent Host plane.
 
-- Prioritize the bridge and host lifecycle over chat-product polish. For v0.1, prefer a bridge debugging surface over a polished chat UI, while keeping room for transcript output, tool activity, and rendered MCP App widgets.
+- Prioritize the MCP data plane, management plane, and MCP Apps host lifecycle over chat-product polish. Keep room for an optional Agent Host surface with transcript output, tool activity, and rendered MCP App widgets.
 - Treat multi-channel support (web, CLI, gateway, IM) as future extension points unless the current task explicitly requires them.
 - Organize the repository as a traditional frontend/backend split. Keep package management and runtime configuration files inside `backend/` and `frontend/` rather than at the repository root.
 
