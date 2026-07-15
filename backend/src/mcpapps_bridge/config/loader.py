@@ -10,7 +10,13 @@ from pydantic import ValidationError
 
 from mcpapps_bridge.mcp import UpstreamServerConfig
 
-from .models import BridgeRuntimeConfig, McpAppsBridgeConfig, UpstreamFileConfig
+from .models import (
+    BridgeRuntimeConfig,
+    EndpointFileConfig,
+    McpAppsBridgeConfig,
+    StorageConfig,
+    UpstreamFileConfig,
+)
 
 CONFIG_FILE_NAME = "mcpapps-bridge.yaml"
 
@@ -31,6 +37,16 @@ class RuntimeSelection:
     upstream_name: str
     bridge: BridgeRuntimeConfig
     upstream: UpstreamServerConfig
+
+
+@dataclass(frozen=True)
+class RuntimeConfiguration:
+    config_path: Path
+    bridge: BridgeRuntimeConfig
+    storage: StorageConfig
+    upstreams: dict[str, UpstreamServerConfig]
+    endpoints: dict[str, EndpointFileConfig]
+    default_upstream: str | None
 
 
 def load_bridge_config(path: str | None = None) -> LoadedBridgeConfig:
@@ -74,6 +90,50 @@ def resolve_runtime_selection(
         upstream_name=selected_upstream_name,
         bridge=bridge,
         upstream=_to_runtime_upstream_config(upstream, loaded.path.parent, bridge),
+    )
+
+
+def resolve_runtime_configuration(
+    config_path: str | None,
+    *,
+    upstream_name: str | None,
+    api_host: str | None,
+    api_port: int | None,
+    proxy_name: str | None,
+    httpx_timeout_seconds: float | None = None,
+    storage_profile: str | None = None,
+) -> RuntimeConfiguration:
+    loaded = load_bridge_config(config_path)
+    if upstream_name is not None and upstream_name not in loaded.config.upstreams:
+        raise ConfigError(f"Unknown upstream '{upstream_name}'")
+    bridge = _apply_bridge_overrides(
+        loaded.config.bridge,
+        upstream_name=upstream_name or loaded.config.default_upstream or "mcpapps-gateway",
+        api_host=api_host,
+        api_port=api_port,
+        proxy_name=proxy_name,
+        httpx_timeout_seconds=httpx_timeout_seconds,
+    )
+    resolved_upstreams = {
+        name: _to_runtime_upstream_config(upstream, loaded.path.parent, bridge)
+        for name, upstream in loaded.config.upstreams.items()
+    }
+    storage_updates: dict[str, object] = {}
+    if storage_profile is not None:
+        if storage_profile not in {"sqlite", "memory"}:
+            raise ConfigError(f"Unsupported storage profile '{storage_profile}'")
+        storage_updates["profile"] = storage_profile
+    sqlite_path = loaded.config.storage.sqlite_path
+    if not sqlite_path.is_absolute():
+        sqlite_path = (loaded.path.parent / sqlite_path).resolve()
+    storage_updates["sqlite_path"] = sqlite_path
+    return RuntimeConfiguration(
+        config_path=loaded.path,
+        bridge=bridge,
+        storage=loaded.config.storage.model_copy(update=storage_updates),
+        upstreams=resolved_upstreams,
+        endpoints=loaded.config.endpoints,
+        default_upstream=upstream_name or loaded.config.default_upstream,
     )
 
 

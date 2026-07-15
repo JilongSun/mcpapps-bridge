@@ -16,11 +16,14 @@ from mcpapps_bridge.domain import (
     UpstreamServerDefinition,
 )
 from mcpapps_bridge.repositories import (
+    BridgeSessionRepository,
+    EndpointRepository,
     InMemoryBridgeSessionRepository,
     InMemoryEndpointRepository,
     InMemoryUpstreamServerRepository,
+    UpstreamServerRepository,
 )
-from mcpapps_bridge.session import InMemoryBridgeSessionStoreFactory
+from mcpapps_bridge.session import BridgeSessionStoreFactory, InMemoryBridgeSessionStoreFactory
 
 from .manager import BridgeManager
 from .upstream import UpstreamMcpClientFactory, UpstreamServerConfig
@@ -40,7 +43,7 @@ async def build_bridge_manager(
     server = UpstreamServerDefinition(
         slug=slug,
         display_name=display_name or upstream_name,
-        connection=_to_domain_connection(upstream_config),
+        connection=to_domain_connection(upstream_config),
     )
     endpoint = EndpointDefinition(
         slug=slug,
@@ -60,6 +63,27 @@ async def build_bridge_manager(
     return manager
 
 
+async def assemble_bridge_manager(
+    upstream_servers: UpstreamServerRepository,
+    endpoints: EndpointRepository,
+    sessions: BridgeSessionRepository,
+    session_store_factory: BridgeSessionStoreFactory,
+    *,
+    version: str = "0.1.0",
+    upstream_client_factory: UpstreamMcpClientFactory | None = None,
+) -> BridgeManager:
+    manager = BridgeManager(
+        upstream_servers,
+        endpoints,
+        sessions,
+        session_store_factory,
+        upstream_client_factory=upstream_client_factory,
+        version=version,
+    )
+    await manager.load_published_endpoints()
+    return manager
+
+
 def _normalize_slug(value: str) -> str:
     slug = re.sub(r"[^a-z0-9-]+", "-", value.lower()).strip("-")
     if not slug or not slug[0].isalpha():
@@ -67,7 +91,7 @@ def _normalize_slug(value: str) -> str:
     return slug
 
 
-def _to_domain_connection(upstream: UpstreamServerConfig) -> UpstreamConnection:
+def to_domain_connection(upstream: UpstreamServerConfig) -> UpstreamConnection:
     if upstream.transport == "streamable-http":
         if upstream.url is None:
             raise ValueError("streamable-http upstream requires a URL")

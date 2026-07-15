@@ -36,7 +36,7 @@ The repository uses `backend/var/` for mutable runtime artifacts such as the SQL
 backend/var/mcpapps-bridge.db
 ```
 
-Configuration uses a path field rather than exposing a SQLAlchemy URL. Relative paths are resolved from the YAML file directory, making the default value `./backend/var/mcpapps-bridge.db` in the repository-root configuration. Environment overrides may supply an absolute deployment path.
+Configuration uses a path field rather than exposing a SQLAlchemy URL. Relative paths are resolved from the YAML file directory, making the default value `./backend/var/mcpapps-bridge.db` in the repository-root configuration. Environment-variable storage overrides are not part of the initial implementation.
 
 SQLite is authoritative at runtime for:
 
@@ -135,7 +135,6 @@ PostgreSQL is the later persistence target. Multi-process operation additionally
 6. Mark interrupted sessions failed during startup and validate restart behavior.
 7. Add topology CRUD APIs after repository contracts and authorization requirements are reviewed.
 
-## Deferred Decisions
+## Deferred Decision
 
-- Exact environment variable names for storage overrides will be chosen with the configuration implementation.
-- Event retention and pruning are deferred until usage data establishes a safe default.
+Session events are retained indefinitely at first. A future retention and pruning policy will decide when old `session_events` rows can be deleted to control database growth. The policy is deferred because there is no usage data yet for choosing a safe age or per-session event limit; current snapshots must remain valid even when historical events are eventually pruned.

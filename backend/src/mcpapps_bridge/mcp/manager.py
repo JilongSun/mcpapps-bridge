@@ -103,6 +103,22 @@ class BridgeManager:
         await self._upstream_servers.add(server)
 
     async def add_endpoint(self, endpoint: EndpointDefinition) -> PublishedEndpoint:
+        published = await self._build_published_endpoint(endpoint)
+        await self._endpoints.add(endpoint)
+        self._register_published_endpoint(published)
+        return published
+
+    async def load_published_endpoints(self) -> None:
+        self._published.clear()
+        self._slug_index.clear()
+        for endpoint in await self._endpoints.list():
+            if endpoint.enabled:
+                self._register_published_endpoint(await self._build_published_endpoint(endpoint))
+
+    async def _build_published_endpoint(
+        self,
+        endpoint: EndpointDefinition,
+    ) -> PublishedEndpoint:
         if not endpoint.enabled:
             raise ValueError(f"Cannot publish disabled endpoint: {endpoint.slug}")
         if endpoint.mode is not EndpointMode.PASSTHROUGH:
@@ -115,11 +131,12 @@ class BridgeManager:
         if not server.enabled:
             raise ValueError(f"Cannot bind disabled upstream server: {server.slug}")
 
-        await self._endpoints.add(endpoint)
-        published = PublishedEndpoint(definition=endpoint, upstream_server=server)
+        return PublishedEndpoint(definition=endpoint, upstream_server=server)
+
+    def _register_published_endpoint(self, published: PublishedEndpoint) -> None:
+        endpoint = published.definition
         self._published[endpoint.endpoint_id] = published
         self._slug_index[endpoint.slug] = endpoint.endpoint_id
-        return published
 
     def resolve_published_endpoint(self, slug: str) -> PublishedEndpoint | None:
         endpoint_id = self._slug_index.get(slug)

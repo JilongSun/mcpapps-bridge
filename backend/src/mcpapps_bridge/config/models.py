@@ -28,6 +28,13 @@ class BridgeRuntimeConfig(CamelModel):
     httpx_timeout_seconds: float | None = None
 
 
+class StorageConfig(CamelModel):
+    profile: Literal["sqlite", "memory"] = "sqlite"
+    sqlite_path: Path = Path("backend/var/mcpapps-bridge.db")
+    auto_migrate: bool = True
+    bootstrap_mode: Literal["seed-if-empty"] = "seed-if-empty"
+
+
 class UpstreamFileConfig(CamelModel):
     transport: Literal["stdio", "sse", "streamable-http"]
     command: str | None = None
@@ -46,9 +53,28 @@ class UpstreamFileConfig(CamelModel):
         return self
 
 
+class EndpointBindingFileConfig(CamelModel):
+    upstream: str
+    namespace: str | None = None
+    priority: int = 0
+    enabled: bool = True
+
+
+class EndpointFileConfig(CamelModel):
+    display_name: str | None = None
+    mode: Literal["passthrough", "aggregate"] = "passthrough"
+    bindings: list[EndpointBindingFileConfig]
+    upstream_session_mode: Literal["isolated", "shared"] = "isolated"
+    lazy_upstream_connections: bool = True
+    idle_timeout_seconds: float = 900.0
+    enabled: bool = True
+
+
 class McpAppsBridgeConfig(CamelModel):
     bridge: BridgeRuntimeConfig = Field(default_factory=BridgeRuntimeConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
     upstreams: dict[str, UpstreamFileConfig] = Field(default_factory=dict)
+    endpoints: dict[str, EndpointFileConfig] = Field(default_factory=dict)
     default_upstream: str | None = None
 
     @model_validator(mode="after")
@@ -59,4 +85,11 @@ class McpAppsBridgeConfig(CamelModel):
             raise ValueError(
                 f"defaultUpstream '{self.default_upstream}' is not defined in upstreams"
             )
+        for endpoint_name, endpoint in self.endpoints.items():
+            for binding in endpoint.bindings:
+                if binding.upstream not in self.upstreams:
+                    raise ValueError(
+                        f"endpoint '{endpoint_name}' references unknown upstream "
+                        f"'{binding.upstream}'"
+                    )
         return self

@@ -7,9 +7,9 @@ from collections.abc import Sequence
 
 import anyio
 
-from mcpapps_bridge.config import ConfigError, resolve_runtime_selection
+from mcpapps_bridge.bootstrap import bootstrap_gateway
+from mcpapps_bridge.config import ConfigError, resolve_runtime_configuration
 from mcpapps_bridge.host import BridgeHostRuntime
-from mcpapps_bridge.mcp import build_bridge_manager
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -20,6 +20,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--api-port", type=int)
     parser.add_argument("--proxy-name")
     parser.add_argument("--httpx-timeout", type=float, dest="httpx_timeout_seconds")
+    parser.add_argument("--storage-profile", choices=["sqlite", "memory"])
     return parser
 
 
@@ -28,25 +29,26 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 async def serve_runtime(args: argparse.Namespace) -> None:
-    runtime_selection = resolve_runtime_selection(
+    configuration = resolve_runtime_configuration(
         args.config,
         upstream_name=args.upstream,
         api_host=args.api_host,
         api_port=args.api_port,
         proxy_name=args.proxy_name,
         httpx_timeout_seconds=args.httpx_timeout_seconds,
+        storage_profile=args.storage_profile,
     )
-    manager = await build_bridge_manager(
-        runtime_selection.upstream,
-        upstream_name=runtime_selection.upstream_name,
-        display_name=runtime_selection.bridge.proxy_name,
-    )
+    result = await bootstrap_gateway(configuration)
     runtime = BridgeHostRuntime(
-        manager,
-        api_host=runtime_selection.bridge.api_host,
-        api_port=runtime_selection.bridge.api_port,
+        result.manager,
+        api_host=configuration.bridge.api_host,
+        api_port=configuration.bridge.api_port,
     )
-    await runtime.serve()
+    try:
+        await runtime.serve()
+    finally:
+        if result.storage is not None:
+            await result.storage.close()
 
 
 def main() -> None:

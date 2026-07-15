@@ -5,17 +5,21 @@ mcpapps-bridge/
 |
 ├── backend/                          # Python MCP Apps Gateway backend
 │   ├── pyproject.toml
+│   ├── alembic.ini
+│   ├── migrations/                   # Versioned database schema migrations
 │   └── src/mcpapps_bridge/
 │       ├── main.py                   # YAML-driven backend CLI entry point
+│       ├── bootstrap.py              # Memory/SQLite application composition root
 │       ├── api/                      # FastAPI HTTP + WebSocket control plane
 │       ├── host/                     # Process-level Uvicorn orchestration
-│       ├── config/                   # Typed YAML config loading and runtime selection
+│       ├── config/                   # Typed YAML config and runtime configuration
 │       ├── domain/                   # Managed topology and session domain contracts
 │       ├── repositories/             # Async repository ports and in-memory adapters
+│       ├── persistence/              # SQLAlchemy models, repositories, stores, and database
 │       ├── mcp/
 │       │   ├── __init__.py
 │       │   ├── manager.py            # Managed endpoints, sessions, and lifecycle ownership
-│       │   ├── builder.py            # Current in-memory application assembly
+│       │   ├── builder.py            # Compatibility and repository-based manager assembly
 │       │   ├── upstream.py           # Upstream MCP clients: stdio, SSE, streamable HTTP
 │       │   ├── runtime.py            # UpstreamRuntime: upstream lifecycle, cache, state sync
 │       │   ├── downstream.py         # Downstream MCP Server + HTTP/SSE/stdio transports
@@ -51,13 +55,14 @@ mcpapps-bridge/
 
 | Layer | Module | Role |
 | --- | --- | --- |
-| Config | `config/` | Loads YAML, validates bridge/upstream config, resolves runtime selection |
+| Config | `config/` | Loads YAML and resolves bridge, storage, topology, and upstream configuration |
 | Domain | `domain/` | Defines persistence-independent upstream, endpoint, binding, policy, and session contracts |
 | Repositories | `repositories/` | Defines async topology/session repository ports and concurrency-safe in-memory adapters |
+| Persistence | `persistence/` | Implements SQLite database lifecycle, SQLAlchemy ORM mapping, repositories, and persistent session stores |
 | Host | `host/runtime.py` | Starts Uvicorn with one `BridgeManager`-backed FastAPI app |
 | API | `api/app.py` | Dispatches stable `/mcp/{slug}` routes and exposes manager-backed session snapshot/event APIs |
 | Manager | `mcp/manager.py` | Owns topology registration, session creation, endpoint runtime assembly, and lifecycle |
-| Assembly | `mcp/builder.py` | Converts the selected YAML upstream to seed definitions and injects in-memory adapters |
+| Assembly | `bootstrap.py`, `mcp/builder.py` | Selects storage adapters, seeds initial topology, and injects repository/store ports into the manager |
 | Downstream | `mcp/downstream.py` | Hosts the downstream MCP SDK `Server` and transport sessions |
 | Handlers | `mcp/handlers.py` | Implements MCP methods and records session events |
 | Runtime | `mcp/runtime.py` | Owns one upstream MCP session, caches, resource preloading, and state sync |
@@ -76,4 +81,5 @@ mcpapps-bridge/
 - `BridgeDownstreamServer` owns downstream MCP transports only; it does not start or close the upstream runtime.
 - An upstream runtime belongs to a bridge session by default; it owns upstream protocol state and caches but does not know about HTTP routing.
 - `ProxyHandlers` own method behavior and session event recording, while `mapper.py` remains pure conversion logic.
-- Future persistent session storage should satisfy `BridgeSessionStore` rather than forcing runtime or handler code to depend on a database directly.
+- Persistent session storage satisfies `BridgeSessionStore`; runtime and handler code never depend on SQLAlchemy or database sessions directly.
+- SQLite owns managed topology after the initial seed. YAML remains the source for host and storage settings and may seed topology only when the database is empty.

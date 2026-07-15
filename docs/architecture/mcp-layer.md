@@ -163,9 +163,11 @@ Boundary rules:
 - Pure functions only.
 - No async, no I/O, no session state, no transport objects.
 
-### `builder.py` - Application Assembly
+### `bootstrap.py` and `builder.py` - Application Assembly
 
-`builder.py` converts the selected YAML upstream into seed domain definitions and wires in-memory repository, session-store, and upstream-client factory adapters. It then asks `BridgeManager` to register the upstream and publish the passthrough endpoint. It never constructs live session state directly.
+`bootstrap.py` is the application composition root. It converts resolved YAML topology into seed domain definitions, selects SQLite or memory adapters, applies migrations when configured, seeds an empty database, marks interrupted sessions as failed, and assembles `BridgeManager`. SQLite is the normal runtime profile; the memory profile is reserved for debug and isolated execution. After the first seed, managed topology in SQLite is authoritative.
+
+`builder.py` retains the compatibility builder for the legacy single-upstream flow and provides repository-based manager assembly. Neither module constructs live session state directly.
 
 Boundary rules:
 
@@ -230,4 +232,4 @@ flowchart LR
 
 Upstream sessions are isolated per bridge session and opened lazily by default. Shared upstream sessions are an explicit policy, never a transport-derived assumption. Streamable HTTP remains the strategic transport; stdio follows the same lifecycle contracts and does not introduce a separate process-pooling architecture.
 
-The dispatcher and manager now implement transport-session binding, reverse lookup, isolated upstream lifecycle, and per-session deletion. SQLAlchemy-backed repositories can replace the in-memory adapters without changing the MCP runtime or ASGI dispatch contracts.
+The dispatcher and manager implement transport-session binding, reverse lookup, isolated upstream lifecycle, and per-session deletion. SQLAlchemy-backed repositories and session stores persist topology, session records, events, and snapshots without exposing database sessions to the MCP runtime or ASGI dispatch contracts.

@@ -32,13 +32,16 @@ The MCP data and management planes are the core product. The Agent Host plane is
 
 ### Stable aggregate endpoint
 
-Aggregate mode is the primary path to a configure-once client experience. An installation may publish a stable endpoint such as `/mcp/default`. The downstream agent configures that endpoint once; administrators then manage its upstream bindings through the management plane.
+Passthrough and aggregate are both first-class publication strategies. Aggregate is the primary path to a configure-once client experience: an installation may publish a stable endpoint such as `/mcp/default`, which administrators update through the management plane.
 
 Passthrough remains first-class for:
 
 - Debugging one upstream without aggregate rewriting.
 - Compatibility with clients or servers that require original names and resource URIs.
 - Operational isolation and diagnosis.
+- Agent-specific MCP sets when different agents should receive different upstream combinations.
+
+Deployments may combine both strategies by publishing aggregate endpoints for common toolsets and passthrough endpoints for isolated or compatibility-sensitive servers. Supporting multiple agents with distinct endpoint assignments is a future management capability, not a requirement of the initial aggregate implementation.
 
 Aggregate tools always use a stable server namespace, following the same principle used by clients such as Hermes to distinguish MCP tools from local tools. The canonical shape is:
 
@@ -73,7 +76,14 @@ An ordinary reverse proxy or ingress may terminate TLS and route traffic to the 
 
 An MCP server does not receive the agent's final assistant response. MCP traffic only exposes protocol operations sent to the server, such as tool and resource requests. The gateway therefore cannot reliably recover final text by observing MCP calls.
 
-Final text requires the optional Agent Host plane to own the agent run through an adapter. The initial public interface is a native HTTP Run/Event API that can represent:
+Final text requires the optional Agent Host plane to own the agent run through an integration boundary. The initial public interface implements the broadly supported OpenAI-compatible core:
+
+- `POST /v1/chat/completions`, including non-streaming and SSE streaming responses.
+- `POST /v1/responses`, including stored response chains where the selected runtime supports them.
+- `GET /v1/models`.
+- Liveness and readiness endpoints.
+
+This surface is prioritized because existing frontends such as Open WebUI, LobeChat, LibreChat, and similar projects can use it without a project-specific client. The canonical internal run/event model must still represent:
 
 - User input and run lifecycle.
 - Incremental and final assistant text.
@@ -82,9 +92,11 @@ Final text requires the optional Agent Host plane to own the agent run through a
 - MCP App resource/widget events.
 - Host-owned UI actions and follow-up input.
 
-The event envelope is provider-neutral. OpenAI-compatible request/stream adapters may be added later, but they are compatibility adapters rather than the canonical internal contract.
+The internal event envelope remains provider-neutral, but OpenAI-compatible HTTP contracts are the first public adapter rather than a later compatibility layer. Hermes-specific capabilities such as `/v1/capabilities`, detached runs, run cancellation and approval, session management, jobs, and custom tool-progress events are later enhancements after the common surface works.
 
-The `mcp-ui` TypeScript SDK remains a candidate for frontend/server UI resource rendering and action handling. Adoption does not make it the Agent Run API. Its exact compatibility with the native event envelope and MCP Apps protocol must be validated before implementation.
+The `MCP-UI-Org/mcp-ui` TypeScript SDK provides MCP Apps UI resource helpers, sandboxed `AppRenderer`/`AppFrame` rendering, and UI action handling. It does not provide the Agent Run API. It is the preferred renderer candidate for a future host frontend, whether that frontend is built locally or adapted from an existing OpenAI-compatible project.
+
+The current `agent_adapters/` package name and layout are provisional. The durable requirement is an isolated integration boundary between the generic gateway and an agent runtime; the package may be renamed, split, or replaced after the first OpenAI-compatible proof of concept identifies the correct contract.
 
 ### Deployment modes
 
@@ -114,13 +126,24 @@ Both modes use one backend service initially. Module boundaries must allow the A
 3. Implement aggregate tool discovery and call routing with stable server namespaces.
 4. Implement reversible aggregate resource routing and preserve MCP Apps metadata.
 5. Add list-changed notification behavior for new sessions and supported clients without mutating captured revisions.
-6. Design the provider-neutral Agent Run/Event contract and one adapter proof of concept.
-7. Validate an MCP Apps or `mcp-ui` renderer against the event contract before frontend implementation.
-8. Add compatibility APIs only after the canonical Agent Host contract is stable.
+6. Design the provider-neutral internal Run/Event contract and expose the OpenAI-compatible core with one agent runtime proof of concept.
+7. Add Hermes-specific capabilities only after the common OpenAI surface and integration boundary are stable.
+8. Validate the `mcp-ui` renderer against tool and resource events before selecting or forking a frontend.
 
 ## Deferred Decisions
 
-- The exact public aggregate resource URI encoding.
-- Whether endpoint topology revisions are full immutable records or canonical snapshots attached to sessions.
-- The first supported agent adapter and its cancellation/resume semantics.
-- Authentication boundaries for management, MCP clients, and Agent Host users.
+### Aggregate resource URI encoding
+
+Aggregate resources need a public URI containing the server namespace while still allowing the gateway to reconstruct the original upstream URI exactly. The deferred choice is the concrete encoding, for example a gateway-owned URI scheme with an encoded upstream URI versus a path-and-query form. It will be decided with aggregate resource routing because URI opacity, length, and client compatibility need executable validation.
+
+### Topology revision representation
+
+Active sessions must keep the endpoint bindings they started with. The deferred choice is how to persist that frozen topology: normalized immutable revision and binding tables, or a canonical JSON snapshot attached to each session. Normalized revisions support querying and reuse; snapshots are simpler and preserve an exact historical view. This will be decided before aggregate session creation is implemented.
+
+### Agent runtime integration
+
+The common public API is OpenAI-compatible, but the internal integration with an agent runtime is not fixed. The first proof of concept will determine whether a renamed adapter protocol, a subprocess/HTTP client, or a dedicated Agent Host service best handles streaming, cancellation, resume, approval, and tool events. Hermes-specific behavior must remain outside the generic MCP gateway modules.
+
+### Authentication boundaries
+
+The management API can modify servers and credentials, MCP clients can invoke powerful tools, and Agent Host users can start agent runs. These are different trust levels and may require separate tokens, scopes, or identities. Authentication is deferred until the corresponding public APIs are designed, but one shared unrestricted credential must not become an accidental permanent contract.

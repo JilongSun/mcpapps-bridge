@@ -4,6 +4,12 @@ bridge:
   # proxyName: enterprise-ops-hub  # uncomment to set a fixed downstream name
   # httpxTimeoutSeconds: 30  # HTTP request timeout in seconds (default: 30)
 
+storage:
+  profile: sqlite
+  sqlitePath: ./backend/var/mcpapps-bridge.db
+  autoMigrate: true
+  bootstrapMode: seed-if-empty
+
 defaultUpstream: enterprise-ops-hub-http
 
 upstreams:
