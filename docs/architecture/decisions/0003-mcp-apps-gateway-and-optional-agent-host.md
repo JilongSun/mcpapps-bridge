@@ -1,7 +1,8 @@
-# ADR 0003: MCP Apps Gateway and Optional Agent Host
+# ADR 0003: MCP Apps Gateway and Agent Host
 
 - Status: Accepted
 - Date: 2026-07-14
+- Amended: 2026-07-16
 
 ## Context
 
@@ -20,28 +21,28 @@ The product is an **MCP Apps Gateway**.
 
 Its required core is an MCP-aware gateway that preserves MCP semantics and adds MCP Apps hosting support. It is not a generic TCP forward proxy, HTTP interception proxy, or model-visible administration server.
 
-The product has three planes:
+The product has three planes and two equal product pillars. The Gateway pillar owns the MCP data and management planes. The Agent Host pillar owns agent execution and the enhanced UI event surface. Agent Host activation remains optional for deployments that only need MCP gateway behavior, but the capability is part of the first release rather than a deferred add-on.
 
 | Plane | Responsibility |
 | --- | --- |
 | MCP data plane | Streamable HTTP/SSE endpoints, MCP session routing, passthrough and aggregate tool/resource forwarding, MCP Apps metadata preservation |
 | Management plane | Upstream and endpoint CRUD, policies, health, session inspection, audit events, and deployment configuration |
-| Optional Agent Host plane | Agent adapters, run lifecycle, assistant text/events, tool activity, rendered MCP App widgets, and host-owned UI actions |
+| Agent Host plane | Agent adapters, run lifecycle, assistant text/events, tool activity, rendered MCP App widgets, and host-owned UI actions |
 
-The MCP data and management planes are the core product. The Agent Host plane is optional and depends on adapters; it must not leak agent-specific behavior into the generic gateway runtime.
+The Gateway and Agent Host pillars are equal core capabilities. The Agent Host depends on adapters and must not leak agent-specific behavior into the generic gateway runtime.
 
 ### Stable aggregate endpoint
 
-Passthrough and aggregate are both first-class publication strategies. Aggregate is the primary path to a configure-once client experience: an installation may publish a stable endpoint such as `/mcp/default`, which administrators update through the management plane.
+Aggregate is the primary publication strategy and the path to a configure-once client experience: an installation may publish a stable endpoint such as `/mcp/default`, which administrators update through the management plane.
 
-Passthrough remains first-class for:
+Passthrough remains a lower-priority compatibility and diagnostic strategy for:
 
 - Debugging one upstream without aggregate rewriting.
 - Compatibility with clients or servers that require original names and resource URIs.
 - Operational isolation and diagnosis.
 - Agent-specific MCP sets when different agents should receive different upstream combinations.
 
-Deployments may combine both strategies by publishing aggregate endpoints for common toolsets and passthrough endpoints for isolated or compatibility-sensitive servers. Supporting multiple agents with distinct endpoint assignments is a future management capability, not a requirement of the initial aggregate implementation.
+Deployments may combine both strategies by publishing aggregate endpoints for common toolsets and passthrough endpoints for isolated or compatibility-sensitive servers. Distinct downstream consumers should be assigned endpoint revisions or policies rather than receiving copied aggregate sessions. Supporting multiple consumers with distinct endpoint assignments is a future management capability, not a requirement of the initial aggregate implementation.
 
 Aggregate tools always use a stable server namespace, following the same principle used by clients such as Hermes to distinguish MCP tools from local tools. The canonical shape is:
 
@@ -55,7 +56,11 @@ Names are always namespaced, not only when a collision occurs. Adding a new upst
 
 ### Topology consistency
 
-Each new bridge session captures an immutable endpoint topology revision containing its bindings, namespaces, and relevant policy. Administrative changes affect new sessions only. Existing sessions continue with their captured revision until they close.
+Each new bridge session captures an immutable endpoint topology revision containing its bindings, namespaces, and relevant policy. Each binding references an immutable upstream revision so later changes to transport configuration cannot affect a lazy connection created by an existing session. Administrative changes create new revisions and affect new sessions only. Existing sessions continue with their captured revision until they close.
+
+The first release stores normalized immutable endpoint revisions, upstream revisions, and revision bindings in the relational database. A bridge session references exactly one endpoint revision. Session creation materializes that revision into a process-local routing plan; MCP method dispatch does not query persistence for every tool or resource call.
+
+Domain and MCP modules access topology through behavior-oriented async ports. They do not import SQLAlchemy models, sessions, or relational query concepts. The initial adapter uses SQLAlchemy, while a future graph-backed adapter may implement the same topology contracts if multi-tenant relationship and impact-analysis requirements justify a graph database. A graph database is not required by the first release.
 
 Live topology mutation for existing sessions is deferred. A future design may use MCP list-changed notifications and explicit client capability checks, but it must not silently change tool routing during an active run.
 
@@ -76,7 +81,7 @@ An ordinary reverse proxy or ingress may terminate TLS and route traffic to the 
 
 An MCP server does not receive the agent's final assistant response. MCP traffic only exposes protocol operations sent to the server, such as tool and resource requests. The gateway therefore cannot reliably recover final text by observing MCP calls.
 
-Final text requires the optional Agent Host plane to own the agent run through an integration boundary. The initial public interface implements the broadly supported OpenAI-compatible core:
+Final text requires the Agent Host plane to own the agent run through an integration boundary. The first-release public interface implements the broadly supported OpenAI-compatible core:
 
 - `POST /v1/chat/completions`, including non-streaming and SSE streaming responses.
 - `POST /v1/responses`, including stored response chains where the selected runtime supports them.
@@ -96,7 +101,9 @@ The internal event envelope remains provider-neutral, but OpenAI-compatible HTTP
 
 The `MCP-UI-Org/mcp-ui` TypeScript SDK provides MCP Apps UI resource helpers, sandboxed `AppRenderer`/`AppFrame` rendering, and UI action handling. It does not provide the Agent Run API. It is the preferred renderer candidate for a future host frontend, whether that frontend is built locally or adapted from an existing OpenAI-compatible project.
 
-The current `agent_adapters/` package name and layout are provisional. The durable requirement is an isolated integration boundary between the generic gateway and an agent runtime; the package may be renamed, split, or replaced after the first OpenAI-compatible proof of concept identifies the correct contract.
+The current `agent_adapters/` package name and layout are provisional. The durable requirement is an isolated integration boundary between the generic gateway and an independently deployed agent runtime. The first integration uses HTTP and SSE. A generic OpenAI-compatible adapter contains only standard behavior; a separate Hermes HTTP adapter owns Hermes-specific endpoints, event types, and capabilities even when it reuses the common OpenAI request surface.
+
+Hermes ACP is a possible future local-process adapter for an Electron or editor integration. ACP uses JSON-RPC over stdio and must remain separate from the HTTP adapter contracts. It is not part of the first release and does not replace the provider-neutral internal run/event model.
 
 ### Deployment modes
 
@@ -115,20 +122,21 @@ Both modes use one backend service initially. Module boundaries must allow the A
 - The service remains protocol-aware and can preserve MCP Apps behavior rather than acting as a byte-forwarding proxy.
 - Always-namespaced tool identities remain stable as upstream servers are added.
 - Existing sessions are insulated from administrative topology changes.
-- Passthrough remains useful and does not become a deprecated implementation detail.
+- Passthrough remains available for compatibility and diagnosis but does not lead aggregate delivery.
 - Final assistant text is available only when the service runs the agent through an adapter.
 - The management API, MCP API, and Agent Run API have distinct authentication and authorization surfaces.
 
 ## Implementation Sequence
 
 1. Complete SQLite persistence and management-domain CRUD foundations.
-2. Add endpoint topology revisions and capture one revision per bridge session.
+2. Add normalized endpoint and upstream revisions and capture one endpoint revision per bridge session.
 3. Implement aggregate tool discovery and call routing with stable server namespaces.
 4. Implement reversible aggregate resource routing and preserve MCP Apps metadata.
-5. Add list-changed notification behavior for new sessions and supported clients without mutating captured revisions.
-6. Design the provider-neutral internal Run/Event contract and expose the OpenAI-compatible core with one agent runtime proof of concept.
-7. Add Hermes-specific capabilities only after the common OpenAI surface and integration boundary are stable.
-8. Validate the `mcp-ui` renderer against tool and resource events before selecting or forking a frontend.
+5. Design the provider-neutral internal Run/Event contract and expose the OpenAI-compatible core through an independently deployed Hermes HTTP proof of concept.
+6. Separate generic OpenAI-compatible behavior from Hermes-specific HTTP capabilities.
+7. Perform an architecture and terminology review before freezing public backend contracts and coupling the first-party frontend to them.
+8. Implement the first-party Agent UI and minimal management surface and validate the `mcp-ui` renderer against tool and resource events.
+9. Add list-changed notification behavior for new sessions and supported clients without mutating captured revisions.
 
 ## Deferred Decisions
 
@@ -136,13 +144,9 @@ Both modes use one backend service initially. Module boundaries must allow the A
 
 Aggregate resources need a public URI containing the server namespace while still allowing the gateway to reconstruct the original upstream URI exactly. The deferred choice is the concrete encoding, for example a gateway-owned URI scheme with an encoded upstream URI versus a path-and-query form. It will be decided with aggregate resource routing because URI opacity, length, and client compatibility need executable validation.
 
-### Topology revision representation
-
-Active sessions must keep the endpoint bindings they started with. The deferred choice is how to persist that frozen topology: normalized immutable revision and binding tables, or a canonical JSON snapshot attached to each session. Normalized revisions support querying and reuse; snapshots are simpler and preserve an exact historical view. This will be decided before aggregate session creation is implemented.
-
 ### Agent runtime integration
 
-The common public API is OpenAI-compatible, but the internal integration with an agent runtime is not fixed. The first proof of concept will determine whether a renamed adapter protocol, a subprocess/HTTP client, or a dedicated Agent Host service best handles streaming, cancellation, resume, approval, and tool events. Hermes-specific behavior must remain outside the generic MCP gateway modules.
+The first integration boundary is HTTP/SSE to an independently deployed Hermes runtime. The remaining decision is the exact provider-neutral run/event contract needed for streaming, cancellation, resume, approval, tool events, and MCP App UI actions. Standard OpenAI-compatible behavior and Hermes-specific behavior must remain separate adapters, and all agent-specific behavior must remain outside the generic MCP gateway modules.
 
 ### Authentication boundaries
 

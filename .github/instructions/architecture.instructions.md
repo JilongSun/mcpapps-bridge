@@ -14,7 +14,7 @@ This project is an MCP Apps Gateway. To the downstream agent runtime and model, 
 - Keep bridge management, routing, storage, and frontend debugging concerns out of model-visible tool descriptions unless a task explicitly requires exposing them.
 - Prefer streamable HTTP as the primary downstream transport. Keep SSE compatibility as fallback behavior, not the main design axis.
 - Use explicit MCP-aware aggregate endpoints for configure-once clients. Do not use transparent TCP/HTTP interception as a substitute for MCP aggregation.
-- Treat an adapter-driven Agent Host and its Run/Event API as an optional plane. Final assistant text is not observable from MCP server traffic alone.
+- Treat the adapter-driven Agent Host and Gateway as equal product pillars. Agent Host activation may be disabled per deployment, but its Run/Event API and first-party UI are required for the first release. Final assistant text is not observable from MCP server traffic alone.
 
 ## Ownership Decisions From The Manager Refactor
 
@@ -32,7 +32,7 @@ Avoid designs where downstream transport code starts upstream runtimes, or where
 ## Future Extension Rules
 
 - Use one ASGI listener with path-addressed endpoints such as `/mcp/github`, `/mcp/filesystem`, and `/mcp/all`; never allocate a port per managed server.
-- Support both explicit endpoint modes: passthrough endpoints bind one upstream, while aggregate endpoints use unique binding namespaces for collision-safe routing.
+- Prioritize aggregate endpoints with unique binding namespaces for collision-safe routing. Retain passthrough endpoints as a lower-priority compatibility and diagnostic mode that binds one upstream.
 - Isolate upstream MCP sessions per bridge session by default and open aggregate upstream connections lazily. Shared sessions require explicit configuration.
 - Treat session storage as a manager-created, bridge-session-scoped dependency. Persistent stores must not leak database sessions into runtimes or handlers.
 - Keep SQLAlchemy ORM models inside the persistence layer and translate them to persistence-independent domain models through async repositories.

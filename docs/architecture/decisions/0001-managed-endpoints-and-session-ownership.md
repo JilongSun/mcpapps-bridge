@@ -1,6 +1,6 @@
 # ADR 0001: Managed Endpoints and Session Ownership
 
-- Status: Accepted
+- Status: Accepted; endpoint priority amended by ADR 0003
 - Date: 2026-07-13
 
 ## Context
@@ -45,7 +45,9 @@ The host uses a stable dispatcher at `/mcp/{endpoint_slug}`. Adding or removing 
 
 ### Hybrid endpoint modes
 
-Both endpoint modes are first-class:
+ADR 0003 later made aggregate the primary publication strategy and retained passthrough as a lower-priority compatibility and diagnostic strategy. The ownership and protocol behavior below remain valid.
+
+The two endpoint modes have distinct protocol behavior:
 
 - `passthrough` binds exactly one enabled upstream server. It preserves upstream tool names, resource URIs, initialization metadata, and MCP Apps metadata wherever protocol compatibility permits.
 - `aggregate` binds one or more enabled upstream servers. Every binding has a unique namespace used for collision-safe tool and resource routing.

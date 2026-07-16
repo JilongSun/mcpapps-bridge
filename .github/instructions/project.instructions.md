@@ -6,9 +6,9 @@ applyTo: "**"
 
 ## Scope
 
-This project is an MCP Apps Gateway for agent runtimes, with MCP Apps UI hosting as a core capability and an optional adapter-driven Agent Host plane.
+This project has two equal core pillars: an MCP Apps Gateway for agent runtimes and an adapter-driven Agent Host with enhanced MCP Apps UI capabilities. Agent Host activation is optional per deployment, but the capability is part of the first release.
 
-- Prioritize the MCP data plane, management plane, and MCP Apps host lifecycle over chat-product polish. Keep room for an optional Agent Host surface with transcript output, tool activity, and rendered MCP App widgets.
+- Prioritize aggregate MCP data-plane behavior, management contracts, Agent Host runtime contracts, and MCP Apps lifecycle over broad chat-product polish. The first Agent Host surface includes transcript output, tool activity, and rendered MCP App widgets.
 - Treat multi-channel support (web, CLI, gateway, IM) as future extension points unless the current task explicitly requires them.
 - Organize the repository as a traditional frontend/backend split. Keep package management and runtime configuration files inside `backend/` and `frontend/` rather than at the repository root.
 
