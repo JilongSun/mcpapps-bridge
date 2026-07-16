@@ -10,18 +10,20 @@ storage:
   autoMigrate: true
   bootstrapMode: seed-if-empty
 
-defaultUpstream: enterprise-ops-hub-http
+endpoints:
+  test-endpoint:
+    displayName: Test Endpoint
+    mode: passthrough
+    bindings:
+      - upstream: enterprise-ops-hub-http-1
 
 upstreams:
-  enterprise-ops-hub-http:
+  enterprise-ops-hub-http-1:
     transport: streamable-http
     url: http://localhost:8760/mcp
     # headers: {}
 
-  enterprise-ops-hub-stdio:
-    transport: stdio
-    command: npx
-    args:
-      - tsx
-      - src/stdio.ts
-    cwd: ../mock_mcp
+  enterprise-ops-hub-http-2:
+    transport: streamable-http
+    url: http://localhost:8759/mcp
+    # headers: {}

@@ -11,8 +11,5 @@ backend:
 frontend:
     cd frontend && pnpm dev
 
-dev:
-    cd backend && uv run python ../scripts/dev.py
-
 frontend-build:
     cd frontend && pnpm build
