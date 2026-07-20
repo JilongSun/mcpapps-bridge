@@ -54,6 +54,8 @@ The public MCP layer may add its own MCP category prefix when required by an age
 
 Names are always namespaced, not only when a collision occurs. Adding a new upstream therefore cannot rename an existing public tool. Resource URIs use a reversible gateway URI that includes the same binding namespace. Prompt and resource aggregation must follow the same collision-safe principle when those MCP capabilities are implemented.
 
+The first aggregate implementation uses degraded availability. Downstream initialization does not require every upstream to be reachable. Discovery queries enabled bindings concurrently and returns deterministic results from healthy upstreams while recording binding-scoped failures; discovery fails only when every relevant binding fails. A targeted tool or resource operation depends only on its routed upstream. Failed connections remain retryable for the lifetime of the bridge session.
+
 ### Topology consistency
 
 Each new bridge session captures an immutable endpoint topology revision containing its bindings, namespaces, and relevant policy. Each binding references an immutable upstream revision so later changes to transport configuration cannot affect a lazy connection created by an existing session. Administrative changes create new revisions and affect new sessions only. Existing sessions continue with their captured revision until they close.

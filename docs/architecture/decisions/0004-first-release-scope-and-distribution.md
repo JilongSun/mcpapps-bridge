@@ -69,7 +69,6 @@ The container runs one application process and one Uvicorn worker in the SQLite 
 The 0.1 release excludes:
 
 - A graph database runtime dependency.
-- Multi-tenancy, organization inheritance, RBAC, SSO, and billing.
 - Multi-process or horizontally scaled MCP session ownership.
 - Live topology mutation inside an active bridge session.
 - Electron packaging and ACP-based local agent launching.
