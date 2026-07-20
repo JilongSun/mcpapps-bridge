@@ -9,6 +9,8 @@ from .protocol import (
     ToolCallResult,
     ToolCallStatus,
     ToolDescriptor,
+    UpstreamAvailability,
+    UpstreamAvailabilityStatus,
     UpstreamInitialization,
 )
 
@@ -21,5 +23,7 @@ __all__ = [
     "ToolCallResult",
     "ToolCallStatus",
     "ToolDescriptor",
+    "UpstreamAvailability",
+    "UpstreamAvailabilityStatus",
     "UpstreamInitialization",
 ]

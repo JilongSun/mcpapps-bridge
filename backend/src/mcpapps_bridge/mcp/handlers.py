@@ -10,6 +10,7 @@ from mcp.server.lowlevel.helper_types import ReadResourceContents
 from pydantic import AnyUrl
 
 from mcpapps_bridge.session import BridgeSessionStore
+from mcpapps_bridge.models import ToolCallResult
 
 from .mapper import (
     to_mcp_call_tool_result,
@@ -50,7 +51,18 @@ class ProxyHandlers:
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> types.CallToolResult:
         started_event = await self._session_store.start_tool_call(tool_name, arguments)
-        result = await self._router.call_tool(tool_name, arguments)
+        try:
+            result = await self._router.call_tool(tool_name, arguments)
+        except Exception as exc:
+            await self._session_store.complete_tool_call(
+                started_event.call.call_id,
+                ToolCallResult(
+                    content=[{"type": "text", "text": str(exc)}],
+                    is_error=True,
+                ),
+                failed=True,
+            )
+            raise
         await self._session_store.complete_tool_call(
             started_event.call.call_id,
             result,

@@ -33,7 +33,7 @@ class EndpointBindingRevision(DomainModel):
 
     binding_revision_id: UUID = Field(default_factory=uuid4)
     binding_id: UUID = Field(default_factory=uuid4)
-    namespace: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_-]*$")
+    namespace: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
     priority: int = 0
     enabled: bool = True
     upstream: UpstreamRevision

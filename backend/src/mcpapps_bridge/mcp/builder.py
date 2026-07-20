@@ -2,70 +2,26 @@
 
 from __future__ import annotations
 
-import re
-
 from pydantic import AnyHttpUrl, TypeAdapter
 
 from mcpapps_bridge.domain import (
-    EndpointBinding,
-    EndpointDefinition,
     SseConnection,
     StdioConnection,
     StreamableHttpConnection,
     UpstreamConnection,
-    UpstreamServerDefinition,
 )
 from mcpapps_bridge.repositories import (
     BridgeSessionRepository,
     EndpointRepository,
-    InMemoryBridgeSessionRepository,
-    InMemoryEndpointRepository,
-    InMemoryUpstreamServerRepository,
-    RepositoryTopologyReader,
     TopologyReader,
     UpstreamServerRepository,
 )
-from mcpapps_bridge.session import BridgeSessionStoreFactory, InMemoryBridgeSessionStoreFactory
+from mcpapps_bridge.session import BridgeSessionStoreFactory
 
 from .manager import BridgeManager
 from .upstream import UpstreamMcpClientFactory, UpstreamServerConfig
 
 HTTP_URL_ADAPTER = TypeAdapter(AnyHttpUrl)
-
-
-async def build_bridge_manager(
-    upstream_config: UpstreamServerConfig,
-    *,
-    upstream_name: str,
-    display_name: str | None = None,
-    version: str = "0.1.0",
-    upstream_client_factory: UpstreamMcpClientFactory | None = None,
-) -> BridgeManager:
-    slug = _normalize_slug(upstream_name)
-    server = UpstreamServerDefinition(
-        slug=slug,
-        display_name=display_name or upstream_name,
-        connection=to_domain_connection(upstream_config),
-    )
-    endpoint = EndpointDefinition(
-        slug=slug,
-        display_name=display_name or upstream_name,
-        bindings=[EndpointBinding(upstream_server_id=server.server_id)],
-    )
-    upstream_repository = InMemoryUpstreamServerRepository()
-    endpoint_repository = InMemoryEndpointRepository()
-    manager = BridgeManager(
-        upstream_repository,
-        endpoint_repository,
-        RepositoryTopologyReader(upstream_repository, endpoint_repository),
-        InMemoryBridgeSessionRepository(),
-        InMemoryBridgeSessionStoreFactory(),
-        upstream_client_factory=upstream_client_factory,
-        version=version,
-    )
-    await manager.add_upstream_server(server)
-    await manager.add_endpoint(endpoint)
-    return manager
 
 
 async def assemble_bridge_manager(
@@ -89,13 +45,6 @@ async def assemble_bridge_manager(
     )
     await manager.load_published_endpoints()
     return manager
-
-
-def _normalize_slug(value: str) -> str:
-    slug = re.sub(r"[^a-z0-9-]+", "-", value.lower()).strip("-")
-    if not slug or not slug[0].isalpha():
-        slug = f"server-{slug}" if slug else "server"
-    return slug
 
 
 def to_domain_connection(upstream: UpstreamServerConfig) -> UpstreamConnection:

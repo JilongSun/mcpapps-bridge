@@ -101,7 +101,6 @@ def resolve_runtime_configuration(
     api_port: int | None,
     proxy_name: str | None,
     httpx_timeout_seconds: float | None = None,
-    storage_profile: str | None = None,
 ) -> RuntimeConfiguration:
     loaded = load_bridge_config(config_path)
     if upstream_name is not None and upstream_name not in loaded.config.upstreams:
@@ -118,19 +117,13 @@ def resolve_runtime_configuration(
         name: _to_runtime_upstream_config(upstream, loaded.path.parent, bridge)
         for name, upstream in loaded.config.upstreams.items()
     }
-    storage_updates: dict[str, object] = {}
-    if storage_profile is not None:
-        if storage_profile not in {"sqlite", "memory"}:
-            raise ConfigError(f"Unsupported storage profile '{storage_profile}'")
-        storage_updates["profile"] = storage_profile
     sqlite_path = loaded.config.storage.sqlite_path
     if not sqlite_path.is_absolute():
         sqlite_path = (loaded.path.parent / sqlite_path).resolve()
-    storage_updates["sqlite_path"] = sqlite_path
     return RuntimeConfiguration(
         config_path=loaded.path,
         bridge=bridge,
-        storage=loaded.config.storage.model_copy(update=storage_updates),
+        storage=loaded.config.storage.model_copy(update={"sqlite_path": sqlite_path}),
         upstreams=resolved_upstreams,
         endpoints=loaded.config.endpoints,
         default_upstream=upstream_name or loaded.config.default_upstream,

@@ -20,6 +20,7 @@ from mcpapps_bridge.events import (
     ToolCallCompletedEvent,
     ToolCallStartedEvent,
     ToolDiscoveredEvent,
+    UpstreamAvailabilityChangedEvent,
 )
 from mcpapps_bridge.models import (
     AppResource,
@@ -29,6 +30,8 @@ from mcpapps_bridge.models import (
     ToolCallResult,
     ToolCallStatus,
     ToolDescriptor,
+    UpstreamAvailability,
+    UpstreamAvailabilityStatus,
     UpstreamInitialization,
 )
 from mcpapps_bridge.session import BridgeSessionStore
@@ -133,6 +136,42 @@ class SqlAlchemyBridgeSessionStore:
             return AppResourceLoadedEvent(session_id=str(self._session_id), resource=resource)
 
         return await self._mutate(mutate)
+
+    async def set_upstream_availability(
+        self,
+        availability: list[UpstreamAvailability],
+    ) -> list[UpstreamAvailabilityChangedEvent]:
+        async with self._lock:
+            async with self._session_factory.begin() as session:
+                snapshot = await self._load_snapshot(session)
+                previous = {
+                    item.binding_revision_id: item for item in snapshot.upstream_availability
+                }
+                current = {item.binding_revision_id: item for item in availability}
+                events: list[UpstreamAvailabilityChangedEvent] = []
+                for binding_revision_id, item in current.items():
+                    if previous.get(binding_revision_id) == item:
+                        continue
+                    event = UpstreamAvailabilityChangedEvent(
+                        session_id=str(self._session_id),
+                        availability=item,
+                    )
+                    await self._append_event(session, snapshot, event)
+                    events.append(event)
+                snapshot.upstream_availability = list(current.values())
+                statuses = {item.status for item in availability}
+                if UpstreamAvailabilityStatus.AVAILABLE in statuses:
+                    snapshot.status = (
+                        SessionStatus.DEGRADED
+                        if UpstreamAvailabilityStatus.FAILED in statuses
+                        else SessionStatus.READY
+                    )
+                elif availability and statuses == {UpstreamAvailabilityStatus.FAILED}:
+                    snapshot.status = SessionStatus.ERROR
+                await self._save_snapshot(session, snapshot)
+            if events:
+                self._notify_waiters()
+            return events
 
     async def record_error(
         self,

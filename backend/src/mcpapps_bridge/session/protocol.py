@@ -12,12 +12,14 @@ from mcpapps_bridge.events import (
     ToolCallCompletedEvent,
     ToolCallStartedEvent,
     ToolDiscoveredEvent,
+    UpstreamAvailabilityChangedEvent,
 )
 from mcpapps_bridge.models import (
     AppResource,
     BridgeSessionSnapshot,
     ToolCallResult,
     ToolDescriptor,
+    UpstreamAvailability,
     UpstreamInitialization,
 )
 
@@ -44,6 +46,11 @@ class BridgeSessionStore(Protocol):
     ) -> ToolCallCompletedEvent: ...
 
     async def load_resource(self, resource: AppResource) -> AppResourceLoadedEvent: ...
+
+    async def set_upstream_availability(
+        self,
+        availability: list[UpstreamAvailability],
+    ) -> list[UpstreamAvailabilityChangedEvent]: ...
 
     async def record_error(
         self,

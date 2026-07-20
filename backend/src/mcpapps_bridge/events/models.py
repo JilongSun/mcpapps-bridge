@@ -12,6 +12,7 @@ from mcpapps_bridge.models import (
     AppResource,
     ToolCallRecord,
     ToolDescriptor,
+    UpstreamAvailability,
     UpstreamInitialization,
 )
 
@@ -61,11 +62,17 @@ class ErrorRaisedEvent(BaseSessionEvent):
     details: dict[str, Any] = Field(default_factory=dict)
 
 
+class UpstreamAvailabilityChangedEvent(BaseSessionEvent):
+    kind: Literal["upstream.availability.changed"] = "upstream.availability.changed"
+    availability: UpstreamAvailability
+
+
 SessionEvent: TypeAlias = (
     SessionStartedEvent
     | ToolDiscoveredEvent
     | ToolCallStartedEvent
     | ToolCallCompletedEvent
     | AppResourceLoadedEvent
+    | UpstreamAvailabilityChangedEvent
     | ErrorRaisedEvent
 )

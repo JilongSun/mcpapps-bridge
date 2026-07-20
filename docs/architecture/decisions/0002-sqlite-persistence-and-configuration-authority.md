@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-14
+- Amended: 2026-07-20
 
 ## Context
 
@@ -13,20 +14,18 @@ SQLite is the first persistent backend. The live MCP SDK servers, upstream clien
 
 ## Decision
 
-### Storage profiles
+### SQLite-only runtime storage
 
-The normal application uses the `sqlite` storage profile by default. `debug_main.py` explicitly selects the `memory` profile.
+SQLite is the only runtime storage implementation. Both `main.py` and `debug_main.py` load the same YAML storage configuration and use the same bootstrap path. Debugging must exercise migrations, topology revisions, session records, events, and snapshots under the same persistence semantics as the normal process.
 
-The existing `repositories/memory.py` implementations are process-local repositories, not an in-memory SQL database. The memory profile uses those repositories and `InMemoryBridgeSessionStoreFactory` directly. It does not use `sqlite:///:memory:`.
-
-Storage selection is an assembly concern. Domain models, `BridgeManager`, MCP runtimes, handlers, and API routes depend only on repository and session-store ports.
+The former process-local memory repositories and session store are removed. Configuration no longer exposes a storage profile selector, and command-line arguments cannot override the storage implementation. Domain models, `BridgeManager`, MCP runtimes, handlers, and API routes continue to depend on repository and session-store ports rather than SQLAlchemy classes.
 
 ### Configuration boundary
 
 YAML and environment variables configure the host process:
 
 - API bind host and port.
-- Storage profile and database URL.
+- SQLite path and migration policy.
 - Logging and bootstrap policy.
 - Optional topology seed definitions.
 
@@ -119,7 +118,7 @@ PostgreSQL is the later persistence target. Multi-process operation additionally
 ## Consequences
 
 - Production restarts preserve managed topology and historical debugging data.
-- Debug runs remain disposable and do not modify the normal SQLite database.
+- Debug and normal runs follow identical configured SQLite persistence semantics.
 - YAML becomes safe bootstrap input instead of a competing management database.
 - Future CRUD APIs can operate against stable repository and transaction contracts.
 - Session event persistence adds write volume, but provides the audit surface needed by the management product.
@@ -127,10 +126,10 @@ PostgreSQL is the later persistence target. Multi-process operation additionally
 
 ## Implementation Sequence
 
-1. Add storage and bootstrap configuration models; make SQLite the normal default and memory an explicit debug override.
+1. Add SQLite storage and bootstrap configuration models.
 2. Add SQLAlchemy engine/session factories, ORM models, and Alembic migrations.
 3. Implement async SQLAlchemy repositories and the persistent session store factory.
-4. Refactor application assembly to accept a storage bundle rather than constructing memory adapters directly.
+4. Refactor application assembly to inject repository and store ports backed by SQLite.
 5. Implement transactional `seed-if-empty` topology bootstrap and database-driven endpoint loading.
 6. Mark interrupted sessions failed during startup and validate restart behavior.
 7. Add topology CRUD APIs after repository contracts and authorization requirements are reviewed.

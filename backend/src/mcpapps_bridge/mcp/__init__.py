@@ -1,9 +1,9 @@
 """MCP proxy, transport, and resource handling modules."""
 
-from .builder import assemble_bridge_manager, build_bridge_manager, to_domain_connection
+from .builder import assemble_bridge_manager, to_domain_connection
 from .downstream import BridgeDownstreamServer
-from .manager import BridgeManager, PassthroughSessionRuntime, PublishedEndpoint
-from .router import McpSessionRouter, PassthroughRouter
+from .manager import BridgeManager, BridgeSessionRuntime, PublishedEndpoint
+from .router import AggregateRouter, McpSessionRouter, PassthroughRouter
 from .runtime import UpstreamRuntime
 from .upstream import (
     SseUpstreamMcpClient,
@@ -17,10 +17,11 @@ from .upstream import (
 )
 
 __all__ = [
+    "AggregateRouter",
     "BridgeManager",
+    "BridgeSessionRuntime",
     "BridgeDownstreamServer",
     "McpSessionRouter",
-    "PassthroughSessionRuntime",
     "PassthroughRouter",
     "PublishedEndpoint",
     "UpstreamRuntime",
@@ -33,6 +34,5 @@ __all__ = [
     "DefaultUpstreamMcpClientFactory",
     "UpstreamMcpClient",
     "UpstreamMcpClientFactory",
-    "build_bridge_manager",
     "to_domain_connection",
 ]

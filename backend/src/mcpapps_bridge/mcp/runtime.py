@@ -13,8 +13,6 @@ from mcpapps_bridge.models import (
     ToolDescriptor,
     UpstreamInitialization,
 )
-from mcpapps_bridge.session import BridgeSessionStore
-
 from .upstream import UpstreamMcpClient, UpstreamServerConfig, build_upstream_client
 
 
@@ -24,14 +22,12 @@ class UpstreamRuntime:
     def __init__(
         self,
         upstream_config: UpstreamServerConfig,
-        session_store: BridgeSessionStore,
         *,
         name: str,
         version: str,
         upstream_client: UpstreamMcpClient | None = None,
     ) -> None:
         self._upstream_config = upstream_config
-        self._session_store = session_store
         self._name = name
         self._version = version
         self._upstream_client = upstream_client or build_upstream_client(upstream_config)
@@ -60,9 +56,6 @@ class UpstreamRuntime:
                 ) from None
             try:
                 self._upstream_identity = upstream
-                await self._session_store.start(upstream)
-                await self.refresh_tools()
-                await self.refresh_resources()
             except Exception:
                 await self._upstream_client.close()
                 raise
@@ -82,7 +75,6 @@ class UpstreamRuntime:
     async def refresh_tools(self) -> list[ToolDescriptor]:
         tools = await self._upstream_client.list_tools()
         self._tool_cache = {tool.name: tool for tool in tools}
-        await self._session_store.register_tools(tools)
         return tools
 
     async def refresh_resources(self) -> list[ResourceDescriptor]:
@@ -96,17 +88,14 @@ class UpstreamRuntime:
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult:
         return await self._upstream_client.call_tool(tool_name, arguments)
 
+    def tool(self, tool_name: str) -> ToolDescriptor | None:
+        return self._tool_cache.get(tool_name)
+
     async def preload_tool_resource(self, tool_name: str) -> None:
         tool = self._tool_cache.get(tool_name)
         if tool is None or tool.ui_resource_uri is None:
             return
-        try:
-            await self.read_and_cache_resource(tool.ui_resource_uri)
-        except Exception as exc:
-            await self._session_store.record_error(
-                f"Failed to preload UI resource for tool '{tool_name}'",
-                details={"resource_uri": tool.ui_resource_uri, "reason": str(exc)},
-            )
+        await self.read_and_cache_resource(tool.ui_resource_uri)
 
     async def read_and_cache_resource(self, uri: str) -> AppResource:
         cached = self._resource_cache.get(uri)
@@ -114,7 +103,6 @@ class UpstreamRuntime:
             return cached
         resource = await self._upstream_client.read_resource(uri)
         self._resource_cache[uri] = resource
-        await self._session_store.load_resource(resource)
         return resource
 
     def _synthesized_resources_from_tools(self) -> list[ResourceDescriptor]:

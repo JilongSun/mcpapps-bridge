@@ -54,17 +54,10 @@ def to_content_block(item: dict[str, Any]) -> types.ContentBlock:
             data=str(item.get("data", "")),
             mimeType=str(item.get("mimeType", "audio/wav")),
         )
+    if item_type == "resource_link":
+        return types.ResourceLink.model_validate(item)
     if item_type == "resource":
-        resource = item.get("resource", {})
-        return types.EmbeddedResource(
-            type="resource",
-            resource=types.TextResourceContents(
-                uri=resource.get("uri", "embedded://resource"),
-                mimeType=resource.get("mimeType", "text/plain"),
-                text=resource.get("text", ""),
-                _meta=resource.get("meta"),
-            ),
-        )
+        return types.EmbeddedResource.model_validate(item)
     return types.TextContent(type="text", text=str(item))
 
 

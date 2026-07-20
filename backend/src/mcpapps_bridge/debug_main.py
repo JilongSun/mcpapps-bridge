@@ -32,6 +32,5 @@ if __name__ == "__main__":
         argv.extend(["--upstream", _DEBUG_UPSTREAM])
     if _DEBUG_HTTPX_TIMEOUT is not None:
         argv.extend(["--httpx-timeout", str(_DEBUG_HTTPX_TIMEOUT)])
-    argv.extend(["--storage-profile", "memory"])
     sys.argv = [sys.argv[0], *argv]
     main()

@@ -69,7 +69,7 @@ class EndpointSessionPolicy(DomainModel):
 class EndpointBinding(DomainModel):
     binding_id: UUID = Field(default_factory=uuid4)
     upstream_server_id: UUID
-    namespace: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_-]*$")
+    namespace: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
     priority: int = 0
     enabled: bool = True
 

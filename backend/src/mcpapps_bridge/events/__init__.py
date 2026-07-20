@@ -8,6 +8,7 @@ from .models import (
     ToolCallCompletedEvent,
     ToolCallStartedEvent,
     ToolDiscoveredEvent,
+    UpstreamAvailabilityChangedEvent,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "ToolCallCompletedEvent",
     "ToolCallStartedEvent",
     "ToolDiscoveredEvent",
+    "UpstreamAvailabilityChangedEvent",
 ]

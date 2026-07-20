@@ -14,6 +14,7 @@ from anyio.abc import TaskGroup, TaskStatus
 from mcpapps_bridge.domain import (
     BridgeSessionRecord,
     BridgeSessionStatus,
+    EndpointBindingRevision,
     EndpointDefinition,
     EndpointMode,
     EndpointTopologyRevision,
@@ -33,7 +34,7 @@ from mcpapps_bridge.session import BridgeSessionStore, BridgeSessionStoreFactory
 
 from .downstream import BridgeDownstreamServer
 from .handlers import ProxyHandlers
-from .router import McpSessionRouter, PassthroughRouter
+from .router import AggregateRouter, McpSessionRouter, PassthroughRouter
 from .runtime import UpstreamRuntime
 from .upstream import (
     DefaultUpstreamMcpClientFactory,
@@ -49,7 +50,6 @@ def utc_now() -> datetime:
 @dataclass(frozen=True)
 class PublishedEndpoint:
     revision: EndpointTopologyRevision
-    upstream: UpstreamRevision
 
     @property
     def path(self) -> str:
@@ -57,7 +57,7 @@ class PublishedEndpoint:
 
 
 @dataclass(frozen=True)
-class PassthroughSessionRuntime:
+class BridgeSessionRuntime:
     session_id: UUID
     endpoint_id: UUID
     router: McpSessionRouter
@@ -89,7 +89,7 @@ class BridgeManager:
         self._version = version
         self._published: dict[UUID, PublishedEndpoint] = {}
         self._slug_index: dict[str, UUID] = {}
-        self._active_sessions: dict[UUID, PassthroughSessionRuntime] = {}
+        self._active_sessions: dict[UUID, BridgeSessionRuntime] = {}
         self._lifecycle_stack: AsyncExitStack | None = None
         self._task_group: TaskGroup | None = None
         self._started = False
@@ -111,8 +111,6 @@ class BridgeManager:
     async def add_endpoint(self, endpoint: EndpointDefinition) -> PublishedEndpoint:
         if not endpoint.enabled:
             raise ValueError(f"Cannot publish disabled endpoint: {endpoint.slug}")
-        if endpoint.mode is not EndpointMode.PASSTHROUGH:
-            raise NotImplementedError("Aggregate endpoints are not implemented")
         await self._endpoints.add(endpoint)
         revision = await self._topology.resolve_current_revision(endpoint.slug)
         if revision is None:
@@ -133,14 +131,15 @@ class BridgeManager:
     ) -> PublishedEndpoint:
         if not revision.enabled:
             raise ValueError(f"Cannot publish disabled endpoint: {revision.slug}")
-        if revision.mode is not EndpointMode.PASSTHROUGH:
-            raise NotImplementedError("Aggregate endpoints are not implemented")
-
-        binding = next(binding for binding in revision.bindings if binding.enabled)
-        if not binding.upstream.enabled:
-            raise ValueError(f"Cannot bind disabled upstream server: {binding.upstream.slug}")
-
-        return PublishedEndpoint(revision, binding.upstream)
+        disabled_upstreams = [
+            binding.upstream.slug
+            for binding in revision.bindings
+            if binding.enabled and not binding.upstream.enabled
+        ]
+        if disabled_upstreams:
+            names = ", ".join(sorted(disabled_upstreams))
+            raise ValueError(f"Cannot bind disabled upstream servers: {names}")
+        return PublishedEndpoint(revision)
 
     def _register_published_endpoint(self, published: PublishedEndpoint) -> None:
         revision = published.revision
@@ -151,7 +150,7 @@ class BridgeManager:
         endpoint_id = self._slug_index.get(slug)
         return self._published.get(endpoint_id) if endpoint_id is not None else None
 
-    async def open_passthrough_session(self, endpoint_slug: str) -> PassthroughSessionRuntime:
+    async def open_session(self, endpoint_slug: str) -> BridgeSessionRuntime:
         task_group = self._require_task_group()
         endpoint = self.resolve_published_endpoint(endpoint_slug)
         if endpoint is None:
@@ -159,7 +158,7 @@ class BridgeManager:
 
         session = await self._create_session_record(endpoint.revision)
         store = await self.get_session_store(session.session_id)
-        router = self._create_passthrough_router(endpoint, store)
+        router = self._create_session_router(endpoint, store)
         handlers = ProxyHandlers(router, store)
         downstream = BridgeDownstreamServer(
             handlers,
@@ -167,7 +166,7 @@ class BridgeManager:
             name=endpoint.revision.display_name,
             version=self._version,
         )
-        active = PassthroughSessionRuntime(
+        active = BridgeSessionRuntime(
             session_id=session.session_id,
             endpoint_id=endpoint.revision.endpoint_id,
             router=router,
@@ -175,13 +174,13 @@ class BridgeManager:
             stop_event=anyio.Event(),
             closed_event=anyio.Event(),
         )
-        return await task_group.start(self._run_passthrough_session, active)
+        return await task_group.start(self._run_session, active)
 
-    async def resolve_passthrough_session(
+    async def resolve_session(
         self,
         endpoint_slug: str,
         transport_session_id: str,
-    ) -> PassthroughSessionRuntime | None:
+    ) -> BridgeSessionRuntime | None:
         endpoint = self.resolve_published_endpoint(endpoint_slug)
         if endpoint is None:
             return None
@@ -195,7 +194,7 @@ class BridgeManager:
 
     async def bind_transport_session(
         self,
-        active: PassthroughSessionRuntime,
+        active: BridgeSessionRuntime,
         transport_session_id: str,
     ) -> BridgeSessionRecord:
         session = await self._require_session(active.session_id)
@@ -210,7 +209,7 @@ class BridgeManager:
         await self._sessions.update(updated)
         return updated.model_copy(deep=True)
 
-    async def close_passthrough_session(self, active: PassthroughSessionRuntime) -> None:
+    async def close_session(self, active: BridgeSessionRuntime) -> None:
         session = await self._sessions.get(active.session_id)
         if session is None or session.status is BridgeSessionStatus.CLOSED:
             return
@@ -294,11 +293,11 @@ class BridgeManager:
             raise
         return session.model_copy(deep=True)
 
-    async def _run_passthrough_session(
+    async def _run_session(
         self,
-        active: PassthroughSessionRuntime,
+        active: BridgeSessionRuntime,
         *,
-        task_status: TaskStatus[PassthroughSessionRuntime] = anyio.TASK_STATUS_IGNORED,
+        task_status: TaskStatus[BridgeSessionRuntime] = anyio.TASK_STATUS_IGNORED,
     ) -> None:
         ready = False
         failed = False
@@ -333,20 +332,36 @@ class BridgeManager:
                 finally:
                     active.closed_event.set()
 
-    def _create_passthrough_router(
+    def _create_session_router(
         self,
         endpoint: PublishedEndpoint,
         store: BridgeSessionStore,
-    ) -> PassthroughRouter:
-        config = self._to_upstream_config(endpoint.upstream)
-        return PassthroughRouter(
-            UpstreamRuntime(
-                config,
+    ) -> McpSessionRouter:
+        revision = endpoint.revision
+        if revision.mode is EndpointMode.AGGREGATE:
+            return AggregateRouter(
+                revision,
                 store,
-                name=endpoint.upstream.display_name,
+                self._create_bound_upstream_runtime,
                 version=self._version,
-                upstream_client=self._upstream_client_factory.create(config),
             )
+        binding = next(binding for binding in revision.bindings if binding.enabled)
+        return PassthroughRouter(
+            self._create_bound_upstream_runtime(binding),
+            store,
+        )
+
+    def _create_bound_upstream_runtime(
+        self,
+        binding: EndpointBindingRevision,
+    ) -> UpstreamRuntime:
+        upstream = binding.upstream
+        config = self._to_upstream_config(upstream)
+        return UpstreamRuntime(
+            config,
+            name=upstream.display_name,
+            version=self._version,
+            upstream_client=self._upstream_client_factory.create(config),
         )
 
     def _require_task_group(self) -> TaskGroup:

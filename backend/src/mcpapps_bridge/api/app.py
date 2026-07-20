@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.routing import Mount
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from mcpapps_bridge.mcp import BridgeManager, PassthroughSessionRuntime
+from mcpapps_bridge.mcp import BridgeManager, BridgeSessionRuntime
 
 
 def create_app(manager: BridgeManager) -> FastAPI:
@@ -111,7 +111,7 @@ def create_mcp_transport_app(manager: BridgeManager) -> ASGIApp:
 
         if transport_path:
             if transport_path == ["sse"] and method == "GET":
-                active = await manager.open_passthrough_session(endpoint_slug)
+                active = await manager.open_session(endpoint_slug)
                 await _handle_new_sse_session(
                     manager,
                     active,
@@ -126,7 +126,7 @@ def create_mcp_transport_app(manager: BridgeManager) -> ASGIApp:
                 if transport_session_id is None:
                     await _missing_sse_session(scope, receive, send)
                     return
-                active = await manager.resolve_passthrough_session(
+                active = await manager.resolve_session(
                     endpoint_slug,
                     transport_session_id,
                 )
@@ -140,7 +140,7 @@ def create_mcp_transport_app(manager: BridgeManager) -> ASGIApp:
 
         transport_session_id = _request_header(scope, b"mcp-session-id")
         if transport_session_id is not None:
-            active = await manager.resolve_passthrough_session(
+            active = await manager.resolve_session(
                 endpoint_slug,
                 transport_session_id,
             )
@@ -158,7 +158,7 @@ def create_mcp_transport_app(manager: BridgeManager) -> ASGIApp:
             await _missing_session(scope, receive, send)
             return
 
-        active = await manager.open_passthrough_session(endpoint_slug)
+        active = await manager.open_session(endpoint_slug)
         await _handle_new_session(manager, active, scope, receive, send)
 
     return mcp_transport_app
@@ -166,7 +166,7 @@ def create_mcp_transport_app(manager: BridgeManager) -> ASGIApp:
 
 async def _handle_new_session(
     manager: BridgeManager,
-    active: PassthroughSessionRuntime,
+    active: BridgeSessionRuntime,
     scope: Scope,
     receive: Receive,
     send: Send,
@@ -188,7 +188,7 @@ async def _handle_new_session(
     try:
         await active.downstream.handle_streamable_http(scope, receive, capture_session_id)
         if response_session_id is None:
-            await manager.close_passthrough_session(active)
+            await manager.close_session(active)
     except BaseException:
         await _close_session(manager, active)
         raise
@@ -196,7 +196,7 @@ async def _handle_new_session(
 
 async def _handle_new_sse_session(
     manager: BridgeManager,
-    active: PassthroughSessionRuntime,
+    active: BridgeSessionRuntime,
     endpoint_slug: str,
     scope: Scope,
     receive: Receive,
@@ -224,10 +224,10 @@ async def _handle_new_sse_session(
 
 async def _close_session(
     manager: BridgeManager,
-    active: PassthroughSessionRuntime,
+    active: BridgeSessionRuntime,
 ) -> None:
     with anyio.CancelScope(shield=True):
-        await manager.close_passthrough_session(active)
+        await manager.close_session(active)
 
 
 def _request_header(scope: Scope, name: bytes) -> str | None:

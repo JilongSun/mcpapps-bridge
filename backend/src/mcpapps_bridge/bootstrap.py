@@ -1,4 +1,4 @@
-"""Application composition for memory and SQLite storage profiles."""
+"""Application composition for configured SQLite storage."""
 
 from __future__ import annotations
 
@@ -26,13 +26,6 @@ from mcpapps_bridge.persistence import (
     mark_interrupted_sessions_failed,
     seed_topology_if_empty,
 )
-from mcpapps_bridge.repositories import (
-    InMemoryBridgeSessionRepository,
-    InMemoryEndpointRepository,
-    InMemoryUpstreamServerRepository,
-    RepositoryTopologyReader,
-)
-from mcpapps_bridge.session import InMemoryBridgeSessionStoreFactory
 
 
 class AsyncCloser(Protocol):
@@ -42,27 +35,11 @@ class AsyncCloser(Protocol):
 @dataclass(frozen=True)
 class BootstrapResult:
     manager: BridgeManager
-    storage: AsyncCloser | None
+    storage: AsyncCloser
 
 
 async def bootstrap_gateway(configuration: RuntimeConfiguration) -> BootstrapResult:
     upstreams, endpoints = _build_topology_seed(configuration)
-    if configuration.storage.profile == "memory":
-        upstream_repository = InMemoryUpstreamServerRepository()
-        endpoint_repository = InMemoryEndpointRepository()
-        for upstream in upstreams:
-            await upstream_repository.add(upstream)
-        for endpoint in endpoints:
-            await endpoint_repository.add(endpoint)
-        manager = await assemble_bridge_manager(
-            upstream_repository,
-            endpoint_repository,
-            RepositoryTopologyReader(upstream_repository, endpoint_repository),
-            InMemoryBridgeSessionRepository(),
-            InMemoryBridgeSessionStoreFactory(),
-        )
-        return BootstrapResult(manager=manager, storage=None)
-
     database = SqliteDatabase(configuration.storage.sqlite_path)
     try:
         if configuration.storage.auto_migrate:

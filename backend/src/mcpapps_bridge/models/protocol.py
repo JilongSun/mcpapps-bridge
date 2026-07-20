@@ -16,8 +16,15 @@ def utc_now() -> datetime:
 class SessionStatus(StrEnum):
     STARTING = "starting"
     READY = "ready"
+    DEGRADED = "degraded"
     ERROR = "error"
     CLOSED = "closed"
+
+
+class UpstreamAvailabilityStatus(StrEnum):
+    UNKNOWN = "unknown"
+    AVAILABLE = "available"
+    FAILED = "failed"
 
 
 class ToolCallStatus(StrEnum):
@@ -84,10 +91,23 @@ class ResourceDescriptor(BaseModel):
     size: int | None = None
 
 
+class UpstreamAvailability(BaseModel):
+    binding_revision_id: str
+    namespace: str | None = None
+    upstream_revision_id: str
+    upstream_server_id: str
+    status: UpstreamAvailabilityStatus = UpstreamAvailabilityStatus.UNKNOWN
+    identity: UpstreamInitialization | None = None
+    failure_kind: str | None = None
+    error_message: str | None = None
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
 class BridgeSessionSnapshot(BaseModel):
     session_id: str
     status: SessionStatus = SessionStatus.STARTING
     upstream: UpstreamInitialization | None = None
+    upstream_availability: list[UpstreamAvailability] = Field(default_factory=list)
     discovered_tools: list[ToolDescriptor] = Field(default_factory=list)
     active_tool_calls: list[ToolCallRecord] = Field(default_factory=list)
     loaded_resources: list[AppResource] = Field(default_factory=list)

@@ -5,7 +5,6 @@ bridge:
   # httpxTimeoutSeconds: 30  # HTTP request timeout in seconds (default: 30)
 
 storage:
-  profile: sqlite
   sqlitePath: ./backend/var/mcpapps-bridge.db
   autoMigrate: true
   bootstrapMode: seed-if-empty
@@ -13,9 +12,14 @@ storage:
 endpoints:
   test-endpoint:
     displayName: Test Endpoint
-    mode: passthrough
+    mode: aggregate
     bindings:
       - upstream: enterprise-ops-hub-http-1
+        namespace: ops-one
+        priority: 10
+      - upstream: enterprise-ops-hub-http-2
+        namespace: ops-two
+        priority: 20
 
 upstreams:
   enterprise-ops-hub-http-1:

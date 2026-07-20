@@ -29,7 +29,6 @@ class BridgeRuntimeConfig(CamelModel):
 
 
 class StorageConfig(CamelModel):
-    profile: Literal["sqlite", "memory"] = "sqlite"
     sqlite_path: Path = Path("backend/var/mcpapps-bridge.db")
     auto_migrate: bool = True
     bootstrap_mode: Literal["seed-if-empty"] = "seed-if-empty"
@@ -55,7 +54,7 @@ class UpstreamFileConfig(CamelModel):
 
 class EndpointBindingFileConfig(CamelModel):
     upstream: str
-    namespace: str | None = None
+    namespace: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
     priority: int = 0
     enabled: bool = True
 

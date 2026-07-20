@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-14
-- Amended: 2026-07-16
+- Amended: 2026-07-20
 
 ## Context
 
@@ -52,9 +52,29 @@ Aggregate tools always use a stable server namespace, following the same princip
 
 The public MCP layer may add its own MCP category prefix when required by an agent adapter, but that adapter-specific prefix is not stored as the gateway tool identity. Namespace assignment defaults to a stable upstream slug and may later support an explicit administrator-defined alias.
 
-Names are always namespaced, not only when a collision occurs. Adding a new upstream therefore cannot rename an existing public tool. Resource URIs use a reversible gateway URI that includes the same binding namespace. Prompt and resource aggregation must follow the same collision-safe principle when those MCP capabilities are implemented.
+Names are always namespaced, not only when a collision occurs. Adding a new upstream therefore cannot rename an existing public tool. Aggregate resource URIs include the same binding namespace while preserving the semantics defined below. Prompt aggregation must follow the same collision-safe principle when that MCP capability is implemented.
 
 The first aggregate implementation uses degraded availability. Downstream initialization does not require every upstream to be reachable. Discovery queries enabled bindings concurrently and returns deterministic results from healthy upstreams while recording binding-scoped failures; discovery fails only when every relevant binding fails. A targeted tool or resource operation depends only on its routed upstream. Failed connections remain retryable for the lifetime of the bridge session.
+
+### Aggregate resource URI routing
+
+Ordinary resource URIs preserve their model-visible semantics and add only the binding namespace required for aggregate routing. The public form prefixes the original URI scheme:
+
+```text
+{namespace}+{original_uri}
+```
+
+For example, `file:///repo/readme.md` becomes `docs+file:///repo/readme.md`, and `https://example.test/manual` becomes `docs+https://example.test/manual`. The original URI remains readable and is not encoded with Base64, UUIDs, revision identifiers, or gateway-specific path segments. Namespaces use lowercase letters, digits, and hyphens, begin with a lowercase letter, and are always applied on aggregate endpoints so adding a binding cannot rename an existing public resource.
+
+MCP Apps resources retain the required `ui://` scheme and use a host-facing route token:
+
+```text
+ui://{namespace}/{opaque_token}
+```
+
+The token is not model routing metadata and does not encode a binding or revision. The bridge session keeps an exact route table from each public URI to its binding revision and original upstream URI. Only URIs registered through discovery, tool metadata, or protocol resource content can be read; the gateway does not trust a decodable public token as routing authority.
+
+URI rewriting is limited to protocol-defined URI locations: resource descriptors and read results, MCP Apps tool metadata, `ResourceLink.uri`, and `EmbeddedResource.resource.uri`. Arbitrary text, structured content, and unrelated metadata are not recursively scanned for URI-like strings. Resource templates follow the same namespace rule when template support is added to the MCP surface.
 
 ### Topology consistency
 
@@ -123,6 +143,8 @@ Both modes use one backend service initially. Module boundaries must allow the A
 - A downstream agent can configure one stable aggregate MCP endpoint.
 - The service remains protocol-aware and can preserve MCP Apps behavior rather than acting as a byte-forwarding proxy.
 - Always-namespaced tool identities remain stable as upstream servers are added.
+- Ordinary aggregate resource URIs retain the original scheme, path, query, and fragment semantics with only a namespace prefix.
+- MCP Apps UI routing remains host-facing under `ui://` and does not expose binding or revision identifiers.
 - Existing sessions are insulated from administrative topology changes.
 - Passthrough remains available for compatibility and diagnosis but does not lead aggregate delivery.
 - Final assistant text is available only when the service runs the agent through an adapter.
@@ -141,10 +163,6 @@ Both modes use one backend service initially. Module boundaries must allow the A
 9. Add list-changed notification behavior for new sessions and supported clients without mutating captured revisions.
 
 ## Deferred Decisions
-
-### Aggregate resource URI encoding
-
-Aggregate resources need a public URI containing the server namespace while still allowing the gateway to reconstruct the original upstream URI exactly. The deferred choice is the concrete encoding, for example a gateway-owned URI scheme with an encoded upstream URI versus a path-and-query form. It will be decided with aggregate resource routing because URI opacity, length, and client compatibility need executable validation.
 
 ### Agent runtime integration
 

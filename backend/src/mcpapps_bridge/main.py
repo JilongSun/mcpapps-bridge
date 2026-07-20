@@ -20,7 +20,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--api-port", type=int)
     parser.add_argument("--proxy-name")
     parser.add_argument("--httpx-timeout", type=float, dest="httpx_timeout_seconds")
-    parser.add_argument("--storage-profile", choices=["sqlite", "memory"])
     return parser
 
 
@@ -36,7 +35,6 @@ async def serve_runtime(args: argparse.Namespace) -> None:
         api_port=args.api_port,
         proxy_name=args.proxy_name,
         httpx_timeout_seconds=args.httpx_timeout_seconds,
-        storage_profile=args.storage_profile,
     )
     result = await bootstrap_gateway(configuration)
     runtime = BridgeHostRuntime(
@@ -47,8 +45,7 @@ async def serve_runtime(args: argparse.Namespace) -> None:
     try:
         await runtime.serve()
     finally:
-        if result.storage is not None:
-            await result.storage.close()
+        await result.storage.close()
 
 
 def main() -> None:
