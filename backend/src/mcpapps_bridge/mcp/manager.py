@@ -16,20 +16,24 @@ from mcpapps_bridge.domain import (
     BridgeSessionStatus,
     EndpointDefinition,
     EndpointMode,
+    EndpointTopologyRevision,
     SseConnection,
     StdioConnection,
     StreamableHttpConnection,
     UpstreamServerDefinition,
+    UpstreamRevision,
 )
 from mcpapps_bridge.repositories import (
     BridgeSessionRepository,
     EndpointRepository,
+    TopologyReader,
     UpstreamServerRepository,
 )
 from mcpapps_bridge.session import BridgeSessionStore, BridgeSessionStoreFactory
 
 from .downstream import BridgeDownstreamServer
 from .handlers import ProxyHandlers
+from .router import McpSessionRouter, PassthroughRouter
 from .runtime import UpstreamRuntime
 from .upstream import (
     DefaultUpstreamMcpClientFactory,
@@ -44,19 +48,19 @@ def utc_now() -> datetime:
 
 @dataclass(frozen=True)
 class PublishedEndpoint:
-    definition: EndpointDefinition
-    upstream_server: UpstreamServerDefinition
+    revision: EndpointTopologyRevision
+    upstream: UpstreamRevision
 
     @property
     def path(self) -> str:
-        return self.definition.path
+        return f"/mcp/{self.revision.slug}"
 
 
 @dataclass(frozen=True)
 class PassthroughSessionRuntime:
     session_id: UUID
     endpoint_id: UUID
-    runtime: UpstreamRuntime
+    router: McpSessionRouter
     downstream: BridgeDownstreamServer
     stop_event: anyio.Event
     closed_event: anyio.Event
@@ -69,6 +73,7 @@ class BridgeManager:
         self,
         upstream_servers: UpstreamServerRepository,
         endpoints: EndpointRepository,
+        topology: TopologyReader,
         sessions: BridgeSessionRepository,
         session_store_factory: BridgeSessionStoreFactory,
         *,
@@ -77,6 +82,7 @@ class BridgeManager:
     ) -> None:
         self._upstream_servers = upstream_servers
         self._endpoints = endpoints
+        self._topology = topology
         self._sessions = sessions
         self._session_store_factory = session_store_factory
         self._upstream_client_factory = upstream_client_factory or DefaultUpstreamMcpClientFactory()
@@ -103,40 +109,43 @@ class BridgeManager:
         await self._upstream_servers.add(server)
 
     async def add_endpoint(self, endpoint: EndpointDefinition) -> PublishedEndpoint:
-        published = await self._build_published_endpoint(endpoint)
+        if not endpoint.enabled:
+            raise ValueError(f"Cannot publish disabled endpoint: {endpoint.slug}")
+        if endpoint.mode is not EndpointMode.PASSTHROUGH:
+            raise NotImplementedError("Aggregate endpoints are not implemented")
         await self._endpoints.add(endpoint)
+        revision = await self._topology.resolve_current_revision(endpoint.slug)
+        if revision is None:
+            raise ValueError(f"Endpoint repository did not publish a revision: {endpoint.slug}")
+        published = self._build_published_endpoint(revision)
         self._register_published_endpoint(published)
         return published
 
     async def load_published_endpoints(self) -> None:
         self._published.clear()
         self._slug_index.clear()
-        for endpoint in await self._endpoints.list():
-            if endpoint.enabled:
-                self._register_published_endpoint(await self._build_published_endpoint(endpoint))
+        for revision in await self._topology.list_current_revisions():
+            self._register_published_endpoint(self._build_published_endpoint(revision))
 
-    async def _build_published_endpoint(
+    def _build_published_endpoint(
         self,
-        endpoint: EndpointDefinition,
+        revision: EndpointTopologyRevision,
     ) -> PublishedEndpoint:
-        if not endpoint.enabled:
-            raise ValueError(f"Cannot publish disabled endpoint: {endpoint.slug}")
-        if endpoint.mode is not EndpointMode.PASSTHROUGH:
+        if not revision.enabled:
+            raise ValueError(f"Cannot publish disabled endpoint: {revision.slug}")
+        if revision.mode is not EndpointMode.PASSTHROUGH:
             raise NotImplementedError("Aggregate endpoints are not implemented")
 
-        binding = next(binding for binding in endpoint.bindings if binding.enabled)
-        server = await self._upstream_servers.get(binding.upstream_server_id)
-        if server is None:
-            raise ValueError(f"Unknown upstream server: {binding.upstream_server_id}")
-        if not server.enabled:
-            raise ValueError(f"Cannot bind disabled upstream server: {server.slug}")
+        binding = next(binding for binding in revision.bindings if binding.enabled)
+        if not binding.upstream.enabled:
+            raise ValueError(f"Cannot bind disabled upstream server: {binding.upstream.slug}")
 
-        return PublishedEndpoint(definition=endpoint, upstream_server=server)
+        return PublishedEndpoint(revision, binding.upstream)
 
     def _register_published_endpoint(self, published: PublishedEndpoint) -> None:
-        endpoint = published.definition
-        self._published[endpoint.endpoint_id] = published
-        self._slug_index[endpoint.slug] = endpoint.endpoint_id
+        revision = published.revision
+        self._published[revision.endpoint_id] = published
+        self._slug_index[revision.slug] = revision.endpoint_id
 
     def resolve_published_endpoint(self, slug: str) -> PublishedEndpoint | None:
         endpoint_id = self._slug_index.get(slug)
@@ -148,20 +157,20 @@ class BridgeManager:
         if endpoint is None:
             raise KeyError(f"Unknown endpoint: {endpoint_slug}")
 
-        session = await self._create_session_record(endpoint.definition.endpoint_id)
+        session = await self._create_session_record(endpoint.revision)
         store = await self.get_session_store(session.session_id)
-        runtime = self._create_upstream_runtime(endpoint, store)
-        handlers = ProxyHandlers(runtime, store)
+        router = self._create_passthrough_router(endpoint, store)
+        handlers = ProxyHandlers(router, store)
         downstream = BridgeDownstreamServer(
             handlers,
-            identity_provider=lambda: runtime.identity,
-            name=endpoint.definition.display_name,
+            identity_provider=lambda: router.identity,
+            name=endpoint.revision.display_name,
             version=self._version,
         )
         active = PassthroughSessionRuntime(
             session_id=session.session_id,
-            endpoint_id=endpoint.definition.endpoint_id,
-            runtime=runtime,
+            endpoint_id=endpoint.revision.endpoint_id,
+            router=router,
             downstream=downstream,
             stop_event=anyio.Event(),
             closed_event=anyio.Event(),
@@ -177,7 +186,7 @@ class BridgeManager:
         if endpoint is None:
             return None
         session = await self._sessions.get_by_transport_session_id(transport_session_id)
-        if session is None or session.endpoint_id != endpoint.definition.endpoint_id:
+        if session is None or session.endpoint_id != endpoint.revision.endpoint_id:
             return None
         active = self._active_sessions.get(session.session_id)
         if active is not None:
@@ -267,14 +276,16 @@ class BridgeManager:
         if stack is not None:
             await stack.aclose()
 
-    async def _create_session_record(self, endpoint_id: UUID) -> BridgeSessionRecord:
-        endpoint = await self._endpoints.get(endpoint_id)
-        if endpoint is None:
-            raise KeyError(f"Unknown endpoint: {endpoint_id}")
-        if not endpoint.enabled:
-            raise ValueError(f"Cannot create a session for disabled endpoint: {endpoint.slug}")
-
-        session = BridgeSessionRecord(endpoint_id=endpoint_id)
+    async def _create_session_record(
+        self,
+        revision: EndpointTopologyRevision,
+    ) -> BridgeSessionRecord:
+        if not revision.enabled:
+            raise ValueError(f"Cannot create a session for disabled endpoint: {revision.slug}")
+        session = BridgeSessionRecord(
+            endpoint_id=revision.endpoint_id,
+            endpoint_revision_id=revision.revision_id,
+        )
         await self._session_store_factory.create(session.session_id)
         try:
             await self._sessions.add(session)
@@ -292,7 +303,7 @@ class BridgeManager:
         ready = False
         failed = False
         try:
-            await active.runtime.start()
+            await active.router.start()
             async with active.downstream.run_http_transports():
                 self._active_sessions[active.session_id] = active
                 await self._set_session_status(active.session_id, BridgeSessionStatus.ACTIVE)
@@ -312,7 +323,7 @@ class BridgeManager:
             self._active_sessions.pop(active.session_id, None)
             with anyio.CancelScope(shield=True):
                 try:
-                    await active.runtime.close()
+                    await active.router.close()
                     if not failed:
                         await self._set_session_status(
                             active.session_id,
@@ -322,18 +333,20 @@ class BridgeManager:
                 finally:
                     active.closed_event.set()
 
-    def _create_upstream_runtime(
+    def _create_passthrough_router(
         self,
         endpoint: PublishedEndpoint,
         store: BridgeSessionStore,
-    ) -> UpstreamRuntime:
-        config = self._to_upstream_config(endpoint.upstream_server)
-        return UpstreamRuntime(
-            config,
-            store,
-            name=endpoint.upstream_server.display_name,
-            version=self._version,
-            upstream_client=self._upstream_client_factory.create(config),
+    ) -> PassthroughRouter:
+        config = self._to_upstream_config(endpoint.upstream)
+        return PassthroughRouter(
+            UpstreamRuntime(
+                config,
+                store,
+                name=endpoint.upstream.display_name,
+                version=self._version,
+                upstream_client=self._upstream_client_factory.create(config),
+            )
         )
 
     def _require_task_group(self) -> TaskGroup:
@@ -366,7 +379,10 @@ class BridgeManager:
         )
         await self._sessions.update(updated)
 
-    def _to_upstream_config(self, server: UpstreamServerDefinition) -> UpstreamServerConfig:
+    def _to_upstream_config(
+        self,
+        server: UpstreamServerDefinition | UpstreamRevision,
+    ) -> UpstreamServerConfig:
         connection = server.connection
         if isinstance(connection, StreamableHttpConnection):
             return UpstreamServerConfig(

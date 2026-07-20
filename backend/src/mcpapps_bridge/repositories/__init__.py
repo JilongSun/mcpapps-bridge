@@ -5,7 +5,13 @@ from .memory import (
     InMemoryEndpointRepository,
     InMemoryUpstreamServerRepository,
 )
-from .protocols import BridgeSessionRepository, EndpointRepository, UpstreamServerRepository
+from .protocols import (
+    BridgeSessionRepository,
+    EndpointRepository,
+    TopologyReader,
+    UpstreamServerRepository,
+)
+from .topology import RepositoryTopologyReader
 
 __all__ = [
     "BridgeSessionRepository",
@@ -13,5 +19,7 @@ __all__ = [
     "InMemoryBridgeSessionRepository",
     "InMemoryEndpointRepository",
     "InMemoryUpstreamServerRepository",
+    "RepositoryTopologyReader",
+    "TopologyReader",
     "UpstreamServerRepository",
 ]

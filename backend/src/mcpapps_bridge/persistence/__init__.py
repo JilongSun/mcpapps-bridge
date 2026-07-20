@@ -10,11 +10,13 @@ from .repositories import (
     seed_topology_if_empty,
 )
 from .session_store import SqlAlchemyBridgeSessionStoreFactory
+from .topology_store import SqlAlchemyTopologyReader
 
 __all__ = [
     "Base",
     "SqlAlchemyBridgeSessionRepository",
     "SqlAlchemyBridgeSessionStoreFactory",
+    "SqlAlchemyTopologyReader",
     "SqlAlchemyEndpointRepository",
     "SqlAlchemyUpstreamServerRepository",
     "SqliteDatabase",

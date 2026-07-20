@@ -20,6 +20,7 @@ from mcpapps_bridge.persistence import (
     SqlAlchemyBridgeSessionRepository,
     SqlAlchemyBridgeSessionStoreFactory,
     SqlAlchemyEndpointRepository,
+    SqlAlchemyTopologyReader,
     SqlAlchemyUpstreamServerRepository,
     SqliteDatabase,
     mark_interrupted_sessions_failed,
@@ -29,6 +30,7 @@ from mcpapps_bridge.repositories import (
     InMemoryBridgeSessionRepository,
     InMemoryEndpointRepository,
     InMemoryUpstreamServerRepository,
+    RepositoryTopologyReader,
 )
 from mcpapps_bridge.session import InMemoryBridgeSessionStoreFactory
 
@@ -55,6 +57,7 @@ async def bootstrap_gateway(configuration: RuntimeConfiguration) -> BootstrapRes
         manager = await assemble_bridge_manager(
             upstream_repository,
             endpoint_repository,
+            RepositoryTopologyReader(upstream_repository, endpoint_repository),
             InMemoryBridgeSessionRepository(),
             InMemoryBridgeSessionStoreFactory(),
         )
@@ -66,9 +69,12 @@ async def bootstrap_gateway(configuration: RuntimeConfiguration) -> BootstrapRes
             await database.migrate()
         await seed_topology_if_empty(database.session_factory, upstreams, endpoints)
         await mark_interrupted_sessions_failed(database.session_factory)
+        upstream_repository = SqlAlchemyUpstreamServerRepository(database.session_factory)
+        endpoint_repository = SqlAlchemyEndpointRepository(database.session_factory)
         manager = await assemble_bridge_manager(
-            SqlAlchemyUpstreamServerRepository(database.session_factory),
-            SqlAlchemyEndpointRepository(database.session_factory),
+            upstream_repository,
+            endpoint_repository,
+            SqlAlchemyTopologyReader(database.session_factory),
             SqlAlchemyBridgeSessionRepository(database.session_factory),
             SqlAlchemyBridgeSessionStoreFactory(database.session_factory),
         )

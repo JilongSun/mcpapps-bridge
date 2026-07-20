@@ -3,6 +3,7 @@
 from .builder import assemble_bridge_manager, build_bridge_manager, to_domain_connection
 from .downstream import BridgeDownstreamServer
 from .manager import BridgeManager, PassthroughSessionRuntime, PublishedEndpoint
+from .router import McpSessionRouter, PassthroughRouter
 from .runtime import UpstreamRuntime
 from .upstream import (
     SseUpstreamMcpClient,
@@ -18,7 +19,9 @@ from .upstream import (
 __all__ = [
     "BridgeManager",
     "BridgeDownstreamServer",
+    "McpSessionRouter",
     "PassthroughSessionRuntime",
+    "PassthroughRouter",
     "PublishedEndpoint",
     "UpstreamRuntime",
     "UpstreamServerConfig",

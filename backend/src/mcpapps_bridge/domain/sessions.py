@@ -33,6 +33,7 @@ class UpstreamSessionStatus(StrEnum):
 class BridgeSessionRecord(DomainModel):
     session_id: UUID = Field(default_factory=uuid4)
     endpoint_id: UUID
+    endpoint_revision_id: UUID
     downstream_transport_session_id: str | None = None
     status: BridgeSessionStatus = BridgeSessionStatus.STARTING
     created_at: datetime = Field(default_factory=utc_now)

@@ -21,6 +21,8 @@ from mcpapps_bridge.repositories import (
     InMemoryBridgeSessionRepository,
     InMemoryEndpointRepository,
     InMemoryUpstreamServerRepository,
+    RepositoryTopologyReader,
+    TopologyReader,
     UpstreamServerRepository,
 )
 from mcpapps_bridge.session import BridgeSessionStoreFactory, InMemoryBridgeSessionStoreFactory
@@ -50,9 +52,12 @@ async def build_bridge_manager(
         display_name=display_name or upstream_name,
         bindings=[EndpointBinding(upstream_server_id=server.server_id)],
     )
+    upstream_repository = InMemoryUpstreamServerRepository()
+    endpoint_repository = InMemoryEndpointRepository()
     manager = BridgeManager(
-        InMemoryUpstreamServerRepository(),
-        InMemoryEndpointRepository(),
+        upstream_repository,
+        endpoint_repository,
+        RepositoryTopologyReader(upstream_repository, endpoint_repository),
         InMemoryBridgeSessionRepository(),
         InMemoryBridgeSessionStoreFactory(),
         upstream_client_factory=upstream_client_factory,
@@ -66,6 +71,7 @@ async def build_bridge_manager(
 async def assemble_bridge_manager(
     upstream_servers: UpstreamServerRepository,
     endpoints: EndpointRepository,
+    topology: TopologyReader,
     sessions: BridgeSessionRepository,
     session_store_factory: BridgeSessionStoreFactory,
     *,
@@ -75,6 +81,7 @@ async def assemble_bridge_manager(
     manager = BridgeManager(
         upstream_servers,
         endpoints,
+        topology,
         sessions,
         session_store_factory,
         upstream_client_factory=upstream_client_factory,

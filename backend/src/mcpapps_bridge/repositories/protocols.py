@@ -8,8 +8,19 @@ from uuid import UUID
 from mcpapps_bridge.domain import (
     BridgeSessionRecord,
     EndpointDefinition,
+    EndpointTopologyRevision,
     UpstreamServerDefinition,
 )
+
+
+class TopologyReader(Protocol):
+    async def list_current_revisions(self) -> list[EndpointTopologyRevision]: ...
+
+    async def resolve_current_revision(
+        self, endpoint_slug: str
+    ) -> EndpointTopologyRevision | None: ...
+
+    async def get_revision(self, revision_id: UUID) -> EndpointTopologyRevision | None: ...
 
 
 class UpstreamServerRepository(Protocol):
