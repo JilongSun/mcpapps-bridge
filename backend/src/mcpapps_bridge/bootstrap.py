@@ -79,38 +79,64 @@ async def bootstrap_gateway(configuration: RuntimeConfiguration) -> BootstrapRes
 def _build_topology_seed(
     configuration: RuntimeConfiguration,
 ) -> tuple[list[UpstreamServerDefinition], list[EndpointDefinition]]:
-    upstreams = {
-        name: UpstreamServerDefinition(
+    upstreams: dict[str, UpstreamServerDefinition] = {}
+    for name, upstream in configuration.upstreams.items():
+        definition = UpstreamServerDefinition(
             slug=_normalize_slug(name),
             display_name=name,
             connection=to_domain_connection(upstream),
         )
-        for name, upstream in configuration.upstreams.items()
-    }
+        upstreams[name] = definition
+        logger.info(
+            "Upstream server: name=%s slug=%s transport=%s",
+            name,
+            definition.slug,
+            upstream.transport,
+        )
+        if upstream.transport == "stdio":
+            logger.debug("  stdio: command=%s args=%s", upstream.command, upstream.args)
+        else:
+            logger.debug("  http: url=%s", upstream.url)
+
     endpoints: list[EndpointDefinition] = []
     for name, endpoint in configuration.endpoints.items():
-        endpoints.append(
-            EndpointDefinition(
-                slug=_normalize_slug(name),
-                display_name=endpoint.display_name or name,
-                mode=EndpointMode(endpoint.mode),
-                bindings=[
-                    EndpointBinding(
-                        upstream_server_id=upstreams[binding.upstream].server_id,
-                        namespace=binding.namespace,
-                        priority=binding.priority,
-                        enabled=binding.enabled,
-                    )
-                    for binding in endpoint.bindings
-                ],
-                session_policy=EndpointSessionPolicy(
-                    upstream_session_mode=UpstreamSessionMode(endpoint.upstream_session_mode),
-                    lazy_upstream_connections=endpoint.lazy_upstream_connections,
-                    idle_timeout_seconds=endpoint.idle_timeout_seconds,
-                ),
-                enabled=endpoint.enabled,
-            )
+        definition = EndpointDefinition(
+            slug=_normalize_slug(name),
+            display_name=endpoint.display_name or name,
+            mode=EndpointMode(endpoint.mode),
+            bindings=[
+                EndpointBinding(
+                    upstream_server_id=upstreams[binding.upstream].server_id,
+                    namespace=binding.namespace,
+                    priority=binding.priority,
+                    enabled=binding.enabled,
+                )
+                for binding in endpoint.bindings
+            ],
+            session_policy=EndpointSessionPolicy(
+                upstream_session_mode=UpstreamSessionMode(endpoint.upstream_session_mode),
+                lazy_upstream_connections=endpoint.lazy_upstream_connections,
+                idle_timeout_seconds=endpoint.idle_timeout_seconds,
+            ),
+            enabled=endpoint.enabled,
         )
+        logger.info(
+            "Endpoint: slug=%s display_name=%s mode=%s bindings=%d enabled=%s",
+            definition.slug,
+            definition.display_name,
+            endpoint.mode,
+            len(endpoint.bindings),
+            endpoint.enabled,
+        )
+        for binding in endpoint.bindings:
+            logger.debug(
+                "  binding: upstream=%s namespace=%s priority=%d enabled=%s",
+                binding.upstream,
+                binding.namespace or "(default)",
+                binding.priority,
+                binding.enabled,
+            )
+        endpoints.append(definition)
     if not endpoints:
         default_name = configuration.default_upstream
         if default_name is None:

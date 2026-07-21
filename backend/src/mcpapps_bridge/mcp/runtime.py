@@ -6,6 +6,7 @@ from typing import Any
 
 import anyio
 
+from mcpapps_bridge.logging import get_logger
 from mcpapps_bridge.models import (
     AppResource,
     ResourceDescriptor,
@@ -14,6 +15,8 @@ from mcpapps_bridge.models import (
     UpstreamInitialization,
 )
 from .upstream import UpstreamMcpClient, UpstreamServerConfig, build_upstream_client
+
+logger = get_logger(__name__)
 
 
 class UpstreamRuntime:
@@ -46,9 +49,27 @@ class UpstreamRuntime:
         async with self._lifecycle_lock:
             if self._started:
                 return
+            logger.info(
+                "Connecting upstream: name=%s transport=%s",
+                self._name,
+                self._upstream_config.transport,
+            )
+            if self._upstream_config.transport == "stdio":
+                logger.debug(
+                    "  stdio: command=%s args=%s",
+                    self._upstream_config.command,
+                    self._upstream_config.args,
+                )
+            else:
+                logger.debug("  http: url=%s", self._upstream_config.url)
             try:
                 upstream = await self._upstream_client.connect(self._upstream_config)
             except Exception:
+                logger.exception(
+                    "Failed to connect upstream: name=%s transport=%s",
+                    self._name,
+                    self._upstream_config.transport,
+                )
                 raise RuntimeError(
                     f"Failed to connect to upstream MCP server "
                     f"(transport={self._upstream_config.transport}). "
@@ -60,6 +81,11 @@ class UpstreamRuntime:
                 await self._upstream_client.close()
                 raise
             self._started = True
+            logger.info(
+                "Upstream connected: name=%s identity=%s",
+                self._name,
+                upstream.model_dump_json(),
+            )
 
     async def close(self) -> None:
         async with self._lifecycle_lock:

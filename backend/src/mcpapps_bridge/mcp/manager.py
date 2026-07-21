@@ -24,6 +24,7 @@ from mcpapps_bridge.domain import (
     UpstreamServerDefinition,
     UpstreamRevision,
 )
+from mcpapps_bridge.logging import get_logger
 from mcpapps_bridge.repositories import (
     BridgeSessionRepository,
     EndpointRepository,
@@ -41,6 +42,8 @@ from .upstream import (
     UpstreamMcpClientFactory,
     UpstreamServerConfig,
 )
+
+logger = get_logger(__name__)
 
 
 def utc_now() -> datetime:
@@ -122,8 +125,20 @@ class BridgeManager:
     async def load_published_endpoints(self) -> None:
         self._published.clear()
         self._slug_index.clear()
-        for revision in await self._topology.list_current_revisions():
-            self._register_published_endpoint(self._build_published_endpoint(revision))
+        revisions = await self._topology.list_current_revisions()
+        logger.info("Loading %d published endpoint(s) from topology", len(revisions))
+        for revision in revisions:
+            published = self._build_published_endpoint(revision)
+            bindings = [b for b in published.revision.bindings if b.enabled]
+            upstreams = [b.upstream.display_name for b in bindings]
+            logger.info(
+                "Published endpoint: slug=%s display_name=%s mode=%s upstreams=%s",
+                published.revision.slug,
+                published.revision.display_name,
+                published.revision.mode.value,
+                upstreams,
+            )
+            self._register_published_endpoint(published)
 
     def _build_published_endpoint(
         self,
@@ -157,8 +172,23 @@ class BridgeManager:
             raise KeyError(f"Unknown endpoint: {endpoint_slug}")
 
         session = await self._create_session_record(endpoint.revision)
+        logger.info(
+            "Bridge session created: session_id=%s endpoint=%s",
+            session.session_id,
+            endpoint_slug,
+        )
         store = await self.get_session_store(session.session_id)
         router = self._create_session_router(endpoint, store)
+        downstream_identity = router.identity
+        logger.info(
+            "Downstream host identity: server_name=%s server_version=%s "
+            "tools=%s resources=%s protocol=%s",
+            downstream_identity.server_name,
+            downstream_identity.server_version,
+            downstream_identity.supports_tools,
+            downstream_identity.supports_resources,
+            downstream_identity.protocol_version,
+        )
         handlers = ProxyHandlers(router, store)
         downstream = BridgeDownstreamServer(
             handlers,
