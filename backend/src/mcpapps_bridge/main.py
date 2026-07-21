@@ -47,6 +47,19 @@ async def serve_runtime(args: argparse.Namespace) -> None:
     logger.info("Upstreams: %s", ", ".join(configuration.upstreams) or "(none)")
 
     result = await bootstrap_gateway(configuration)
+
+    api_host = configuration.bridge.api_host
+    api_port = configuration.bridge.api_port
+    for published in result.manager.published_endpoints:
+        slug = published.revision.slug
+        streamable_url = f"http://{api_host}:{api_port}/mcp/{slug}"
+        sse_url = f"http://{api_host}:{api_port}/mcp/{slug}/sse"
+        logger.info(
+            "MCP endpoint URL: %s (streamable-http, recommended) | %s (SSE)",
+            streamable_url,
+            sse_url,
+        )
+
     runtime = BridgeHostRuntime(
         result.manager,
         api_host=configuration.bridge.api_host,
