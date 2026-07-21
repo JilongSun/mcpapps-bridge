@@ -10,6 +10,9 @@ import anyio
 from mcpapps_bridge.bootstrap import bootstrap_gateway
 from mcpapps_bridge.config import ConfigError, resolve_runtime_configuration
 from mcpapps_bridge.host import BridgeHostRuntime
+from mcpapps_bridge.logging import LogMode, configure_logging, get_logger
+
+logger = get_logger(__name__)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -36,6 +39,13 @@ async def serve_runtime(args: argparse.Namespace) -> None:
         proxy_name=args.proxy_name,
         httpx_timeout_seconds=args.httpx_timeout_seconds,
     )
+    logger.info("Configuration loaded from %s", configuration.config_path)
+    logger.info(
+        "API listening on %s:%d", configuration.bridge.api_host, configuration.bridge.api_port
+    )
+    logger.info("Storage path: %s", configuration.storage.sqlite_path)
+    logger.info("Upstreams: %s", ", ".join(configuration.upstreams) or "(none)")
+
     result = await bootstrap_gateway(configuration)
     runtime = BridgeHostRuntime(
         result.manager,
@@ -50,10 +60,12 @@ async def serve_runtime(args: argparse.Namespace) -> None:
 
 def main() -> None:
     """Run the bridge runtime from YAML configuration."""
+    configure_logging(LogMode.PRODUCTION)
     args = parse_args()
     try:
         anyio.run(serve_runtime, args)
     except ConfigError as exc:
+        logger.error("Configuration error: %s", exc)
         raise SystemExit(str(exc)) from exc
 
 

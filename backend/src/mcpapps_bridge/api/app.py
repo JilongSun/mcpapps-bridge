@@ -15,14 +15,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.routing import Mount
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from mcpapps_bridge.logging import get_logger
 from mcpapps_bridge.mcp import BridgeManager, BridgeSessionRuntime
+
+logger = get_logger(__name__)
 
 
 def create_app(manager: BridgeManager) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        logger.info("FastAPI application starting (lifespan enter)")
         async with manager.lifecycle():
             yield
+        logger.info("FastAPI application shutting down (lifespan exit)")
 
     app = FastAPI(title="mcpapps bridge", version="0.1.0", lifespan=lifespan)
     app.add_middleware(

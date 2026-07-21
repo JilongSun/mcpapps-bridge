@@ -12,6 +12,10 @@ from __future__ import annotations
 
 import sys
 
+from mcpapps_bridge.logging import LogMode, configure_logging
+
+configure_logging(LogMode.DEBUG)
+
 # ── Debug overrides — edit these lines ───────────────────────────────────
 # Set _DEBUG_UPSTREAM to an upstream name defined in mcpapps-bridge.yaml
 # to bypass the YAML default, e.g. _DEBUG_UPSTREAM = "mock_stdio"

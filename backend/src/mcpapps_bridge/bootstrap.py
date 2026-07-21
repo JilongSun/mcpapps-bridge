@@ -15,6 +15,7 @@ from mcpapps_bridge.domain import (
     UpstreamServerDefinition,
     UpstreamSessionMode,
 )
+from mcpapps_bridge.logging import get_logger
 from mcpapps_bridge.mcp import BridgeManager, assemble_bridge_manager, to_domain_connection
 from mcpapps_bridge.persistence import (
     SqlAlchemyBridgeSessionRepository,
@@ -26,6 +27,8 @@ from mcpapps_bridge.persistence import (
     mark_interrupted_sessions_failed,
     seed_topology_if_empty,
 )
+
+logger = get_logger(__name__)
 
 
 class AsyncCloser(Protocol):
@@ -40,10 +43,20 @@ class BootstrapResult:
 
 async def bootstrap_gateway(configuration: RuntimeConfiguration) -> BootstrapResult:
     upstreams, endpoints = _build_topology_seed(configuration)
+    logger.info(
+        "Bootstrapping gateway: %d upstream(s), %d endpoint(s)",
+        len(upstreams),
+        len(endpoints),
+    )
+
     database = SqliteDatabase(configuration.storage.sqlite_path)
+    logger.info("SQLite database opened: %s", configuration.storage.sqlite_path)
+
     try:
         if configuration.storage.auto_migrate:
+            logger.info("Running database migrations...")
             await database.migrate()
+            logger.info("Database migrations complete")
         await seed_topology_if_empty(database.session_factory, upstreams, endpoints)
         await mark_interrupted_sessions_failed(database.session_factory)
         upstream_repository = SqlAlchemyUpstreamServerRepository(database.session_factory)
@@ -55,7 +68,9 @@ async def bootstrap_gateway(configuration: RuntimeConfiguration) -> BootstrapRes
             SqlAlchemyBridgeSessionRepository(database.session_factory),
             SqlAlchemyBridgeSessionStoreFactory(database.session_factory),
         )
+        logger.info("Bridge manager assembled successfully")
     except BaseException:
+        logger.exception("Bootstrap failed — closing database")
         await database.close()
         raise
     return BootstrapResult(manager=manager, storage=database)

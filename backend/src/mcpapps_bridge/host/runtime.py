@@ -5,7 +5,10 @@ from __future__ import annotations
 import uvicorn
 
 from mcpapps_bridge.api import create_app
+from mcpapps_bridge.logging import get_logger
 from mcpapps_bridge.mcp import BridgeManager
+
+logger = get_logger(__name__)
 
 
 class BridgeHostRuntime:
@@ -22,6 +25,7 @@ class BridgeHostRuntime:
 
     async def serve(self) -> None:
         app = create_app(self._manager)
+        logger.info("Starting uvicorn server on %s:%d", self._api_host, self._api_port)
         server = uvicorn.Server(
             uvicorn.Config(
                 app,
