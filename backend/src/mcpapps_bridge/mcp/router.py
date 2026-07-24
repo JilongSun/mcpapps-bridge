@@ -11,6 +11,7 @@ from hashlib import sha256
 from typing import Any, Protocol
 
 import anyio
+from anyio.abc import TaskGroup
 from pydantic import AnyUrl
 
 from mcpapps_bridge.domain import EndpointBindingRevision, EndpointTopologyRevision
@@ -48,22 +49,33 @@ class McpSessionRouter(Protocol):
 
 
 class PassthroughRouter:
-    def __init__(self, runtime: UpstreamRuntime, session_store: BridgeSessionStore) -> None:
+    def __init__(
+        self,
+        runtime: UpstreamRuntime,
+        session_store: BridgeSessionStore,
+        worker_task_group: TaskGroup,
+    ) -> None:
         self._runtime = runtime
         self._session_store = session_store
+        self._worker_task_group = worker_task_group
 
     @property
     def identity(self) -> UpstreamInitialization:
         return self._runtime.identity
 
     async def start(self) -> None:
-        await self._runtime.start()
-        await self._session_store.start(self._runtime.identity)
-        await self.list_tools()
-        await self.list_resources()
+        await self._runtime.start_worker(self._worker_task_group)
+        try:
+            await self._runtime.start()
+            await self._session_store.start(self._runtime.identity)
+            await self.list_tools()
+            await self.list_resources()
+        except BaseException:
+            await self.close()
+            raise
 
     async def close(self) -> None:
-        await self._runtime.close()
+        await self._runtime.shutdown_worker()
 
     async def list_tools(self) -> list[ToolDescriptor]:
         tools = await self._runtime.refresh_tools()
@@ -114,11 +126,13 @@ class AggregateRouter:
         revision: EndpointTopologyRevision,
         session_store: BridgeSessionStore,
         runtime_factory: Callable[[EndpointBindingRevision], UpstreamRuntime],
+        worker_task_group: TaskGroup,
         *,
         version: str,
     ) -> None:
         self._revision = revision
         self._session_store = session_store
+        self._worker_task_group = worker_task_group
         self._identity = UpstreamInitialization(
             server_name=revision.display_name,
             server_version=version,
@@ -154,13 +168,24 @@ class AggregateRouter:
         return self._identity
 
     async def start(self) -> None:
-        await self._session_store.start(self._identity)
-        await self._publish_availability()
+        for bound in self._bindings:
+            await bound.runtime.start_worker(self._worker_task_group)
+        try:
+            await self._session_store.start(self._identity)
+            await self._publish_availability()
+        except BaseException:
+            await self.close()
+            raise
 
     async def close(self) -> None:
-        async with anyio.create_task_group() as task_group:
-            for bound in self._bindings:
-                task_group.start_soon(bound.runtime.close)
+        errors: list[Exception] = []
+        for bound in self._bindings:
+            try:
+                await bound.runtime.shutdown_worker()
+            except Exception as exc:
+                errors.append(exc)
+        if errors:
+            raise ExceptionGroup("Failed to close aggregate upstream workers", errors)
 
     async def list_tools(self) -> list[ToolDescriptor]:
         discovered: dict[str, list[ToolDescriptor]] = {}

@@ -373,12 +373,14 @@ class BridgeManager:
                 revision,
                 store,
                 self._create_bound_upstream_runtime,
+                self._require_task_group(),
                 version=self._version,
             )
         binding = next(binding for binding in revision.bindings if binding.enabled)
         return PassthroughRouter(
             self._create_bound_upstream_runtime(binding),
             store,
+            self._require_task_group(),
         )
 
     def _create_bound_upstream_runtime(

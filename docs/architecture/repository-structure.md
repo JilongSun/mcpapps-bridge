@@ -21,7 +21,7 @@ mcpapps-bridge/
 │       │   ├── manager.py            # Managed endpoints, sessions, and lifecycle ownership
 │       │   ├── builder.py            # Repository-based manager assembly
 │       │   ├── upstream.py           # Upstream MCP clients: stdio, SSE, streamable HTTP
-│       │   ├── runtime.py            # UpstreamRuntime: one upstream lifecycle and cache
+│       │   ├── runtime.py            # UpstreamRuntime: owner task, lifecycle, and cache
 │       │   ├── router.py             # Passthrough/aggregate session routing
 │       │   ├── downstream.py         # Downstream MCP Server + HTTP/SSE/stdio transports
 │       │   ├── handlers.py           # ProxyHandlers for tools and resources methods
@@ -67,7 +67,7 @@ mcpapps-bridge/
 | Downstream | `mcp/downstream.py` | Hosts the downstream MCP SDK `Server` and transport sessions |
 | Handlers | `mcp/handlers.py` | Implements MCP methods and records session events |
 | Router | `mcp/router.py` | Owns passthrough/aggregate routing, public names and URIs, discovery, and binding availability |
-| Runtime | `mcp/runtime.py` | Owns one upstream MCP session and its local tool/resource caches |
+| Runtime | `mcp/runtime.py` | Proxies one upstream MCP session through a persistent owner task and maintains local caches |
 | Upstream | `mcp/upstream.py` | Connects to real MCP servers via stdio, SSE, or streamable HTTP |
 | Mapper | `mcp/mapper.py` | Pure conversion between bridge models and MCP SDK types |
 | Session | `session/` | Defines `BridgeSessionStore` and `BridgeSessionStoreFactory` ports |
@@ -86,7 +86,7 @@ mcpapps-bridge/
 - `BridgeDownstreamServer` owns downstream MCP transports only; it does not start or close the upstream runtime.
 - `ProxyHandlers` depend on `McpSessionRouter`, not directly on single-upstream runtime details.
 - `AggregateRouter` owns lazy bound runtimes, deterministic degraded discovery, namespaced tools, and exact public-to-upstream resource URI maps.
-- An upstream runtime belongs to a bridge session by default; it owns upstream protocol state and caches but does not know about HTTP routing.
+- An upstream runtime belongs to a bridge session by default; its manager-hosted worker enters, operates, and exits SDK transport contexts in one task. The runtime owns upstream protocol state and caches but does not know about HTTP routing.
 - `ProxyHandlers` own method behavior and session event recording, while `mapper.py` remains pure conversion logic.
 - Persistent session storage satisfies `BridgeSessionStore`; runtime and handler code never depend on SQLAlchemy or database sessions directly.
 - SQLite owns managed topology after the initial seed. YAML remains the source for host and storage settings and may seed topology only when the database is empty.

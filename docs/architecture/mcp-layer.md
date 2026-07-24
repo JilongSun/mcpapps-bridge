@@ -43,7 +43,7 @@ flowchart TD
     end
 ```
 
-The important ownership rule is that lifecycle flows from the host into `BridgeManager`, then into isolated bridge session runtimes. The CLI and FastAPI application never construct session stores or upstream clients. The dispatcher identifies endpoints and transports requests, while the manager creates and closes the downstream server, router, bound upstream runtimes, and store as one bridge-session-scoped unit.
+The important ownership rule is that lifecycle flows from the host into `BridgeManager`, then into isolated bridge session runtimes. The CLI and FastAPI application never construct session stores or upstream clients. The dispatcher identifies endpoints and transports requests, while the manager creates and closes the downstream server, router, bound upstream runtimes, and store as one bridge-session-scoped unit. The manager task group also hosts one persistent upstream worker per binding, as defined by [ADR 0005](decisions/0005-upstream-transport-task-ownership.md).
 
 ## Modules
 
@@ -88,12 +88,13 @@ Boundary rules:
 
 ### `runtime.py` - Single-Upstream Runtime
 
-`UpstreamRuntime` owns one upstream MCP session. It connects to the upstream server, tracks upstream identity, refreshes tool/resource metadata, caches loaded resources, and synthesizes UI resources when needed. It does not publish session-global state.
+`UpstreamRuntime` owns one upstream MCP session. A persistent worker task executes its client operations through an internal command channel. The worker enters, uses, reconnects, and exits MCP SDK transport contexts in the same task because their AnyIO cancel scopes cannot move between request or discovery tasks. The runtime tracks upstream identity, refreshes tool/resource metadata, caches loaded resources, and synthesizes UI resources when needed. It does not publish session-global state.
 
 Key methods:
 
 | Method | Role |
 | --- | --- |
+| `start_worker()` / `shutdown_worker()` | Start and stop the manager-hosted transport owner task |
 | `start()` / `close()` | Connect and disconnect the upstream MCP client |
 | `refresh_tools()` | Pull tools from upstream and update the local cache |
 | `refresh_resources()` | Pull resources, or synthesize UI resources from tool metadata when upstream listing is unavailable |
@@ -105,6 +106,7 @@ Key methods:
 Boundary rules:
 
 - Knows about upstream clients and bridge-side caches.
+- Serializes one stateful upstream session while allowing different aggregate bindings to run concurrently.
 - Does not know about the MCP SDK `Server`, Starlette scopes, FastAPI, or HTTP routing.
 
 ### `router.py` - Session MCP Routing
