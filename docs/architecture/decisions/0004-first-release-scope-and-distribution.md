@@ -96,3 +96,46 @@ Version 0.1 is ready when:
 6. The first-party UI renders assistant output, tool activity, and MCP App widgets against stable backend contracts.
 7. A clean database can migrate and bootstrap inside the release image.
 8. The image can start from documented configuration and report liveness and readiness without a development toolchain.
+
+## Implementation Status
+
+As of 2026-08-16:
+
+### Backend Scope
+
+| Requirement | State | Evidence or gap |
+| --- | --- | --- |
+| SQLite, migrations, and seed-if-empty bootstrap | Implemented | SQLAlchemy/Alembic persistence and SQLite bootstrap are active in normal and debug startup |
+| Managed upstream/endpoint/binding CRUD | Partial | Domain and add/read repository foundations exist; update/delete use cases and HTTP routes do not |
+| Immutable upstream and endpoint revisions | Implemented | Sessions capture an endpoint revision whose bindings reference upstream revisions |
+| Aggregate tool discovery and routing | Implemented | Namespaced discovery, calls, degraded availability, retry, and owner-task lifecycle are present |
+| Aggregate resource and MCP Apps routing | Implemented | Ordinary/UI routes, metadata, resource links, and embedded resources are rewritten |
+| Passthrough compatibility mode | Implemented | One-binding transparent routing remains available |
+| Session lifecycle and inspection | Partial | Records, snapshots, events, REST reads, and WebSocket events exist; upstream-session audit and broader health are incomplete |
+| Provider-neutral Agent Host contract | Pending | `agent_adapters` contains no runtime contract or implementation |
+| OpenAI-compatible API | Pending | Chat completions, responses, and models routes do not exist |
+| Hermes HTTP/SSE adapter | Pending | No Hermes adapter implementation exists |
+| Standard/Hermes contract separation | Pending | No executable adapter contracts exist yet |
+
+### Frontend Scope
+
+| Requirement | State | Evidence or gap |
+| --- | --- | --- |
+| Conversation input and streaming output | Pending | The transcript panel explicitly reports that it is not connected |
+| Tool activity and results | Partial | Bridge events are listed, but there is no complete agent/tool workflow |
+| MCP App rendering and host actions | Partial | The latest resource renders through `@mcp-ui/client`; message actions are placeholders |
+| Upstream/endpoint/binding management | Pending | No management surface exists |
+| Connection, health, and session inspection | Partial | One session event stream is shown; broader connection and health workflows are absent |
+
+### Release Gates
+
+| Gate | State | Evidence or gap |
+| --- | --- | --- |
+| Aggregate tool/resource protocol integration tests | Partial | Manual real-transport validation exists; the automated suite covers owner-task lifecycle only |
+| Sessions remain on immutable revisions | Implemented | `BridgeSessionRecord.endpoint_revision_id` is required and persisted |
+| Management mutations create revisions without changing active sessions | Partial | Initial publication creates revisions; later update/delete mutation workflows do not exist |
+| OpenAI/Hermes contract tests | Pending | APIs and adapter are absent |
+| Hermes isolation | Pending | No implementation exists to validate the boundary |
+| First-party agent and MCP Apps UI | Partial | MCP App rendering exists; agent transcript and host actions do not |
+| Clean database migration/bootstrap in release image | Pending | Source and wheel checks exist, but there is no OCI image |
+| Image startup, liveness, and readiness | Pending | No container artifact exists and readiness is absent |

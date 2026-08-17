@@ -82,3 +82,13 @@ operation.
 
 MCP sessions carry negotiated capabilities, protocol version, notifications, and transport state.
 Reconnecting per method would discard those semantics and add unnecessary latency.
+
+## Implementation Status
+
+As of 2026-08-16, this decision is implemented.
+
+- `UpstreamRuntime` routes connect, protocol operations, reconnect, and shutdown through one
+  persistent worker task per binding.
+- `BridgeManager` owns the parent task group used by passthrough and aggregate runtimes.
+- The focused regression test verifies that calls submitted from different tasks execute and
+  close the underlying upstream client in one owner task.

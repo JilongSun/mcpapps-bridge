@@ -107,3 +107,29 @@ SQLite with `aiosqlite` is the first supported database. The persistence API rem
 5. Implement multiple passthrough endpoints.
 6. Implement aggregate tool/resource routing and lazy per-session upstream connections.
 7. Expose administrative CRUD through the control-plane API.
+
+## Implementation Status
+
+As of 2026-08-16:
+
+### Implemented
+
+- Persistence-independent topology and session domain models.
+- One ASGI listener with stable path-addressed MCP endpoint dispatch.
+- Per-downstream-session MCP server, router, store, and isolated upstream runtimes.
+- Passthrough and aggregate endpoint modes with immutable endpoint revision capture.
+- SQLite repository adapters and database-backed endpoint publication.
+
+### Partial
+
+- Upstream and endpoint repositories support add/get/list operations, but not complete update and
+	delete mutations.
+- `UpstreamSessionRecord` and its SQL row exist, but runtime connection lifecycle is not persisted
+	through that model.
+- The `shared` session policy is accepted by configuration and domain models, but runtime behavior
+	remains isolated; shared upstream sessions are not implemented.
+
+### Pending
+
+- Complete management use cases and public CRUD APIs for upstreams, endpoints, and bindings.
+- Revision-producing update and delete workflows with active-session consistency checks.

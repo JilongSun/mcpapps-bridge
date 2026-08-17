@@ -171,3 +171,33 @@ The first integration boundary is HTTP/SSE to an independently deployed Hermes r
 ### Authentication boundaries
 
 The management API can modify servers and credentials, MCP clients can invoke powerful tools, and Agent Host users can start agent runs. These are different trust levels and may require separate tokens, scopes, or identities. Authentication is deferred until the corresponding public APIs are designed, but one shared unrestricted credential must not become an accidental permanent contract.
+
+## Implementation Status
+
+As of 2026-08-16:
+
+### Implemented
+
+- Stable aggregate and compatibility passthrough MCP endpoints.
+- Always-namespaced aggregate tools with deterministic degraded discovery.
+- Ordinary resource URI namespacing and opaque `ui://` routing with exact session route tables.
+- MCP Apps metadata, resource-link, and embedded-resource rewriting at defined protocol locations.
+- Immutable endpoint/upstream revision capture for active sessions.
+- Session snapshots, events, and basic inspection APIs.
+
+### Partial
+
+- The management domain and persistence foundations exist, but there is no complete management
+	HTTP API.
+- The frontend can render the latest loaded MCP App resource and bridge activity, but host-owned
+	UI actions and agent transcript workflows are not connected.
+- Health exposes liveness only; readiness is not implemented.
+
+### Pending
+
+- Provider-neutral Agent Host run/event contracts.
+- OpenAI-compatible chat, responses, models, and streaming APIs.
+- Hermes HTTP/SSE integration and separate Hermes-specific contracts.
+- Prompt aggregation, list-changed notification behavior, and broader latest-spec capability
+	coverage.
+- Authentication and authorization boundaries for management, MCP, and Agent Host APIs.

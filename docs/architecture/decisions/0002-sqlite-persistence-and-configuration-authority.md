@@ -137,3 +137,29 @@ PostgreSQL is the later persistence target. Multi-process operation additionally
 ## Deferred Decision
 
 Session events are retained indefinitely at first. A future retention and pruning policy will decide when old `session_events` rows can be deleted to control database growth. The policy is deferred because there is no usage data yet for choosing a safe age or per-session event limit; current snapshots must remain valid even when historical events are eventually pruned.
+
+## Implementation Status
+
+As of 2026-08-16:
+
+### Implemented
+
+- SQLite-only normal and debug runtime storage.
+- Async SQLAlchemy repositories, event/snapshot storage, Alembic migrations, and packaged
+	migration resources.
+- Seed-if-empty topology bootstrap, database-authoritative endpoint loading, immutable revisions,
+	and interrupted-session cleanup.
+- One-process deployment semantics for live MCP session ownership.
+
+### Partial
+
+- Repository contracts provide the reads and initial publication required by the gateway, but do
+	not yet expose complete administrative mutations.
+- Session history is durable, while upstream connection audit rows are defined but not populated
+	by the runtime.
+
+### Pending
+
+- Dedicated migration and topology import/export command surfaces.
+- Retention and pruning policy.
+- Management APIs that publish later topology revisions.
