@@ -4,6 +4,35 @@ The `mcp/` package is the protocol-aware bridge boundary between downstream MCP 
 
 `BridgeManager` creates all bridge session records and stores through async repository and factory ports. It publishes fully resolved immutable endpoint revisions from `TopologyReader`, so runtime code does not join persistence records or depend on SQLAlchemy. The stable `/mcp/{endpoint_slug}` dispatcher correlates each downstream `mcp-session-id` with one isolated bridge session runtime, as defined by [ADR 0001](decisions/0001-managed-endpoints-and-session-ownership.md).
 
+## Refactor Status
+
+This document describes the current monolithic implementation. [ADR 0006](decisions/0006-core-service-and-server-packages.md) accepts a staged extraction into bridge core, gateway service, and deployable server packages. The target cross-package API is defined by the [bridge core contract](bridge-core-contract.md).
+
+The target ownership is:
+
+```mermaid
+flowchart LR
+        Server["Deployable server"] --> Service["Gateway and Agent Host services"]
+        Server --> Core["Bridge core"]
+        Service --> Core
+        Core --> SDK["MCP Python SDK adapter"]
+        Service --> Ports["Persistence ports"]
+        Server --> SQLite["SQLite adapters"]
+        SQLite --> Ports
+```
+
+- Bridge core owns protocol models, routing, upstream owner tasks, caches, MCP SDK mapping, and raw
+    downstream MCP transports.
+- Gateway service owns managed topology, immutable revision publication, session coordination,
+    durable event semantics, Agent Host contracts, and persistence ports.
+- Deployable server owns FastAPI/Uvicorn lifecycle, transport route selection, SQLite/Alembic,
+    concrete agent adapters, static frontend serving, and deployment assembly.
+- Core reports typed observations to service. Routers and handlers will no longer write directly
+    to `BridgeSessionStore` after the observer migration.
+
+Until that migration completes, `BridgeManager`, `ProxyHandlers`, and routers retain the current
+ownership documented below. Target ownership must not be described as already implemented.
+
 ## Responsibility Model
 
 ```mermaid

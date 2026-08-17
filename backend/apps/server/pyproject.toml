@@ -1,0 +1,20 @@
+[project]
+name = "mcp-gateway-server"
+version = "0.0.0"
+description = "Internal deployable MCP gateway server composition."
+requires-python = ">=3.12"
+dependencies = [
+  "mcp-bridge-core",
+  "mcp-gateway-service",
+]
+
+[tool.uv.sources]
+mcp-bridge-core = { workspace = true }
+mcp-gateway-service = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcp_gateway_server"]

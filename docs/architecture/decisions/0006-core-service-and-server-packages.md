@@ -1,7 +1,8 @@
 # ADR 0006: Core, Service, and Server Packages
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-08-16
+- Accepted: 2026-08-17
 
 ## Context
 
@@ -21,10 +22,10 @@ The current environment uses MCP Python SDK 1.28 and already negotiates MCP spec
 `<2` upper bound. Adopting that API at the same boundary that owns persistence and product
 lifecycle would mix protocol compatibility work with application migration work.
 
-## Proposed Decision
+## Decision
 
 Organize the Python backend as a `uv` workspace containing three dependency-ordered packages.
-Package names are provisional until this ADR is accepted.
+Package names are internal working names and do not determine the product's future brand.
 
 ```text
 backend/
@@ -47,6 +48,11 @@ Core must never import service or server code, and service must never import ser
 server is the composition root and may depend directly on both lower packages.
 
 The frontend consumes server HTTP/WebSocket contracts and does not import Python packages.
+
+The cross-package types, lifecycle, observer events, and failure behavior are defined in the
+[bridge core contract](../bridge-core-contract.md). That contract may gain capabilities during the
+migration, but it cannot reverse this dependency graph or expose product persistence and framework
+types through core.
 
 ### Package 1: Bridge core
 
@@ -201,3 +207,33 @@ protocol compatibility work distinguishable from ownership and import errors.
 - MCP Python SDK v2 migration and the compatibility policy for protocol profiles after
   2025-11-25.
 - Extraction of SQLite infrastructure into a reusable first-party adapter package.
+- A post-v0.1 project name and external interface refactor. The new product name does not need to
+  describe its feature set, and branding must not become a dependency between internal packages.
+
+## Implementation Status
+
+As of 2026-08-17, implementation is partial.
+
+### Implemented
+
+- MCP Python SDK is constrained to `>=1.28,<2` for the v0.1 migration.
+- The backend is a `uv` workspace with internal bridge-core, gateway-service, and server members;
+  their declared dependencies follow the accepted direction.
+- Bridge core owns frozen runtime plan and protocol models, typed observations, the observer port,
+  and a no-op observer without importing the monolith, FastAPI, or persistence.
+- Aggregate characterization coverage freezes namespaced tools, ordinary and opaque UI resource
+  routes, MCP Apps metadata rewriting, protocol-defined tool result rewriting, and rejection of
+  unregistered resource URIs.
+- The existing owner-task regression freezes upstream transport context ownership.
+- Cross-package plans, facade responsibilities, observer events, and lifecycle invariants are
+  specified in the bridge core contract.
+
+### Pending
+
+- Adapt managed topology revisions into core-owned `EndpointPlan` values in gateway service.
+- Adapt core observations into the existing durable session journal and snapshots.
+- Replace direct `BridgeSessionStore` calls in routers and handlers with a service observer.
+- Move protocol runtime, routing, SDK mapping, and downstream adapters into bridge core.
+- Split `BridgeManager` into core engine, application session service, and server composition.
+- Recompose SQLite, FastAPI, configuration, and process lifecycle in the server package.
+- Add real MCP 2025-11-25 transport contract tests across the extracted core and composed server.

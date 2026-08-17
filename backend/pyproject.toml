@@ -11,7 +11,7 @@ dependencies = [
   "asyncpg>=0.31.0",
   "fastapi>=0.115.0",
   "greenlet>=3.5.3",
-  "mcp>=1.10.0",
+  "mcp>=1.28,<2",
   "pydantic>=2.8.0",
   "pyyaml>=6.0.3",
   "sqlalchemy>=2.0.51",
@@ -30,6 +30,13 @@ dev = [
 requires = ["hatchling>=1.25.0"]
 build-backend = "hatchling.build"
 
+[tool.uv.workspace]
+members = [
+  "packages/bridge-core",
+  "packages/gateway-service",
+  "apps/server",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcpapps_bridge"]
 
@@ -43,7 +50,7 @@ target-version = "py312"
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
-include = ["src"]
+include = ["src", "packages", "apps"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

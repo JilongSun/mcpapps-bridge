@@ -1,5 +1,7 @@
 # Repository Structure
 
+## Current Structure
+
 ```text
 mcpapps-bridge/
 |
@@ -51,6 +53,42 @@ mcpapps-bridge/
 ├── README.md
 └── LICENSE
 ```
+
+## Target Backend Structure
+
+[ADR 0006](decisions/0006-core-service-and-server-packages.md) replaces the single backend package
+through a staged `uv` workspace migration. Directory and distribution names are internal working
+names; the post-v0.1 product brand is a separate decision.
+
+```text
+backend/
+|-- pyproject.toml                    # uv workspace and shared development tooling
+|-- uv.lock
+|-- packages/
+|   |-- bridge-core/
+|   |   |-- pyproject.toml
+|   |   `-- src/                      # Protocol plans, engine, routing, SDK adapters
+|   `-- gateway-service/
+|       |-- pyproject.toml
+|       `-- src/                      # Topology, sessions, events, Agent Host, ports
+`-- apps/
+	`-- server/
+		|-- pyproject.toml
+		|-- migrations/               # Server-owned SQLite schema
+		`-- src/                      # FastAPI, SQLite, adapters, CLI, composition
+```
+
+Allowed production dependencies:
+
+```text
+server ----------------> bridge-core
+   `--> gateway-service ---> bridge-core
+```
+
+The workspace members and core contract models now exist, while runtime behavior remains in the
+current monolithic module tree until each extraction step lands. The
+[bridge core contract](bridge-core-contract.md) is authoritative for new cross-package types; new
+code must not add dependencies that oppose the target graph.
 
 ## Backend Layer Responsibilities
 
