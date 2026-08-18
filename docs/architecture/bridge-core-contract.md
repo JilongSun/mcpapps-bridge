@@ -179,7 +179,8 @@ Each extraction step must preserve these checks:
 6. A real MCP 2025-11-25 streamable HTTP test passes initialize, tool/resource discovery, calls,
    reads, and clean shutdown.
 
-The workspace package skeleton, core-owned plan/event models, managed-revision adapter, and durable
-journal adapter now exist. Routers and handlers emit observations without importing application
-storage contracts. The next implementation slice can move routing, runtime, protocol mapping, and
-raw downstream adapters into bridge core while preserving the current characterization tests.
+The workspace package skeleton, core-owned plan/event models, managed-revision adapter, durable
+journal adapter, MCP SDK v1 adapter, and downstream method handlers now exist. The current
+monolith router is exposed to core handlers through a temporary core-model adapter. The next
+implementation slice can move routing and runtime into bridge core, then move the raw downstream
+transport adapter while preserving the current characterization tests.

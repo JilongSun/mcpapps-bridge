@@ -11,6 +11,7 @@ from uuid import UUID
 import anyio
 from anyio.abc import TaskGroup, TaskStatus
 from mcp_bridge_core import BridgeObserver, EndpointPlan
+from mcp_bridge_core.handlers import ProxyHandlers
 from mcp_gateway_service import JournalBridgeObserver
 
 from mcpapps_bridge.domain import (
@@ -40,7 +41,7 @@ from mcpapps_bridge.session import (
 )
 
 from .downstream import BridgeDownstreamServer
-from .handlers import ProxyHandlers
+from .core_router_adapter import CoreRouterAdapter
 from .plan_adapter import endpoint_plan_from_revision
 from .router import AggregateRouter, McpSessionRouter, PassthroughRouter
 from .runtime import UpstreamRuntime
@@ -202,7 +203,7 @@ class BridgeManager:
             downstream_identity.supports_resources,
             downstream_identity.protocol_version,
         )
-        handlers = ProxyHandlers(router, observer, session_key)
+        handlers = ProxyHandlers(CoreRouterAdapter(router), observer, session_key)
         downstream = BridgeDownstreamServer(
             handlers,
             identity_provider=lambda: router.identity,

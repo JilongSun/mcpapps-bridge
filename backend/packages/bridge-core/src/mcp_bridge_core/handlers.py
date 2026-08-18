@@ -1,38 +1,44 @@
-"""MCP method handlers for one upstream-backed downstream server."""
+"""MCP method behavior over a core-typed session router."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
 from uuid import uuid4
 
 from mcp import types
 from mcp.server import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
-from mcp_bridge_core import (
-    BridgeFailure,
-    BridgeFailureCode,
-    BridgeObserver,
-    ToolCallCompleted,
-    ToolCallStarted,
-)
 from pydantic import AnyUrl
 
-from .core_mapper import to_core_tool_result
-from .mapper import (
+from ._mcp_sdk import (
     to_mcp_call_tool_result,
     to_mcp_resource,
     to_mcp_tool,
     to_read_resource_contents,
 )
-from .router import McpSessionRouter
+from .observations import BridgeFailure, BridgeFailureCode, ToolCallCompleted, ToolCallStarted
+from .observer import BridgeObserver
+from .protocol import AppResource, ResourceDescriptor, ToolCallResult, ToolDescriptor
+
+
+class McpMethodRouter(Protocol):
+    async def list_tools(self) -> list[ToolDescriptor]: ...
+
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult: ...
+
+    async def preload_tool_resource(self, tool_name: str) -> None: ...
+
+    async def list_resources(self) -> list[ResourceDescriptor]: ...
+
+    async def read_resource(self, uri: str) -> AppResource: ...
 
 
 class ProxyHandlers:
-    """Implements MCP methods for one downstream server."""
+    """Implements downstream MCP methods for one bridge session."""
 
     def __init__(
         self,
-        router: McpSessionRouter,
+        router: McpMethodRouter,
         observer: BridgeObserver,
         session_key: str,
     ) -> None:
@@ -91,7 +97,7 @@ class ProxyHandlers:
             ToolCallCompleted(
                 session_key=self._session_key,
                 operation_key=operation_key,
-                result=to_core_tool_result(result),
+                result=result,
             )
         )
         await self._router.preload_tool_resource(tool_name)

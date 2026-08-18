@@ -11,11 +11,10 @@ from mcp.server.models import InitializationOptions
 from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+from mcp_bridge_core.handlers import ProxyHandlers
 from starlette.types import Receive, Scope, Send
 
 from mcpapps_bridge.models import UpstreamInitialization
-
-from .handlers import ProxyHandlers
 
 
 class BridgeDownstreamServer:

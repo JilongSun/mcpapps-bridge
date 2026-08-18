@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from mcp_bridge_core import (
     AppResource as CoreAppResource,
+    ResourceDescriptor as CoreResourceDescriptor,
     ToolCallResult as CoreToolCallResult,
     ToolDescriptor as CoreToolDescriptor,
     UpstreamIdentity,
@@ -11,6 +12,7 @@ from mcp_bridge_core import (
 
 from mcpapps_bridge.models import (
     AppResource,
+    ResourceDescriptor,
     ToolCallResult,
     ToolDescriptor,
     UpstreamInitialization,
@@ -27,6 +29,10 @@ def to_core_tool(tool: ToolDescriptor) -> CoreToolDescriptor:
 
 def to_core_tool_result(result: ToolCallResult) -> CoreToolCallResult:
     return CoreToolCallResult.model_validate(result.model_dump())
+
+
+def to_core_resource_descriptor(resource: ResourceDescriptor) -> CoreResourceDescriptor:
+    return CoreResourceDescriptor.model_validate(resource.model_dump())
 
 
 def to_core_resource(resource: AppResource) -> CoreAppResource:

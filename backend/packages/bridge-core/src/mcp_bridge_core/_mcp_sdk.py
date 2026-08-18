@@ -1,4 +1,4 @@
-"""MCP protocol type mapping helpers."""
+"""MCP Python SDK conversions for bridge-core protocol models."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.types import Annotations, ToolAnnotations
 from pydantic import AnyUrl
 
-from mcpapps_bridge.models import AppResource, ResourceDescriptor, ToolCallResult, ToolDescriptor
+from .protocol import AppResource, ResourceDescriptor, ToolCallResult, ToolDescriptor
 
 
 def to_mcp_tool(tool: ToolDescriptor) -> types.Tool:
@@ -29,16 +29,15 @@ def to_mcp_tool(tool: ToolDescriptor) -> types.Tool:
 
 
 def to_mcp_call_tool_result(result: ToolCallResult) -> types.CallToolResult:
-    content = [to_content_block(item) for item in result.content]
     return types.CallToolResult(
-        content=content,
+        content=[_to_content_block(item) for item in result.content],
         structuredContent=result.structured_content,
         isError=result.is_error,
         _meta=result.metadata or None,
     )
 
 
-def to_content_block(item: dict[str, Any]) -> types.ContentBlock:
+def _to_content_block(item: dict[str, Any]) -> types.ContentBlock:
     item_type = item.get("type")
     if item_type == "text":
         return types.TextContent(type="text", text=str(item.get("text", "")))

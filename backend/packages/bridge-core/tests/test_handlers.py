@@ -3,15 +3,18 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+
 from mcp_bridge_core import (
+    AppResource,
     BridgeFailureCode,
     BridgeObservation,
+    ResourceDescriptor,
     ToolCallCompleted,
+    ToolCallResult,
     ToolCallStarted,
+    ToolDescriptor,
 )
-
-from mcpapps_bridge.mcp.handlers import ProxyHandlers
-from mcpapps_bridge.models import AppResource, ToolCallResult, UpstreamInitialization
+from mcp_bridge_core.handlers import ProxyHandlers
 
 
 class RecordingObserver:
@@ -27,28 +30,18 @@ class ToolRouter:
         self._error = error
         self.preloaded: list[str] = []
 
-    @property
-    def identity(self) -> UpstreamInitialization:
-        return UpstreamInitialization(server_name="fixture")
-
-    async def start(self) -> None:
-        return None
-
-    async def close(self) -> None:
-        return None
-
-    async def list_tools(self) -> list[Any]:
+    async def list_tools(self) -> list[ToolDescriptor]:
         return []
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult:
         if self._error is not None:
             raise self._error
-        return ToolCallResult(content=[{"type": "text", "text": tool_name}])
+        return ToolCallResult(content=({"type": "text", "text": tool_name},))
 
     async def preload_tool_resource(self, tool_name: str) -> None:
         self.preloaded.append(tool_name)
 
-    async def list_resources(self) -> list[Any]:
+    async def list_resources(self) -> list[ResourceDescriptor]:
         return []
 
     async def read_resource(self, uri: str) -> AppResource:

@@ -1,5 +1,5 @@
 ---
-description: "Use when: writing or editing React frontend code, session UI, MCP App rendering, tool activity panels, or frontend event wiring."
+description: "Stable React conventions for gateway management, Agent Host sessions, and MCP Apps rendering."
 applyTo: ["frontend/**", "**/*.tsx", "**/*.ts"]
 ---
 # Frontend Guidelines
@@ -13,14 +13,16 @@ applyTo: ["frontend/**", "**/*.tsx", "**/*.ts"]
 
 ## Structural Boundaries
 
-Avoid large-chat-application patterns. The frontend is a bridge debugging and session surface, not a product chat shell.
+The frontend serves both gateway management and the first-party Agent Host. Keep those bounded
+contexts explicit without adopting a generic large-chat-application scaffold.
 
 Organize code so these concerns stay separate:
 
-- **Transcript rendering** — user messages, model text output, streaming delta display
+- **Agent Host transcript** — user messages, model output, and streaming event display
 - **Tool activity** — tool call lifecycle, timing, input/output summaries
 - **MCP App rendering** — integration with `@mcp-ui/client`, sandboxed iframe, resource loading
-- **Session transport** — WebSocket or SSE event subscription, reconnection, error handling
+- **Management** — upstreams, endpoints, bindings, publication revisions, and status
+- **Session transport** — Run/Event subscription, reconnection, and error handling
 - **UI action handling** — widget `postMessage` dispatch, action routing back to the host
 
 ## State Management
@@ -38,7 +40,6 @@ Organize code so these concerns stay separate:
 
 ## Testing
 
-- Early in the project, do not add unit-test scaffolding by default when interfaces are still shifting quickly.
-- When tests are added, use Vitest for unit and component tests.
+- Use Vitest for unit and component tests.
 - Use Playwright for integration tests that span the WebSocket session and the rendered MCP App widget.
 - Do not test framework behavior; test session flows, event rendering, and action dispatch.
