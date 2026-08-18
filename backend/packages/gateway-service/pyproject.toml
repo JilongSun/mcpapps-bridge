@@ -5,6 +5,7 @@ description = "Internal MCP gateway and Agent Host application services."
 requires-python = ">=3.12"
 dependencies = [
   "mcp-bridge-core",
+  "pydantic>=2.8.0",
 ]
 
 [tool.uv.sources]

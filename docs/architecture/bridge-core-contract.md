@@ -117,7 +117,7 @@ class BridgeObserver(Protocol):
 | Event | Required correlation |
 | --- | --- |
 | `BridgeSessionStarted` | session key and downstream identity |
-| `BindingAvailabilityChanged` | session key, binding key, status, identity or failure |
+| `BindingAvailabilityChanged` | session key, binding key, `unknown`/`available`/`failed` status, identity or failure |
 | `ToolsPublished` | session key and complete public tool descriptors |
 | `ToolCallStarted` | session key, operation key, public tool name, and arguments |
 | `ToolCallCompleted` | session key, operation key, public result or typed failure |
@@ -179,8 +179,7 @@ Each extraction step must preserve these checks:
 6. A real MCP 2025-11-25 streamable HTTP test passes initialize, tool/resource discovery, calls,
    reads, and clean shutdown.
 
-The workspace package skeleton and core-owned plan/event models now exist. The next implementation
-slice adapts immutable managed revisions to `EndpointPlan` in gateway service and consumes
-`BridgeObservation` through the existing durable session journal. Runtime behavior does not move
-until those two adapters remove the need for core routers and handlers to import application
-storage contracts.
+The workspace package skeleton, core-owned plan/event models, managed-revision adapter, and durable
+journal adapter now exist. Routers and handlers emit observations without importing application
+storage contracts. The next implementation slice can move routing, runtime, protocol mapping, and
+raw downstream adapters into bridge core while preserving the current characterization tests.

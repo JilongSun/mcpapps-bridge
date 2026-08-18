@@ -53,6 +53,7 @@ class BridgeCapabilities(ContractModel):
 
 class BindingPlan(ContractModel):
     binding_key: str = Field(min_length=1)
+    upstream_key: str = Field(min_length=1)
     namespace: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
     priority: int = 0
     upstream: UpstreamConfig

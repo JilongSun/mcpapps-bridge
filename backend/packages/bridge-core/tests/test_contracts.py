@@ -19,6 +19,7 @@ from mcp_bridge_core import (
 def binding(namespace: str | None) -> BindingPlan:
     return BindingPlan(
         binding_key="binding-1",
+        upstream_key="upstream-1",
         namespace=namespace,
         upstream=StdioUpstreamConfig(command="fixture-server"),
     )

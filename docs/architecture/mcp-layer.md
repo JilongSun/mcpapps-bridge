@@ -27,11 +27,12 @@ flowchart LR
     durable event semantics, Agent Host contracts, and persistence ports.
 - Deployable server owns FastAPI/Uvicorn lifecycle, transport route selection, SQLite/Alembic,
     concrete agent adapters, static frontend serving, and deployment assembly.
-- Core reports typed observations to service. Routers and handlers will no longer write directly
-    to `BridgeSessionStore` after the observer migration.
+- Core reports typed observations to service. Routers and handlers no longer write directly to
+    `BridgeSessionStore`; manager composition connects `JournalBridgeObserver` to the transitional
+    store journal adapter.
 
-Until that migration completes, `BridgeManager`, `ProxyHandlers`, and routers retain the current
-ownership documented below. Target ownership must not be described as already implemented.
+Runtime and routing files have not moved to their target package yet. The ownership below reflects
+the current observer boundary while the remaining physical extraction is in progress.
 
 ## Responsibility Model
 
@@ -54,8 +55,11 @@ flowchart TD
     Upstream --> Real["Real MCP Server"]
 
     Factory --> Store["BridgeSessionStore"]
-    Router --> Store
-    Handlers --> Store
+    Manager --> Observer["JournalBridgeObserver"]
+    Router --> Observer
+    Handlers --> Observer
+    Observer --> Journal["BridgeSessionStoreJournal"]
+    Journal --> Store
     Runtime --> Cache[("Tool/resource cache")]
     Handlers --> Mapper["mapper.py"]
 
@@ -72,13 +76,13 @@ flowchart TD
     end
 ```
 
-The important ownership rule is that lifecycle flows from the host into `BridgeManager`, then into isolated bridge session runtimes. The CLI and FastAPI application never construct session stores or upstream clients. The dispatcher identifies endpoints and transports requests, while the manager creates and closes the downstream server, router, bound upstream runtimes, and store as one bridge-session-scoped unit. The manager task group also hosts one persistent upstream worker per binding, as defined by [ADR 0005](decisions/0005-upstream-transport-task-ownership.md).
+The important ownership rule is that lifecycle flows from the host into `BridgeManager`, then into isolated bridge session runtimes. The CLI and FastAPI application never construct session stores or upstream clients. The dispatcher identifies endpoints and transports requests, while the manager creates and closes the downstream server, router, bound upstream runtimes, observer, journal adapter, and store as one bridge-session-scoped unit. The manager task group also hosts one persistent upstream worker per binding, as defined by [ADR 0005](decisions/0005-upstream-transport-task-ownership.md).
 
 ## Modules
 
 ### `manager.py` - Endpoint, Session, and Lifecycle Ownership
 
-`BridgeManager` is the system-level MCP owner for the backend process. It publishes endpoint revisions, creates session records and stores, tracks transport-session bindings, and provides the lifecycle context used by FastAPI. Management repositories remain available for topology mutations, while publication and session routing consume the behavior-oriented `TopologyReader` port.
+`BridgeManager` is the system-level MCP owner for the backend process. It publishes endpoint revisions and their core `EndpointPlan` values, creates session records and stores, composes the journal observer boundary, tracks transport-session bindings, and provides the lifecycle context used by FastAPI. Management repositories remain available for topology mutations, while publication and session routing consume the behavior-oriented `TopologyReader` port.
 
 `PublishedEndpoint` binds stable topology only:
 
@@ -145,7 +149,7 @@ Boundary rules:
 Boundary rules:
 
 - Owns public-to-upstream method routing for one bridge session.
-- Owns session-global tool/resource publication and binding availability events.
+- Emits typed session-global tool/resource publication and binding availability observations.
 - Does not own downstream MCP transport objects or persistence implementation details.
 - Keeps `ProxyHandlers` independent of passthrough and aggregate topology.
 
@@ -180,12 +184,12 @@ Boundary rules:
 - `resources/list`
 - `resources/read`
 
-It records tool call events in the bridge session store, delegates protocol work to `McpSessionRouter`, and uses `mapper.py` for SDK type conversion.
+It emits correlated tool call observations, delegates protocol work to `McpSessionRouter`, and uses `mapper.py` for SDK type conversion.
 
 Boundary rules:
 
 - Owns MCP method behavior, not transport setup.
-- May call `McpSessionRouter` and `BridgeSessionStore`.
+- May call `McpSessionRouter` and `BridgeObserver`; it does not import session storage.
 - Should remain a class so debugging and future handler-level dependencies stay explicit.
 
 ### `mapper.py` - Pure Protocol Mapping
@@ -231,6 +235,8 @@ sequenceDiagram
     participant RT as UpstreamRuntime
     participant UP as Upstream Client
     participant Real as Real MCP Server
+    participant Observer as BridgeObserver
+    participant Journal as SessionJournal
     participant Store as BridgeSessionStore
 
     Client->>API: tools/call
@@ -238,7 +244,9 @@ sequenceDiagram
     Manager-->>API: BridgeSessionRuntime
     API->>DS: handle_streamable_http(...)
     DS->>H: call_tool(name, arguments)
-    H->>Store: start_tool_call(...)
+    H->>Observer: ToolCallStarted(operation_key, ...)
+    Observer->>Journal: append application event
+    Journal->>Store: start_tool_call(operation_key, ...)
     H->>Router: call_tool(public_name, arguments)
     Router->>RT: call_tool(upstream_name, arguments)
     RT->>UP: call_tool(name, arguments)
@@ -247,7 +255,9 @@ sequenceDiagram
     UP-->>RT: ToolCallResult
     RT-->>Router: ToolCallResult
     Router-->>H: Public ToolCallResult
-    H->>Store: complete_tool_call(...)
+    H->>Observer: ToolCallCompleted(operation_key, ...)
+    Observer->>Journal: append application event
+    Journal->>Store: complete_tool_call(operation_key, ...)
     H->>Router: preload_tool_resource(public_name)
     Router->>RT: read_and_cache_resource(upstream_ui_uri)
     H-->>DS: mapped CallToolResult

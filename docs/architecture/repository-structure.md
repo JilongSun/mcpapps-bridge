@@ -100,15 +100,15 @@ code must not add dependencies that oppose the target graph.
 | Persistence | `persistence/` | Implements SQLite lifecycle, SQLAlchemy heads and revisions, repository adapters, topology reads, and session stores |
 | Host | `host/runtime.py` | Starts Uvicorn with one `BridgeManager`-backed FastAPI app |
 | API | `api/app.py` | Dispatches stable `/mcp/{slug}` routes and exposes manager-backed session snapshot/event APIs |
-| Manager | `mcp/manager.py` | Owns topology registration, session creation, endpoint runtime assembly, and lifecycle |
+| Manager | `mcp/manager.py` | Owns topology registration, session creation, endpoint runtime and observer assembly, and lifecycle |
 | Assembly | `bootstrap.py`, `mcp/builder.py` | Opens configured SQLite storage, seeds initial topology, and injects repository/store ports into the manager |
 | Downstream | `mcp/downstream.py` | Hosts the downstream MCP SDK `Server` and transport sessions |
-| Handlers | `mcp/handlers.py` | Implements MCP methods and records session events |
-| Router | `mcp/router.py` | Owns passthrough/aggregate routing, public names and URIs, discovery, and binding availability |
+| Handlers | `mcp/handlers.py` | Implements MCP methods and emits correlated tool-call observations |
+| Router | `mcp/router.py` | Owns passthrough/aggregate routing, public names and URIs, discovery, and bridge observations |
 | Runtime | `mcp/runtime.py` | Proxies one upstream MCP session through a persistent owner task and maintains local caches |
 | Upstream | `mcp/upstream.py` | Connects to real MCP servers via stdio, SSE, or streamable HTTP |
 | Mapper | `mcp/mapper.py` | Pure conversion between bridge models and MCP SDK types |
-| Session | `session/` | Defines `BridgeSessionStore` and `BridgeSessionStoreFactory` ports |
+| Session | `session/` | Defines current store/factory ports and the transitional application journal adapter |
 | Events | `events/` | Typed events emitted by session/runtime operations |
 | Models | `models/` | Canonical Pydantic models shared across backend layers |
 
@@ -125,6 +125,9 @@ code must not add dependencies that oppose the target graph.
 - `ProxyHandlers` depend on `McpSessionRouter`, not directly on single-upstream runtime details.
 - `AggregateRouter` owns lazy bound runtimes, deterministic degraded discovery, namespaced tools, and exact public-to-upstream resource URI maps.
 - An upstream runtime belongs to a bridge session by default; its manager-hosted worker enters, operates, and exits SDK transport contexts in one task. The runtime owns upstream protocol state and caches but does not know about HTTP routing.
-- `ProxyHandlers` own method behavior and session event recording, while `mapper.py` remains pure conversion logic.
+- `ProxyHandlers` own method behavior and emit typed observations, while `mapper.py` and
+	`core_mapper.py` remain pure conversion logic.
+- `JournalBridgeObserver` converts core observations to application journal events;
+	`BridgeSessionStoreJournal` adapts those events to the current durable store during migration.
 - Persistent session storage satisfies `BridgeSessionStore`; runtime and handler code never depend on SQLAlchemy or database sessions directly.
 - SQLite owns managed topology after the initial seed. YAML remains the source for host and storage settings and may seed topology only when the database is empty.

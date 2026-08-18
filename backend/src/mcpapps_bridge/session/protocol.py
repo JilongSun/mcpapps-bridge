@@ -35,6 +35,8 @@ class BridgeSessionStore(Protocol):
         self,
         tool_name: str,
         arguments: dict[str, object] | None = None,
+        *,
+        call_id: str | None = None,
     ) -> ToolCallStartedEvent: ...
 
     async def complete_tool_call(

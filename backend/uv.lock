@@ -562,10 +562,14 @@ version = "0.0.0"
 source = { editable = "packages/gateway-service" }
 dependencies = [
     { name = "mcp-bridge-core" },
+    { name = "pydantic" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "mcp-bridge-core", editable = "packages/bridge-core" }]
+requires-dist = [
+    { name = "mcp-bridge-core", editable = "packages/bridge-core" },
+    { name = "pydantic", specifier = ">=2.8.0" },
+]
 
 [[package]]
 name = "mcpapps-bridge"
@@ -579,6 +583,8 @@ dependencies = [
     { name = "fastapi" },
     { name = "greenlet" },
     { name = "mcp" },
+    { name = "mcp-bridge-core" },
+    { name = "mcp-gateway-service" },
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "sqlalchemy" },
@@ -602,6 +608,8 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "greenlet", specifier = ">=3.5.3" },
     { name = "mcp", specifier = ">=1.28,<2" },
+    { name = "mcp-bridge-core", editable = "packages/bridge-core" },
+    { name = "mcp-gateway-service", editable = "packages/gateway-service" },
     { name = "pydantic", specifier = ">=2.8.0" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.390" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },

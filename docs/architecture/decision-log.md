@@ -19,6 +19,7 @@ Implementation states:
 | [0004](decisions/0004-first-release-scope-and-distribution.md) | Accepted | Partial | The gateway foundation is implemented; Agent Host, management UI/API, and OCI delivery remain release blockers |
 | [0005](decisions/0005-upstream-transport-task-ownership.md) | Accepted | Implemented | Upstream SDK contexts run and close in persistent owner tasks |
 | [0006](decisions/0006-core-service-and-server-packages.md) | Accepted | Partial | Extract a reusable bridge core, application services, and a deployable server package |
+| [0007](decisions/0007-cembrid-identity-and-deployment-shells.md) | Accepted | Partial | Adopt the Cembrid brand and limit the product to Web/OCI and Tauri desktop service shells |
 
 ## Current v0.1 Position
 

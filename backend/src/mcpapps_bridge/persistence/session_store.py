@@ -89,10 +89,12 @@ class SqlAlchemyBridgeSessionStore:
         self,
         tool_name: str,
         arguments: dict[str, object] | None = None,
+        *,
+        call_id: str | None = None,
     ) -> ToolCallStartedEvent:
         def mutate(snapshot: BridgeSessionSnapshot) -> ToolCallStartedEvent:
             call = ToolCallRecord(
-                call_id=str(uuid4()),
+                call_id=call_id or str(uuid4()),
                 tool_name=tool_name,
                 arguments=dict(arguments or {}),
                 status=ToolCallStatus.RUNNING,

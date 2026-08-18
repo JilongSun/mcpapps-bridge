@@ -1,6 +1,7 @@
 """Framework- and persistence-independent MCP bridge contracts."""
 
 from .observations import (
+    BindingAvailabilityStatus,
     BindingAvailabilityChanged,
     BridgeErrorRaised,
     BridgeFailure,
@@ -34,6 +35,7 @@ from .protocol import (
 __all__ = [
     "AppResource",
     "BindingAvailabilityChanged",
+    "BindingAvailabilityStatus",
     "BindingPlan",
     "BridgeCapabilities",
     "BridgeErrorRaised",

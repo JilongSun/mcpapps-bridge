@@ -30,6 +30,12 @@ class BridgeFailureCode(StrEnum):
     PROTOCOL_ADAPTER = "protocol_adapter"
 
 
+class BindingAvailabilityStatus(StrEnum):
+    UNKNOWN = "unknown"
+    AVAILABLE = "available"
+    FAILED = "failed"
+
+
 class BridgeFailure(ObservationModel):
     code: BridgeFailureCode
     message: str
@@ -51,7 +57,7 @@ class BridgeSessionStarted(ObservationBase):
 class BindingAvailabilityChanged(ObservationBase):
     kind: Literal["bridge.binding.availability_changed"] = "bridge.binding.availability_changed"
     binding_key: str
-    available: bool
+    status: BindingAvailabilityStatus
     identity: UpstreamIdentity | None = None
     failure: BridgeFailure | None = None
 

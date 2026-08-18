@@ -10,6 +10,8 @@ from uuid import UUID
 
 import anyio
 from anyio.abc import TaskGroup, TaskStatus
+from mcp_bridge_core import BridgeObserver, EndpointPlan
+from mcp_gateway_service import JournalBridgeObserver
 
 from mcpapps_bridge.domain import (
     BridgeSessionRecord,
@@ -31,10 +33,15 @@ from mcpapps_bridge.repositories import (
     TopologyReader,
     UpstreamServerRepository,
 )
-from mcpapps_bridge.session import BridgeSessionStore, BridgeSessionStoreFactory
+from mcpapps_bridge.session import (
+    BridgeSessionStore,
+    BridgeSessionStoreFactory,
+    BridgeSessionStoreJournal,
+)
 
 from .downstream import BridgeDownstreamServer
 from .handlers import ProxyHandlers
+from .plan_adapter import endpoint_plan_from_revision
 from .router import AggregateRouter, McpSessionRouter, PassthroughRouter
 from .runtime import UpstreamRuntime
 from .upstream import (
@@ -53,6 +60,7 @@ def utc_now() -> datetime:
 @dataclass(frozen=True)
 class PublishedEndpoint:
     revision: EndpointTopologyRevision
+    plan: EndpointPlan
 
     @property
     def path(self) -> str:
@@ -154,7 +162,7 @@ class BridgeManager:
         if disabled_upstreams:
             names = ", ".join(sorted(disabled_upstreams))
             raise ValueError(f"Cannot bind disabled upstream servers: {names}")
-        return PublishedEndpoint(revision)
+        return PublishedEndpoint(revision=revision, plan=endpoint_plan_from_revision(revision))
 
     def _register_published_endpoint(self, published: PublishedEndpoint) -> None:
         revision = published.revision
@@ -178,7 +186,12 @@ class BridgeManager:
             endpoint_slug,
         )
         store = await self.get_session_store(session.session_id)
-        router = self._create_session_router(endpoint, store)
+        session_key = str(session.session_id)
+        observer = JournalBridgeObserver(
+            session_key,
+            BridgeSessionStoreJournal(session_key, endpoint.revision, store),
+        )
+        router = self._create_session_router(endpoint, observer, session_key)
         downstream_identity = router.identity
         logger.info(
             "Downstream host identity: server_name=%s server_version=%s "
@@ -189,7 +202,7 @@ class BridgeManager:
             downstream_identity.supports_resources,
             downstream_identity.protocol_version,
         )
-        handlers = ProxyHandlers(router, store)
+        handlers = ProxyHandlers(router, observer, session_key)
         downstream = BridgeDownstreamServer(
             handlers,
             identity_provider=lambda: router.identity,
@@ -365,13 +378,15 @@ class BridgeManager:
     def _create_session_router(
         self,
         endpoint: PublishedEndpoint,
-        store: BridgeSessionStore,
+        observer: BridgeObserver,
+        session_key: str,
     ) -> McpSessionRouter:
         revision = endpoint.revision
         if revision.mode is EndpointMode.AGGREGATE:
             return AggregateRouter(
                 revision,
-                store,
+                observer,
+                session_key,
                 self._create_bound_upstream_runtime,
                 self._require_task_group(),
                 version=self._version,
@@ -379,7 +394,8 @@ class BridgeManager:
         binding = next(binding for binding in revision.bindings if binding.enabled)
         return PassthroughRouter(
             self._create_bound_upstream_runtime(binding),
-            store,
+            observer,
+            session_key,
             self._require_task_group(),
         )
 

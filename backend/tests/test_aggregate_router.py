@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import anyio
 import pytest
+from mcp_bridge_core import (
+    BindingAvailabilityChanged,
+    BindingAvailabilityStatus,
+    BridgeObservation,
+)
 
 from mcpapps_bridge.domain import (
     EndpointBindingRevision,
@@ -24,12 +28,19 @@ from mcpapps_bridge.models import (
     ToolDescriptor,
     UpstreamInitialization,
 )
-from mcpapps_bridge.session import BridgeSessionStore
 
 TOOL_UI_URI = "ui://widgets/inspector"
 RESULT_UI_URI = "ui://widgets/result"
 ORDINARY_RESOURCE_URI = "https://example.test/manual?view=full#install"
 LINKED_RESOURCE_URI = "file:///reports/latest.txt"
+
+
+class RecordingObserver:
+    def __init__(self) -> None:
+        self.events: list[BridgeObservation] = []
+
+    async def observe(self, event: BridgeObservation) -> None:
+        self.events.append(event)
 
 
 class AggregateFixtureClient:
@@ -113,7 +124,7 @@ class AggregateFixtureClient:
 
 async def test_aggregate_router_preserves_public_mcp_and_mcp_apps_semantics() -> None:
     client = AggregateFixtureClient()
-    session_store = AsyncMock(spec=BridgeSessionStore)
+    observer = RecordingObserver()
     upstream = UpstreamRevision(
         server_id=uuid4(),
         slug="fixture-server",
@@ -140,7 +151,8 @@ async def test_aggregate_router_preserves_public_mcp_and_mcp_apps_semantics() ->
     async with anyio.create_task_group() as workers:
         router = AggregateRouter(
             revision,
-            session_store,
+            observer,
+            "session-1",
             create_runtime,
             workers,
             version="0.1.0",
@@ -206,3 +218,10 @@ async def test_aggregate_router_preserves_public_mcp_and_mcp_apps_semantics() ->
             await router.close()
 
     assert client.close_count == 1
+    availability = [
+        event for event in observer.events if isinstance(event, BindingAvailabilityChanged)
+    ]
+    assert [event.status for event in availability] == [
+        BindingAvailabilityStatus.UNKNOWN,
+        BindingAvailabilityStatus.AVAILABLE,
+    ]

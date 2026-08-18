@@ -11,12 +11,18 @@ dependencies = [
   "asyncpg>=0.31.0",
   "fastapi>=0.115.0",
   "greenlet>=3.5.3",
+  "mcp-bridge-core",
+  "mcp-gateway-service",
   "mcp>=1.28,<2",
   "pydantic>=2.8.0",
   "pyyaml>=6.0.3",
   "sqlalchemy>=2.0.51",
   "uvicorn>=0.30.0",
 ]
+
+[tool.uv.sources]
+mcp-bridge-core = { workspace = true }
+mcp-gateway-service = { workspace = true }
 
 [project.optional-dependencies]
 dev = [

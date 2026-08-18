@@ -212,7 +212,7 @@ protocol compatibility work distinguishable from ownership and import errors.
 
 ## Implementation Status
 
-As of 2026-08-17, implementation is partial.
+As of 2026-08-18, implementation is partial.
 
 ### Implemented
 
@@ -221,6 +221,13 @@ As of 2026-08-17, implementation is partial.
   their declared dependencies follow the accepted direction.
 - Bridge core owns frozen runtime plan and protocol models, typed observations, the observer port,
   and a no-op observer without importing the monolith, FastAPI, or persistence.
+- Gateway service owns resolved topology DTOs, conversion to core `EndpointPlan`, application
+  journal events, and the core-observation-to-journal adapter.
+- Published endpoints now carry both the existing managed revision and its core plan. Immutable
+  endpoint, binding, and upstream revision keys survive the conversion.
+- Routers and protocol handlers emit typed observations instead of importing or writing directly
+  to `BridgeSessionStore`; manager composition adapts those observations to the current durable
+  store during migration.
 - Aggregate characterization coverage freezes namespaced tools, ordinary and opaque UI resource
   routes, MCP Apps metadata rewriting, protocol-defined tool result rewriting, and rejection of
   unregistered resource URIs.
@@ -230,9 +237,6 @@ As of 2026-08-17, implementation is partial.
 
 ### Pending
 
-- Adapt managed topology revisions into core-owned `EndpointPlan` values in gateway service.
-- Adapt core observations into the existing durable session journal and snapshots.
-- Replace direct `BridgeSessionStore` calls in routers and handlers with a service observer.
 - Move protocol runtime, routing, SDK mapping, and downstream adapters into bridge core.
 - Split `BridgeManager` into core engine, application session service, and server composition.
 - Recompose SQLite, FastAPI, configuration, and process lifecycle in the server package.

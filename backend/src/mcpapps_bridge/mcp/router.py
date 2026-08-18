@@ -12,6 +12,17 @@ from typing import Any, Protocol
 
 import anyio
 from anyio.abc import TaskGroup
+from mcp_bridge_core import (
+    BindingAvailabilityChanged,
+    BindingAvailabilityStatus,
+    BridgeErrorRaised,
+    BridgeFailure,
+    BridgeFailureCode,
+    BridgeObserver,
+    BridgeSessionStarted,
+    ResourceLoaded,
+    ToolsPublished,
+)
 from pydantic import AnyUrl
 
 from mcpapps_bridge.domain import EndpointBindingRevision, EndpointTopologyRevision
@@ -24,8 +35,7 @@ from mcpapps_bridge.models import (
     UpstreamAvailabilityStatus,
     UpstreamInitialization,
 )
-from mcpapps_bridge.session import BridgeSessionStore
-
+from .core_mapper import to_core_identity, to_core_resource, to_core_tool
 from .runtime import UpstreamRuntime
 
 
@@ -52,11 +62,13 @@ class PassthroughRouter:
     def __init__(
         self,
         runtime: UpstreamRuntime,
-        session_store: BridgeSessionStore,
+        observer: BridgeObserver,
+        session_key: str,
         worker_task_group: TaskGroup,
     ) -> None:
         self._runtime = runtime
-        self._session_store = session_store
+        self._observer = observer
+        self._session_key = session_key
         self._worker_task_group = worker_task_group
 
     @property
@@ -67,7 +79,12 @@ class PassthroughRouter:
         await self._runtime.start_worker(self._worker_task_group)
         try:
             await self._runtime.start()
-            await self._session_store.start(self._runtime.identity)
+            await self._observer.observe(
+                BridgeSessionStarted(
+                    session_key=self._session_key,
+                    identity=to_core_identity(self._runtime.identity),
+                )
+            )
             await self.list_tools()
             await self.list_resources()
         except BaseException:
@@ -79,7 +96,12 @@ class PassthroughRouter:
 
     async def list_tools(self) -> list[ToolDescriptor]:
         tools = await self._runtime.refresh_tools()
-        await self._session_store.register_tools(tools)
+        await self._observer.observe(
+            ToolsPublished(
+                session_key=self._session_key,
+                tools=tuple(to_core_tool(tool) for tool in tools),
+            )
+        )
         return tools
 
     async def call_tool(
@@ -93,9 +115,16 @@ class PassthroughRouter:
         try:
             await self._runtime.preload_tool_resource(tool_name)
         except Exception as exc:
-            await self._session_store.record_error(
-                f"Failed to preload UI resource for tool '{tool_name}'",
-                details={"reason": str(exc)},
+            await self._observer.observe(
+                BridgeErrorRaised(
+                    session_key=self._session_key,
+                    operation="resource_preload",
+                    failure=BridgeFailure(
+                        code=BridgeFailureCode.UPSTREAM_PROTOCOL,
+                        message=f"Failed to preload UI resource for tool '{tool_name}'",
+                        details={"reason": str(exc)},
+                    ),
+                )
             )
 
     async def list_resources(self) -> list[ResourceDescriptor]:
@@ -103,7 +132,12 @@ class PassthroughRouter:
 
     async def read_resource(self, uri: str) -> AppResource:
         resource = await self._runtime.read_and_cache_resource(uri)
-        await self._session_store.load_resource(resource)
+        await self._observer.observe(
+            ResourceLoaded(
+                session_key=self._session_key,
+                resource=to_core_resource(resource),
+            )
+        )
         return resource
 
 
@@ -124,14 +158,16 @@ class AggregateRouter:
     def __init__(
         self,
         revision: EndpointTopologyRevision,
-        session_store: BridgeSessionStore,
+        observer: BridgeObserver,
+        session_key: str,
         runtime_factory: Callable[[EndpointBindingRevision], UpstreamRuntime],
         worker_task_group: TaskGroup,
         *,
         version: str,
     ) -> None:
         self._revision = revision
-        self._session_store = session_store
+        self._observer = observer
+        self._session_key = session_key
         self._worker_task_group = worker_task_group
         self._identity = UpstreamInitialization(
             server_name=revision.display_name,
@@ -162,6 +198,7 @@ class AggregateRouter:
         )
         self._tool_routes: dict[str, tuple[BoundUpstreamRuntime, str]] = {}
         self._resource_routes: dict[str, tuple[BoundUpstreamRuntime, str]] = {}
+        self._published_availability: dict[str, UpstreamAvailability] = {}
 
     @property
     def identity(self) -> UpstreamInitialization:
@@ -171,7 +208,12 @@ class AggregateRouter:
         for bound in self._bindings:
             await bound.runtime.start_worker(self._worker_task_group)
         try:
-            await self._session_store.start(self._identity)
+            await self._observer.observe(
+                BridgeSessionStarted(
+                    session_key=self._session_key,
+                    identity=to_core_identity(self._identity),
+                )
+            )
             await self._publish_availability()
         except BaseException:
             await self.close()
@@ -210,7 +252,12 @@ class AggregateRouter:
             raise RuntimeError(_all_bindings_failed_message("tool discovery", failures))
 
         tools = [tool for bound in self._bindings for tool in discovered.get(bound.namespace, [])]
-        await self._session_store.register_tools(tools)
+        await self._observer.observe(
+            ToolsPublished(
+                session_key=self._session_key,
+                tools=tuple(to_core_tool(tool) for tool in tools),
+            )
+        )
         return tools
 
     async def call_tool(
@@ -294,7 +341,13 @@ class AggregateRouter:
             raise
         await self._publish_availability()
         public_resource = resource.model_copy(update={"uri": _canonical_uri(uri)})
-        await self._session_store.load_resource(public_resource)
+        await self._observer.observe(
+            ResourceLoaded(
+                session_key=self._session_key,
+                binding_key=str(bound.binding.binding_revision_id),
+                resource=to_core_resource(public_resource),
+            )
+        )
         return public_resource
 
     def _public_tool(
@@ -399,9 +452,37 @@ class AggregateRouter:
         )
 
     async def _publish_availability(self) -> None:
-        await self._session_store.set_upstream_availability(
-            [bound.availability for bound in self._bindings]
-        )
+        for bound in self._bindings:
+            availability = bound.availability
+            binding_key = availability.binding_revision_id
+            if self._published_availability.get(binding_key) == availability:
+                continue
+            failure = (
+                BridgeFailure(
+                    code=BridgeFailureCode.BINDING_UNAVAILABLE,
+                    message=availability.error_message or "Upstream binding is unavailable",
+                    retryable=True,
+                    binding_key=binding_key,
+                    details={"operation": availability.failure_kind},
+                )
+                if availability.status is UpstreamAvailabilityStatus.FAILED
+                else None
+            )
+            await self._observer.observe(
+                BindingAvailabilityChanged(
+                    session_key=self._session_key,
+                    observed_at=availability.updated_at,
+                    binding_key=binding_key,
+                    status=BindingAvailabilityStatus(availability.status.value),
+                    identity=(
+                        to_core_identity(availability.identity)
+                        if availability.identity is not None
+                        else None
+                    ),
+                    failure=failure,
+                )
+            )
+            self._published_availability[binding_key] = availability.model_copy(deep=True)
 
 
 def _public_resource_uri(namespace: str, upstream_uri: str) -> str:

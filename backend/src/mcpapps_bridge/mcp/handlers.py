@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import uuid4
 
 from mcp import types
 from mcp.server import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
+from mcp_bridge_core import (
+    BridgeFailure,
+    BridgeFailureCode,
+    BridgeObserver,
+    ToolCallCompleted,
+    ToolCallStarted,
+)
 from pydantic import AnyUrl
 
-from mcpapps_bridge.session import BridgeSessionStore
-from mcpapps_bridge.models import ToolCallResult
-
+from .core_mapper import to_core_tool_result
 from .mapper import (
     to_mcp_call_tool_result,
     to_mcp_resource,
@@ -24,9 +30,15 @@ from .router import McpSessionRouter
 class ProxyHandlers:
     """Implements MCP methods for one downstream server."""
 
-    def __init__(self, router: McpSessionRouter, session_store: BridgeSessionStore) -> None:
+    def __init__(
+        self,
+        router: McpSessionRouter,
+        observer: BridgeObserver,
+        session_key: str,
+    ) -> None:
         self._router = router
-        self._session_store = session_store
+        self._observer = observer
+        self._session_key = session_key
 
     def register(self, server: Server) -> None:
         @server.list_tools()
@@ -50,23 +62,37 @@ class ProxyHandlers:
         return [to_mcp_tool(tool) for tool in tools]
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> types.CallToolResult:
-        started_event = await self._session_store.start_tool_call(tool_name, arguments)
+        operation_key = str(uuid4())
+        await self._observer.observe(
+            ToolCallStarted(
+                session_key=self._session_key,
+                operation_key=operation_key,
+                tool_name=tool_name,
+                arguments=arguments,
+            )
+        )
         try:
             result = await self._router.call_tool(tool_name, arguments)
         except Exception as exc:
-            await self._session_store.complete_tool_call(
-                started_event.call.call_id,
-                ToolCallResult(
-                    content=[{"type": "text", "text": str(exc)}],
-                    is_error=True,
+            await self._observer.observe(
+                ToolCallCompleted(
+                    session_key=self._session_key,
+                    operation_key=operation_key,
+                    failure=BridgeFailure(
+                        code=BridgeFailureCode.UPSTREAM_PROTOCOL,
+                        message=str(exc),
+                        retryable=True,
+                        details={"exception_type": type(exc).__name__},
+                    ),
                 ),
-                failed=True,
             )
             raise
-        await self._session_store.complete_tool_call(
-            started_event.call.call_id,
-            result,
-            failed=result.is_error,
+        await self._observer.observe(
+            ToolCallCompleted(
+                session_key=self._session_key,
+                operation_key=operation_key,
+                result=to_core_tool_result(result),
+            )
         )
         await self._router.preload_tool_resource(tool_name)
         return to_mcp_call_tool_result(result)
