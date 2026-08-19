@@ -27,6 +27,7 @@ def upstream(
 ) -> ResolvedUpstreamRevision:
     return ResolvedUpstreamRevision(
         upstream_revision_key=key,
+        display_name=f"Fixture {key}",
         enabled=enabled,
         connection=connection,
     )
@@ -117,6 +118,11 @@ def test_build_endpoint_plan_preserves_resolved_transport_and_revision_keys() ->
         "upstream-stdio",
         "upstream-sse",
         "upstream-http",
+    ]
+    assert [item.upstream_name for item in plan.bindings] == [
+        "Fixture upstream-stdio",
+        "Fixture upstream-sse",
+        "Fixture upstream-http",
     ]
     assert plan.bindings[0].upstream.transport == "stdio"
     assert plan.bindings[1].upstream.transport == "sse"

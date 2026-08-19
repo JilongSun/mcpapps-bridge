@@ -52,6 +52,7 @@ ResolvedUpstreamConnection = Annotated[
 
 class ResolvedUpstreamRevision(ResolvedTopologyModel):
     upstream_revision_key: str = Field(min_length=1)
+    display_name: str = Field(min_length=1)
     enabled: bool = True
     connection: ResolvedUpstreamConnection
 
@@ -92,6 +93,7 @@ def build_endpoint_plan(revision: ResolvedEndpointRevision) -> EndpointPlan:
             BindingPlan(
                 binding_key=binding.binding_revision_key,
                 upstream_key=binding.upstream.upstream_revision_key,
+                upstream_name=binding.upstream.display_name,
                 namespace=binding.namespace,
                 priority=binding.priority,
                 upstream=_to_upstream_config(binding.upstream.connection),

@@ -180,7 +180,8 @@ Each extraction step must preserve these checks:
    reads, and clean shutdown.
 
 The workspace package skeleton, core-owned plan/event models, managed-revision adapter, durable
-journal adapter, MCP SDK v1 adapter, and downstream method handlers now exist. The current
-monolith router is exposed to core handlers through a temporary core-model adapter. The next
-implementation slice can move routing and runtime into bridge core, then move the raw downstream
-transport adapter while preserving the current characterization tests.
+journal adapter, MCP SDK v1 adapter, downstream method handlers, owner-task runtime, and
+passthrough/aggregate routers now exist. Aggregate protocol characterization and owner-task tests
+run inside the core package without server or persistence imports. A temporary server adapter
+converts the current upstream SDK client models to core contracts. The next implementation slice
+can move those upstream connectors, then the raw downstream transport adapter, into bridge core.

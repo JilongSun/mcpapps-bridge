@@ -163,11 +163,12 @@ useful.
 
 | Current area | Target owner |
 | --- | --- |
-| `mcp/upstream.py`, `mcp/runtime.py` | Bridge core |
+| Upstream owner-task runtime, moved from `mcp/runtime.py` to core | Bridge core |
+| `mcp/upstream.py` SDK connectors | Bridge core |
 | MCP SDK mapping, moved from `mcp/mapper.py` to core | Bridge core |
 | MCP method handlers, moved from `mcp/handlers.py` to core | Bridge core |
 | Protocol portions of `mcp/downstream.py` | Bridge core |
-| Routing portions of `mcp/router.py` | Bridge core |
+| Passthrough and aggregate routing, moved from `mcp/router.py` to core | Bridge core |
 | Session-store writes currently inside handlers and routers | Service observer/application use cases |
 | `domain/`, `repositories/`, `session/`, `events/` | Gateway service, simplified around use-case ports |
 | `mcp/manager.py` | Split into core engine, service session coordinator, and server composition |
@@ -232,7 +233,10 @@ As of 2026-08-18, implementation is partial.
   store during migration.
 - Bridge core owns the MCP SDK v1 conversion adapter, its compatibility tests, the downstream MCP
   method handlers, and the narrow core-typed `McpMethodRouter` contract. A temporary server adapter
-  converts the current monolith router models at the package boundary.
+  converts the current monolith upstream client models at the package boundary.
+- Bridge core owns the persistent upstream owner-task runtime and passthrough/aggregate routers.
+  Routers consume immutable `EndpointPlan` and `BindingPlan` values without importing managed
+  topology, application availability snapshots, or server models.
 - Aggregate characterization coverage freezes namespaced tools, ordinary and opaque UI resource
   routes, MCP Apps metadata rewriting, protocol-defined tool result rewriting, and rejection of
   unregistered resource URIs.
@@ -242,7 +246,7 @@ As of 2026-08-18, implementation is partial.
 
 ### Pending
 
-- Move protocol runtime, routing, and raw downstream transport adapters into bridge core.
+- Move upstream MCP SDK connectors and raw downstream transport adapters into bridge core.
 - Split `BridgeManager` into core engine, application session service, and server composition.
 - Recompose SQLite, FastAPI, configuration, and process lifecycle in the server package.
 - Add real MCP 2025-11-25 transport contract tests across the extracted core and composed server.

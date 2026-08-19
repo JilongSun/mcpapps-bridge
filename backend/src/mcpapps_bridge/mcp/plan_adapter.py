@@ -32,6 +32,7 @@ def endpoint_plan_from_revision(revision: EndpointTopologyRevision) -> EndpointP
             enabled=binding.enabled,
             upstream=ResolvedUpstreamRevision(
                 upstream_revision_key=str(binding.upstream.revision_id),
+                display_name=binding.upstream.display_name,
                 enabled=binding.upstream.enabled,
                 connection=_resolved_connection(binding.upstream.connection),
             ),

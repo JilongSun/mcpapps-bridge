@@ -10,22 +10,29 @@ from uuid import UUID
 
 import anyio
 from anyio.abc import TaskGroup, TaskStatus
-from mcp_bridge_core import BridgeObserver, EndpointPlan
+from mcp_bridge_core import (
+    AggregateRouter,
+    BindingPlan,
+    BridgeObserver,
+    EndpointMode,
+    EndpointPlan,
+    McpSessionRouter,
+    PassthroughRouter,
+    SseUpstreamConfig,
+    StdioUpstreamConfig,
+    StreamableHttpUpstreamConfig,
+    UpstreamConfig,
+    UpstreamRuntime,
+)
 from mcp_bridge_core.handlers import ProxyHandlers
 from mcp_gateway_service import JournalBridgeObserver
 
 from mcpapps_bridge.domain import (
     BridgeSessionRecord,
     BridgeSessionStatus,
-    EndpointBindingRevision,
     EndpointDefinition,
-    EndpointMode,
     EndpointTopologyRevision,
-    SseConnection,
-    StdioConnection,
-    StreamableHttpConnection,
     UpstreamServerDefinition,
-    UpstreamRevision,
 )
 from mcpapps_bridge.logging import get_logger
 from mcpapps_bridge.repositories import (
@@ -41,10 +48,8 @@ from mcpapps_bridge.session import (
 )
 
 from .downstream import BridgeDownstreamServer
-from .core_router_adapter import CoreRouterAdapter
+from .core_upstream_adapter import CoreUpstreamClientAdapter
 from .plan_adapter import endpoint_plan_from_revision
-from .router import AggregateRouter, McpSessionRouter, PassthroughRouter
-from .runtime import UpstreamRuntime
 from .upstream import (
     DefaultUpstreamMcpClientFactory,
     UpstreamMcpClientFactory,
@@ -203,7 +208,7 @@ class BridgeManager:
             downstream_identity.supports_resources,
             downstream_identity.protocol_version,
         )
-        handlers = ProxyHandlers(CoreRouterAdapter(router), observer, session_key)
+        handlers = ProxyHandlers(router, observer, session_key)
         downstream = BridgeDownstreamServer(
             handlers,
             identity_provider=lambda: router.identity,
@@ -382,17 +387,17 @@ class BridgeManager:
         observer: BridgeObserver,
         session_key: str,
     ) -> McpSessionRouter:
-        revision = endpoint.revision
-        if revision.mode is EndpointMode.AGGREGATE:
+        plan = endpoint.plan
+        if plan.mode is EndpointMode.AGGREGATE:
             return AggregateRouter(
-                revision,
+                plan,
                 observer,
                 session_key,
                 self._create_bound_upstream_runtime,
                 self._require_task_group(),
                 version=self._version,
             )
-        binding = next(binding for binding in revision.bindings if binding.enabled)
+        binding = plan.bindings[0]
         return PassthroughRouter(
             self._create_bound_upstream_runtime(binding),
             observer,
@@ -402,15 +407,17 @@ class BridgeManager:
 
     def _create_bound_upstream_runtime(
         self,
-        binding: EndpointBindingRevision,
+        binding: BindingPlan,
     ) -> UpstreamRuntime:
-        upstream = binding.upstream
-        config = self._to_upstream_config(upstream)
+        server_config = self._to_server_upstream_config(binding.upstream)
         return UpstreamRuntime(
-            config,
-            name=upstream.display_name,
+            binding.upstream,
+            name=binding.upstream_name,
             version=self._version,
-            upstream_client=self._upstream_client_factory.create(config),
+            upstream_client=CoreUpstreamClientAdapter(
+                self._upstream_client_factory.create(server_config),
+                server_config,
+            ),
         )
 
     def _require_task_group(self) -> TaskGroup:
@@ -443,30 +450,26 @@ class BridgeManager:
         )
         await self._sessions.update(updated)
 
-    def _to_upstream_config(
-        self,
-        server: UpstreamServerDefinition | UpstreamRevision,
-    ) -> UpstreamServerConfig:
-        connection = server.connection
-        if isinstance(connection, StreamableHttpConnection):
+    def _to_server_upstream_config(self, config: UpstreamConfig) -> UpstreamServerConfig:
+        if isinstance(config, StreamableHttpUpstreamConfig):
             return UpstreamServerConfig(
-                transport=connection.transport,
-                url=str(connection.url),
-                headers=connection.headers,
-                httpx_timeout_seconds=connection.timeout_seconds,
+                transport=config.transport,
+                url=str(config.url),
+                headers=config.headers,
+                httpx_timeout_seconds=config.timeout_seconds,
             )
-        if isinstance(connection, SseConnection):
+        if isinstance(config, SseUpstreamConfig):
             return UpstreamServerConfig(
-                transport=connection.transport,
-                url=str(connection.url),
-                headers=connection.headers,
+                transport=config.transport,
+                url=str(config.url),
+                headers=config.headers,
             )
-        if isinstance(connection, StdioConnection):
+        if isinstance(config, StdioUpstreamConfig):
             return UpstreamServerConfig(
-                transport=connection.transport,
-                command=connection.command,
-                args=connection.args,
-                cwd=connection.cwd,
-                env=connection.env,
+                transport=config.transport,
+                command=config.command,
+                args=list(config.args),
+                cwd=config.cwd,
+                env=config.env,
             )
-        raise TypeError(f"Unsupported upstream connection: {type(connection).__name__}")
+        raise TypeError(f"Unsupported core upstream config: {type(config).__name__}")

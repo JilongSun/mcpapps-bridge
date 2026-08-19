@@ -1,32 +1,27 @@
 from __future__ import annotations
 
 from typing import Any
-from uuid import uuid4
 
 import anyio
 import pytest
+
 from mcp_bridge_core import (
+    AggregateRouter,
+    AppResource,
     BindingAvailabilityChanged,
     BindingAvailabilityStatus,
+    BindingPlan,
+    BridgeCapabilities,
     BridgeObservation,
-)
-
-from mcpapps_bridge.domain import (
-    EndpointBindingRevision,
     EndpointMode,
-    EndpointTopologyRevision,
-    StdioConnection,
-    UpstreamRevision,
-)
-from mcpapps_bridge.mcp.router import AggregateRouter
-from mcpapps_bridge.mcp.runtime import UpstreamRuntime
-from mcpapps_bridge.mcp.upstream import UpstreamServerConfig
-from mcpapps_bridge.models import (
-    AppResource,
+    EndpointPlan,
     ResourceDescriptor,
+    StdioUpstreamConfig,
     ToolCallResult,
     ToolDescriptor,
-    UpstreamInitialization,
+    UpstreamConfig,
+    UpstreamIdentity,
+    UpstreamRuntime,
 )
 
 TOOL_UI_URI = "ui://widgets/inspector"
@@ -49,8 +44,8 @@ class AggregateFixtureClient:
         self.resource_reads: list[str] = []
         self.close_count = 0
 
-    async def connect(self, config: UpstreamServerConfig) -> UpstreamInitialization:
-        return UpstreamInitialization(
+    async def connect(self, config: UpstreamConfig) -> UpstreamIdentity:
+        return UpstreamIdentity(
             server_name="fixture-server",
             server_version="1.0.0",
             protocol_version="2025-11-25",
@@ -81,7 +76,7 @@ class AggregateFixtureClient:
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult:
         self.tool_calls.append((tool_name, arguments))
         return ToolCallResult(
-            content=[
+            content=(
                 {
                     "type": "resource_link",
                     "uri": LINKED_RESOURCE_URI,
@@ -96,7 +91,7 @@ class AggregateFixtureClient:
                     },
                 },
                 {"type": "text", "text": TOOL_UI_URI},
-            ],
+            ),
             structured_content={"resourceUri": TOOL_UI_URI},
             metadata={"resourceUri": TOOL_UI_URI},
         )
@@ -125,32 +120,33 @@ class AggregateFixtureClient:
 async def test_aggregate_router_preserves_public_mcp_and_mcp_apps_semantics() -> None:
     client = AggregateFixtureClient()
     observer = RecordingObserver()
-    upstream = UpstreamRevision(
-        server_id=uuid4(),
-        slug="fixture-server",
-        display_name="Fixture Server",
-        connection=StdioConnection(command="unused"),
-    )
-    binding = EndpointBindingRevision(namespace="docs", upstream=upstream)
-    revision = EndpointTopologyRevision(
-        endpoint_id=uuid4(),
-        slug="all",
+    plan = EndpointPlan(
+        endpoint_key="endpoint-revision-1",
         display_name="All Tools",
         mode=EndpointMode.AGGREGATE,
-        bindings=(binding,),
+        bindings=(
+            BindingPlan(
+                binding_key="binding-revision-1",
+                upstream_key="upstream-revision-1",
+                upstream_name="Fixture Server",
+                namespace="docs",
+                upstream=StdioUpstreamConfig(command="fixture-server"),
+            ),
+        ),
+        capabilities=BridgeCapabilities(tools=True, resources=True),
     )
 
-    def create_runtime(_binding: EndpointBindingRevision) -> UpstreamRuntime:
+    def create_runtime(binding: BindingPlan) -> UpstreamRuntime:
         return UpstreamRuntime(
-            UpstreamServerConfig(),
-            name="fixture-server",
+            binding.upstream,
+            name=binding.upstream_name,
             version="0.1.0",
             upstream_client=client,
         )
 
     async with anyio.create_task_group() as workers:
         router = AggregateRouter(
-            revision,
+            plan,
             observer,
             "session-1",
             create_runtime,

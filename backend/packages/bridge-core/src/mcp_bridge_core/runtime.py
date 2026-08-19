@@ -1,28 +1,41 @@
-"""Single-upstream MCP session runtime state and behavior."""
+"""Single-upstream lifecycle, owner task, and bridge-side caches."""
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Protocol, TypeVar
 
 import anyio
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.streams.memory import MemoryObjectSendStream
 
-from mcpapps_bridge.logging import get_logger
-from mcpapps_bridge.models import (
+from .plans import UpstreamConfig
+from .protocol import (
     AppResource,
     ResourceDescriptor,
     ToolCallResult,
     ToolDescriptor,
-    UpstreamInitialization,
+    UpstreamIdentity,
 )
-from .upstream import UpstreamMcpClient, UpstreamServerConfig, build_upstream_client
 
-logger = get_logger(__name__)
-
+logger = logging.getLogger(__name__)
 CommandResult = TypeVar("CommandResult")
+
+
+class UpstreamClient(Protocol):
+    async def connect(self, config: UpstreamConfig) -> UpstreamIdentity: ...
+
+    async def list_tools(self) -> list[ToolDescriptor]: ...
+
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult: ...
+
+    async def list_resources(self) -> list[ResourceDescriptor]: ...
+
+    async def read_resource(self, uri: str) -> AppResource: ...
+
+    async def close(self) -> None: ...
 
 
 @dataclass
@@ -51,20 +64,20 @@ class UpstreamRuntime:
 
     def __init__(
         self,
-        upstream_config: UpstreamServerConfig,
+        upstream_config: UpstreamConfig,
         *,
         name: str,
         version: str,
-        upstream_client: UpstreamMcpClient | None = None,
+        upstream_client: UpstreamClient,
     ) -> None:
         self._upstream_config = upstream_config
         self._name = name
         self._version = version
-        self._upstream_client = upstream_client or build_upstream_client(upstream_config)
+        self._upstream_client = upstream_client
         self._tool_cache: dict[str, ToolDescriptor] = {}
         self._resource_cache: dict[str, AppResource] = {}
         self._resource_descriptors: dict[str, ResourceDescriptor] = {}
-        self._upstream_identity = UpstreamInitialization(server_name=name, server_version=version)
+        self._upstream_identity = UpstreamIdentity(server_name=name, server_version=version)
         self._started = False
         self._worker_running = False
         self._command_send, self._command_receive = anyio.create_memory_object_stream[
@@ -72,7 +85,7 @@ class UpstreamRuntime:
         ](0)
 
     @property
-    def identity(self) -> UpstreamInitialization:
+    def identity(self) -> UpstreamIdentity:
         return self._upstream_identity
 
     async def start_worker(self, task_group: TaskGroup) -> None:
@@ -160,8 +173,6 @@ class UpstreamRuntime:
                         return
                     await self._execute_command(command)
         finally:
-            # MCP SDK transports contain AnyIO cancel scopes and must be closed by
-            # the same persistent task that entered their context managers.
             try:
                 await self._disconnect()
             finally:
@@ -208,14 +219,6 @@ class UpstreamRuntime:
             self._name,
             self._upstream_config.transport,
         )
-        if self._upstream_config.transport == "stdio":
-            logger.debug(
-                "  stdio: command=%s args=%s",
-                self._upstream_config.command,
-                self._upstream_config.args,
-            )
-        else:
-            logger.debug("  http: url=%s", self._upstream_config.url)
         try:
             upstream = await self._upstream_client.connect(self._upstream_config)
         except Exception:
@@ -244,7 +247,7 @@ class UpstreamRuntime:
             await self._upstream_client.close()
         finally:
             self._started = False
-            self._upstream_identity = UpstreamInitialization(
+            self._upstream_identity = UpstreamIdentity(
                 server_name=self._name,
                 server_version=self._version,
             )

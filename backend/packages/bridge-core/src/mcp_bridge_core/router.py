@@ -1,61 +1,50 @@
-"""Session-scoped routing contracts for downstream MCP method handling."""
+"""Session-scoped passthrough and aggregate MCP routing."""
 
 from __future__ import annotations
 
 import re
 from base64 import urlsafe_b64encode
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Sequence
+from copy import deepcopy
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from hashlib import sha256
 from typing import Any, Protocol
 
 import anyio
 from anyio.abc import TaskGroup
-from mcp_bridge_core import (
+from pydantic import AnyUrl
+
+from .handlers import McpMethodRouter
+from .observations import (
     BindingAvailabilityChanged,
     BindingAvailabilityStatus,
     BridgeErrorRaised,
     BridgeFailure,
     BridgeFailureCode,
-    BridgeObserver,
     BridgeSessionStarted,
     ResourceLoaded,
     ToolsPublished,
 )
-from pydantic import AnyUrl
-
-from mcpapps_bridge.domain import EndpointBindingRevision, EndpointTopologyRevision
-from mcpapps_bridge.models import (
+from .observer import BridgeObserver
+from .plans import BindingPlan, EndpointPlan
+from .protocol import (
     AppResource,
     ResourceDescriptor,
     ToolCallResult,
     ToolDescriptor,
-    UpstreamAvailability,
-    UpstreamAvailabilityStatus,
-    UpstreamInitialization,
+    UpstreamIdentity,
 )
-from .core_mapper import to_core_identity, to_core_resource, to_core_tool
 from .runtime import UpstreamRuntime
 
 
-class McpSessionRouter(Protocol):
+class McpSessionRouter(McpMethodRouter, Protocol):
     @property
-    def identity(self) -> UpstreamInitialization: ...
+    def identity(self) -> UpstreamIdentity: ...
 
     async def start(self) -> None: ...
 
     async def close(self) -> None: ...
-
-    async def list_tools(self) -> list[ToolDescriptor]: ...
-
-    async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult: ...
-
-    async def preload_tool_resource(self, tool_name: str) -> None: ...
-
-    async def list_resources(self) -> list[ResourceDescriptor]: ...
-
-    async def read_resource(self, uri: str) -> AppResource: ...
 
 
 class PassthroughRouter:
@@ -72,7 +61,7 @@ class PassthroughRouter:
         self._worker_task_group = worker_task_group
 
     @property
-    def identity(self) -> UpstreamInitialization:
+    def identity(self) -> UpstreamIdentity:
         return self._runtime.identity
 
     async def start(self) -> None:
@@ -82,7 +71,7 @@ class PassthroughRouter:
             await self._observer.observe(
                 BridgeSessionStarted(
                     session_key=self._session_key,
-                    identity=to_core_identity(self._runtime.identity),
+                    identity=self._runtime.identity,
                 )
             )
             await self.list_tools()
@@ -97,10 +86,7 @@ class PassthroughRouter:
     async def list_tools(self) -> list[ToolDescriptor]:
         tools = await self._runtime.refresh_tools()
         await self._observer.observe(
-            ToolsPublished(
-                session_key=self._session_key,
-                tools=tuple(to_core_tool(tool) for tool in tools),
-            )
+            ToolsPublished(session_key=self._session_key, tools=tuple(tools))
         )
         return tools
 
@@ -133,19 +119,26 @@ class PassthroughRouter:
     async def read_resource(self, uri: str) -> AppResource:
         resource = await self._runtime.read_and_cache_resource(uri)
         await self._observer.observe(
-            ResourceLoaded(
-                session_key=self._session_key,
-                resource=to_core_resource(resource),
-            )
+            ResourceLoaded(session_key=self._session_key, resource=resource)
         )
         return resource
 
 
 @dataclass
+class BindingAvailability:
+    binding_key: str
+    status: BindingAvailabilityStatus = BindingAvailabilityStatus.UNKNOWN
+    identity: UpstreamIdentity | None = None
+    failure_kind: str | None = None
+    error_message: str | None = None
+    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+@dataclass
 class BoundUpstreamRuntime:
-    binding: EndpointBindingRevision
+    binding: BindingPlan
     runtime: UpstreamRuntime
-    availability: UpstreamAvailability
+    availability: BindingAvailability
 
     @property
     def namespace(self) -> str:
@@ -157,51 +150,44 @@ class BoundUpstreamRuntime:
 class AggregateRouter:
     def __init__(
         self,
-        revision: EndpointTopologyRevision,
+        plan: EndpointPlan,
         observer: BridgeObserver,
         session_key: str,
-        runtime_factory: Callable[[EndpointBindingRevision], UpstreamRuntime],
+        runtime_factory: Callable[[BindingPlan], UpstreamRuntime],
         worker_task_group: TaskGroup,
         *,
         version: str,
     ) -> None:
-        self._revision = revision
         self._observer = observer
         self._session_key = session_key
         self._worker_task_group = worker_task_group
-        self._identity = UpstreamInitialization(
-            server_name=revision.display_name,
+        self._identity = UpstreamIdentity(
+            server_name=plan.display_name,
             server_version=version,
-            supports_tools=True,
-            supports_resources=True,
+            supports_tools=plan.capabilities.tools,
+            supports_resources=plan.capabilities.resources,
         )
         self._bindings = [
             BoundUpstreamRuntime(
                 binding=binding,
                 runtime=runtime_factory(binding),
-                availability=UpstreamAvailability(
-                    binding_revision_id=str(binding.binding_revision_id),
-                    namespace=binding.namespace,
-                    upstream_revision_id=str(binding.upstream.revision_id),
-                    upstream_server_id=str(binding.upstream.server_id),
-                ),
+                availability=BindingAvailability(binding_key=binding.binding_key),
             )
-            for binding in revision.bindings
-            if binding.enabled
+            for binding in plan.bindings
         ]
         self._bindings.sort(
             key=lambda bound: (
                 bound.binding.priority,
                 bound.namespace,
-                str(bound.binding.binding_revision_id),
+                bound.binding.binding_key,
             )
         )
         self._tool_routes: dict[str, tuple[BoundUpstreamRuntime, str]] = {}
         self._resource_routes: dict[str, tuple[BoundUpstreamRuntime, str]] = {}
-        self._published_availability: dict[str, UpstreamAvailability] = {}
+        self._published_availability: dict[str, BindingAvailability] = {}
 
     @property
-    def identity(self) -> UpstreamInitialization:
+    def identity(self) -> UpstreamIdentity:
         return self._identity
 
     async def start(self) -> None:
@@ -211,7 +197,7 @@ class AggregateRouter:
             await self._observer.observe(
                 BridgeSessionStarted(
                     session_key=self._session_key,
-                    identity=to_core_identity(self._identity),
+                    identity=self._identity,
                 )
             )
             await self._publish_availability()
@@ -253,10 +239,7 @@ class AggregateRouter:
 
         tools = [tool for bound in self._bindings for tool in discovered.get(bound.namespace, [])]
         await self._observer.observe(
-            ToolsPublished(
-                session_key=self._session_key,
-                tools=tuple(to_core_tool(tool) for tool in tools),
-            )
+            ToolsPublished(session_key=self._session_key, tools=tuple(tools))
         )
         return tools
 
@@ -344,8 +327,8 @@ class AggregateRouter:
         await self._observer.observe(
             ResourceLoaded(
                 session_key=self._session_key,
-                binding_key=str(bound.binding.binding_revision_id),
-                resource=to_core_resource(public_resource),
+                binding_key=bound.binding.binding_key,
+                resource=public_resource,
             )
         )
         return public_resource
@@ -387,8 +370,8 @@ class AggregateRouter:
     def _public_content(
         self,
         bound: BoundUpstreamRuntime,
-        content: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
+        content: Sequence[dict[str, Any]],
+    ) -> tuple[dict[str, Any], ...]:
         rewritten: list[dict[str, Any]] = []
         for item in content:
             public_item = dict(item)
@@ -400,7 +383,7 @@ class AggregateRouter:
                     resource["uri"] = self._register_resource_route(bound, resource["uri"])
                 public_item["resource"] = resource
             rewritten.append(public_item)
-        return rewritten
+        return tuple(rewritten)
 
     def _register_resource_route(self, bound: BoundUpstreamRuntime, upstream_uri: str) -> str:
         public_uri = _public_resource_uri(bound.namespace, upstream_uri)
@@ -414,20 +397,17 @@ class AggregateRouter:
 
     def _mark_available(self, bound: BoundUpstreamRuntime) -> None:
         if (
-            bound.availability.status is UpstreamAvailabilityStatus.AVAILABLE
+            bound.availability.status is BindingAvailabilityStatus.AVAILABLE
             and bound.availability.identity == bound.runtime.identity
             and bound.availability.failure_kind is None
             and bound.availability.error_message is None
         ):
             return
-        bound.availability = bound.availability.model_copy(
-            update={
-                "status": UpstreamAvailabilityStatus.AVAILABLE,
-                "identity": bound.runtime.identity,
-                "failure_kind": None,
-                "error_message": None,
-                "updated_at": datetime.now(timezone.utc),
-            }
+        bound.availability = BindingAvailability(
+            binding_key=bound.availability.binding_key,
+            status=BindingAvailabilityStatus.AVAILABLE,
+            identity=bound.runtime.identity,
+            updated_at=datetime.now(timezone.utc),
         )
 
     def _mark_failed(
@@ -437,24 +417,24 @@ class AggregateRouter:
         error: Exception,
     ) -> None:
         if (
-            bound.availability.status is UpstreamAvailabilityStatus.FAILED
+            bound.availability.status is BindingAvailabilityStatus.FAILED
             and bound.availability.failure_kind == failure_kind
             and bound.availability.error_message == str(error)
         ):
             return
-        bound.availability = bound.availability.model_copy(
-            update={
-                "status": UpstreamAvailabilityStatus.FAILED,
-                "failure_kind": failure_kind,
-                "error_message": str(error),
-                "updated_at": datetime.now(timezone.utc),
-            }
+        bound.availability = BindingAvailability(
+            binding_key=bound.availability.binding_key,
+            status=BindingAvailabilityStatus.FAILED,
+            identity=bound.availability.identity,
+            failure_kind=failure_kind,
+            error_message=str(error),
+            updated_at=datetime.now(timezone.utc),
         )
 
     async def _publish_availability(self) -> None:
         for bound in self._bindings:
             availability = bound.availability
-            binding_key = availability.binding_revision_id
+            binding_key = availability.binding_key
             if self._published_availability.get(binding_key) == availability:
                 continue
             failure = (
@@ -465,7 +445,7 @@ class AggregateRouter:
                     binding_key=binding_key,
                     details={"operation": availability.failure_kind},
                 )
-                if availability.status is UpstreamAvailabilityStatus.FAILED
+                if availability.status is BindingAvailabilityStatus.FAILED
                 else None
             )
             await self._observer.observe(
@@ -473,16 +453,12 @@ class AggregateRouter:
                     session_key=self._session_key,
                     observed_at=availability.updated_at,
                     binding_key=binding_key,
-                    status=BindingAvailabilityStatus(availability.status.value),
-                    identity=(
-                        to_core_identity(availability.identity)
-                        if availability.identity is not None
-                        else None
-                    ),
+                    status=availability.status,
+                    identity=availability.identity,
                     failure=failure,
                 )
             )
-            self._published_availability[binding_key] = availability.model_copy(deep=True)
+            self._published_availability[binding_key] = deepcopy(availability)
 
 
 def _public_resource_uri(namespace: str, upstream_uri: str) -> str:

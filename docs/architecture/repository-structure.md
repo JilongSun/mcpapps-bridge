@@ -23,11 +23,9 @@ mcpapps-bridge/
 │       │   ├── manager.py            # Managed endpoints, sessions, and lifecycle ownership
 │       │   ├── builder.py            # Repository-based manager assembly
 │       │   ├── upstream.py           # Upstream MCP clients: stdio, SSE, streamable HTTP
-│       │   ├── runtime.py            # UpstreamRuntime: owner task, lifecycle, and cache
-│       │   ├── router.py             # Passthrough/aggregate session routing
 │       │   ├── downstream.py         # Downstream MCP Server + HTTP/SSE/stdio transports
 │       │   ├── core_mapper.py        # Temporary application model -> core conversion
-│       │   └── core_router_adapter.py # Temporary monolith router -> core method adapter
+│       │   └── core_upstream_adapter.py # Temporary upstream client -> core adapter
 │       ├── session/                  # Session store and factory ports
 │       ├── events/                   # Typed event envelopes
 │       ├── models/                   # Shared Pydantic protocol/session/resource models
@@ -67,7 +65,7 @@ backend/
 |-- packages/
 |   |-- bridge-core/
 |   |   |-- pyproject.toml
-|   |   `-- src/                      # Protocol plans, observations, handlers, SDK adapters
+|   |   `-- src/                      # Plans, observations, handlers, routing, runtime, SDK adapters
 |   `-- gateway-service/
 |       |-- pyproject.toml
 |       `-- src/                      # Topology, sessions, events, Agent Host, ports
@@ -85,9 +83,10 @@ server ----------------> bridge-core
    `--> gateway-service ---> bridge-core
 ```
 
-The workspace members and core contract models now exist. MCP SDK mapping and downstream method
-handlers live in bridge core; routing, runtime, and raw downstream transport hosting remain in the
-current monolithic module tree until their extraction steps land. The
+The workspace members and core contract models now exist. MCP SDK mapping, downstream method
+handlers, routing, and the upstream owner-task runtime live in bridge core. Upstream SDK connectors
+and raw downstream transport hosting remain in the current server module tree until their
+extraction steps land. The
 [bridge core contract](bridge-core-contract.md) is authoritative for new cross-package types; new
 code must not add dependencies that oppose the target graph.
 
@@ -105,11 +104,11 @@ code must not add dependencies that oppose the target graph.
 | Assembly | `bootstrap.py`, `mcp/builder.py` | Opens configured SQLite storage, seeds initial topology, and injects repository/store ports into the manager |
 | Downstream | `mcp/downstream.py` | Hosts the downstream MCP SDK `Server` and transport sessions |
 | Handlers | `packages/bridge-core/.../handlers.py` | Implements MCP methods and emits correlated tool-call observations |
-| Router | `mcp/router.py` | Owns passthrough/aggregate routing, public names and URIs, discovery, and bridge observations |
-| Runtime | `mcp/runtime.py` | Proxies one upstream MCP session through a persistent owner task and maintains local caches |
+| Router | `packages/bridge-core/.../router.py` | Owns passthrough/aggregate routing, public names and URIs, discovery, and bridge observations |
+| Runtime | `packages/bridge-core/.../runtime.py` | Proxies one upstream MCP session through a persistent owner task and maintains local caches |
 | Upstream | `mcp/upstream.py` | Connects to real MCP servers via stdio, SSE, or streamable HTTP |
 | SDK adapter | `packages/bridge-core/.../_mcp_sdk.py` | Pure conversion between core models and MCP SDK v1 types |
-| Transitional adapter | `mcp/core_mapper.py`, `mcp/core_router_adapter.py` | Converts current monolith models and router results to core contracts |
+| Transitional adapter | `mcp/core_mapper.py`, `mcp/core_upstream_adapter.py` | Converts current upstream client results to core contracts |
 | Session | `session/` | Defines current store/factory ports and the transitional application journal adapter |
 | Events | `events/` | Typed events emitted by session/runtime operations |
 | Models | `models/` | Canonical Pydantic models shared across backend layers |
@@ -124,11 +123,12 @@ code must not add dependencies that oppose the target graph.
 - Every bridge session captures `endpoint_revision_id`, keeping active-session routing stable when a current pointer changes.
 - Each `BridgeSessionRuntime` owns one downstream MCP SDK server, one router, and one bridge session store correlated with one `mcp-session-id`.
 - `BridgeDownstreamServer` owns downstream MCP transports only; it does not start or close the upstream runtime.
-- Core `ProxyHandlers` depend on the narrow `McpMethodRouter`, not monolith runtime details.
+- Core `ProxyHandlers` depend on the narrow `McpMethodRouter`; routers and runtime consume only core
+	plans and protocol models.
 - `AggregateRouter` owns lazy bound runtimes, deterministic degraded discovery, namespaced tools, and exact public-to-upstream resource URI maps.
 - An upstream runtime belongs to a bridge session by default; its manager-hosted worker enters, operates, and exits SDK transport contexts in one task. The runtime owns upstream protocol state and caches but does not know about HTTP routing.
 - Core `ProxyHandlers` own method behavior and emit typed observations. `_mcp_sdk.py` owns SDK v1
-  conversion; `core_mapper.py` and `core_router_adapter.py` are migration-only adapters.
+	conversion; `core_mapper.py` and `core_upstream_adapter.py` are migration-only adapters.
 - `JournalBridgeObserver` converts core observations to application journal events;
 	`BridgeSessionStoreJournal` adapts those events to the current durable store during migration.
 - Persistent session storage satisfies `BridgeSessionStore`; runtime and handler code never depend on SQLAlchemy or database sessions directly.

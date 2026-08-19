@@ -31,9 +31,12 @@ from .protocol import (
     ToolDescriptor,
     UpstreamIdentity,
 )
+from .runtime import UpstreamClient, UpstreamRuntime
+from .router import AggregateRouter, McpSessionRouter, PassthroughRouter
 
 __all__ = [
     "AppResource",
+    "AggregateRouter",
     "BindingAvailabilityChanged",
     "BindingAvailabilityStatus",
     "BindingPlan",
@@ -47,6 +50,8 @@ __all__ = [
     "EndpointMode",
     "EndpointPlan",
     "NoOpBridgeObserver",
+    "McpSessionRouter",
+    "PassthroughRouter",
     "ResourceDescriptor",
     "ResourceLoaded",
     "SseUpstreamConfig",
@@ -58,5 +63,7 @@ __all__ = [
     "ToolDescriptor",
     "ToolsPublished",
     "UpstreamConfig",
+    "UpstreamClient",
     "UpstreamIdentity",
+    "UpstreamRuntime",
 ]

@@ -4,14 +4,15 @@ from typing import Any
 
 import anyio
 
-from mcpapps_bridge.mcp.runtime import UpstreamRuntime
-from mcpapps_bridge.mcp.upstream import UpstreamServerConfig
-from mcpapps_bridge.models import (
+from mcp_bridge_core import (
     AppResource,
     ResourceDescriptor,
+    StdioUpstreamConfig,
     ToolCallResult,
     ToolDescriptor,
-    UpstreamInitialization,
+    UpstreamConfig,
+    UpstreamIdentity,
+    UpstreamRuntime,
 )
 
 
@@ -19,9 +20,9 @@ class TaskRecordingUpstreamClient:
     def __init__(self) -> None:
         self.operations: list[tuple[str, int]] = []
 
-    async def connect(self, config: UpstreamServerConfig) -> UpstreamInitialization:
+    async def connect(self, config: UpstreamConfig) -> UpstreamIdentity:
         self._record("connect")
-        return UpstreamInitialization(server_name="test-upstream")
+        return UpstreamIdentity(server_name="test-upstream")
 
     async def list_tools(self) -> list[ToolDescriptor]:
         self._record("tools/list")
@@ -29,7 +30,7 @@ class TaskRecordingUpstreamClient:
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult:
         self._record("tools/call")
-        return ToolCallResult(content=[{"type": "text", "text": tool_name}])
+        return ToolCallResult(content=({"type": "text", "text": tool_name},))
 
     async def list_resources(self) -> list[ResourceDescriptor]:
         self._record("resources/list")
@@ -49,7 +50,7 @@ class TaskRecordingUpstreamClient:
 async def test_upstream_client_lifecycle_stays_in_one_owner_task() -> None:
     client = TaskRecordingUpstreamClient()
     runtime = UpstreamRuntime(
-        UpstreamServerConfig(),
+        StdioUpstreamConfig(command="fixture-server"),
         name="test-upstream",
         version="0.1.0",
         upstream_client=client,

@@ -6,7 +6,7 @@ The `mcp/` package is the protocol-aware bridge boundary between downstream MCP 
 
 ## Refactor Status
 
-This document describes the staged implementation of [ADR 0006](decisions/0006-core-service-and-server-packages.md). MCP SDK mapping and downstream method behavior now live in bridge core; routing, runtime, and raw downstream transport hosting remain in the monolith during the next extraction steps. The target cross-package API is defined by the [bridge core contract](bridge-core-contract.md).
+This document describes the staged implementation of [ADR 0006](decisions/0006-core-service-and-server-packages.md). MCP SDK mapping, downstream method behavior, routing, and the upstream owner-task runtime now live in bridge core. Upstream SDK connectors and raw downstream transport hosting remain in the server package during the next extraction steps. The target cross-package API is defined by the [bridge core contract](bridge-core-contract.md).
 
 The target ownership is:
 
@@ -21,8 +21,9 @@ flowchart LR
         SQLite --> Ports
 ```
 
-- Bridge core currently owns protocol models, MCP SDK mapping, and downstream method handlers. It
-    will also own routing, upstream owner tasks, caches, and raw downstream MCP transports.
+- Bridge core owns protocol models, MCP SDK mapping, downstream method handlers, routing, upstream
+    owner tasks, and caches. It will also own upstream SDK connectors and raw downstream MCP
+    transports.
 - Gateway service owns managed topology, immutable revision publication, session coordination,
     durable event semantics, Agent Host contracts, and persistence ports.
 - Deployable server owns FastAPI/Uvicorn lifecycle, transport route selection, SQLite/Alembic,
@@ -31,8 +32,9 @@ flowchart LR
     `BridgeSessionStore`; manager composition connects `JournalBridgeObserver` to the transitional
     store journal adapter.
 
-Runtime, routing, and raw downstream transport files have not moved to their target package yet.
-The ownership below reflects the current package boundary while physical extraction continues.
+Upstream SDK connector and raw downstream transport files have not moved to their target package
+yet. The ownership below reflects the current package boundary while physical extraction
+continues.
 
 ## Responsibility Model
 
@@ -49,10 +51,10 @@ flowchart TD
     SessionRuntime --> Downstream["BridgeDownstreamServer"]
     Downstream --> Handlers["ProxyHandlers (bridge-core)"]
     SessionRuntime --> Router["McpSessionRouter"]
-    Handlers --> Adapter["CoreRouterAdapter"]
-    Adapter --> Router
+    Handlers --> Router
     Router --> Runtime["UpstreamRuntime"]
-    Runtime --> Upstream["UpstreamMcpClient"]
+    Runtime --> Adapter["CoreUpstreamClientAdapter"]
+    Adapter --> Upstream["UpstreamMcpClient"]
     Upstream --> Real["Real MCP Server"]
 
     Factory --> Store["BridgeSessionStore"]
@@ -70,14 +72,14 @@ flowchart TD
         SessionRuntime
         Downstream
         Adapter
-        Router
-        Runtime
         Upstream
     end
 
     subgraph "bridge-core package"
         Handlers
         Mapper
+        Router
+        Runtime
     end
 ```
 
@@ -124,7 +126,7 @@ Boundary rules:
 - Does not know about FastAPI, downstream routes, or session event storage.
 - Returns internal models such as `ToolDescriptor`, `ToolCallResult`, `AppResource`, and `UpstreamInitialization`.
 
-### `runtime.py` - Single-Upstream Runtime
+### `bridge-core/runtime.py` - Single-Upstream Runtime
 
 `UpstreamRuntime` owns one upstream MCP session. A persistent worker task executes its client operations through an internal command channel. The worker enters, uses, reconnects, and exits MCP SDK transport contexts in the same task because their AnyIO cancel scopes cannot move between request or discovery tasks. The runtime tracks upstream identity, refreshes tool/resource metadata, caches loaded resources, and synthesizes UI resources when needed. It does not publish session-global state.
 
@@ -147,16 +149,20 @@ Boundary rules:
 - Serializes one stateful upstream session while allowing different aggregate bindings to run concurrently.
 - Does not know about the MCP SDK `Server`, Starlette scopes, FastAPI, or HTTP routing.
 
-### `router.py` - Session MCP Routing
+### `bridge-core/router.py` - Session MCP Routing
 
-`McpSessionRouter` is the current application contract for lifecycle, identity, tools, and resources. `CoreRouterAdapter` converts its transitional models to the core-owned `McpMethodRouter` contract used by handlers. `PassthroughRouter` adapts one `UpstreamRuntime` without changing public protocol behavior. `AggregateRouter` composes immutable binding revisions and lazy bound runtimes, performs concurrent deterministic discovery, publishes healthy results during partial failures, routes namespaced tool calls, and owns public resource URI maps.
+`McpSessionRouter` is the core contract for lifecycle, identity, tools, and resources.
+`PassthroughRouter` adapts one `UpstreamRuntime` without changing public protocol behavior.
+`AggregateRouter` consumes an immutable `EndpointPlan`, composes lazy bound runtimes, performs
+concurrent deterministic discovery, publishes healthy results during partial failures, routes
+namespaced tool calls, and owns public resource URI maps.
 
 Boundary rules:
 
 - Owns public-to-upstream method routing for one bridge session.
 - Emits typed session-global tool/resource publication and binding availability observations.
 - Does not own downstream MCP transport objects or persistence implementation details.
-- The temporary adapter keeps core `ProxyHandlers` independent of monolith models and topology.
+- Core handlers and routers depend only on core protocol models and immutable plans.
 
 ### `downstream.py` - Downstream MCP Transport Host
 
@@ -202,8 +208,8 @@ Boundary rules:
 ### Core MCP SDK and Transitional Model Adapters
 
 `bridge-core/_mcp_sdk.py` is stateless conversion code between core models and MCP SDK v1 types.
-The monolith `core_mapper.py` and `core_router_adapter.py` temporarily convert existing application
-models and router results to core contracts; they disappear as routing moves into core.
+The monolith `core_mapper.py` and `core_upstream_adapter.py` temporarily convert existing upstream
+client results to core contracts; they disappear when the SDK connectors move into core.
 
 Key functions:
 
@@ -240,7 +246,6 @@ sequenceDiagram
     participant Manager as BridgeManager
     participant DS as Downstream Server
     participant H as ProxyHandlers
-    participant Adapter as CoreRouterAdapter
     participant Router as McpSessionRouter
     participant RT as UpstreamRuntime
     participant UP as Upstream Client
@@ -257,21 +262,18 @@ sequenceDiagram
     H->>Observer: ToolCallStarted(operation_key, ...)
     Observer->>Journal: append application event
     Journal->>Store: start_tool_call(operation_key, ...)
-    H->>Adapter: call_tool(public_name, arguments)
-    Adapter->>Router: call_tool(public_name, arguments)
+    H->>Router: call_tool(public_name, arguments)
     Router->>RT: call_tool(upstream_name, arguments)
     RT->>UP: call_tool(name, arguments)
     UP->>Real: MCP tools/call
     Real-->>UP: tool result
     UP-->>RT: ToolCallResult
     RT-->>Router: ToolCallResult
-    Router-->>Adapter: Public ToolCallResult
-    Adapter-->>H: Core ToolCallResult
+    Router-->>H: Public ToolCallResult
     H->>Observer: ToolCallCompleted(operation_key, ...)
     Observer->>Journal: append application event
     Journal->>Store: complete_tool_call(operation_key, ...)
-    H->>Adapter: preload_tool_resource(public_name)
-    Adapter->>Router: preload_tool_resource(public_name)
+    H->>Router: preload_tool_resource(public_name)
     Router->>RT: read_and_cache_resource(upstream_ui_uri)
     H-->>DS: mapped CallToolResult
     DS-->>Client: MCP response
