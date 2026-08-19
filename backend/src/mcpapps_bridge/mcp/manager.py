@@ -14,14 +14,12 @@ from mcp_bridge_core import (
     AggregateRouter,
     BindingPlan,
     BridgeObserver,
+    DefaultUpstreamClientFactory,
     EndpointMode,
     EndpointPlan,
     McpSessionRouter,
     PassthroughRouter,
-    SseUpstreamConfig,
-    StdioUpstreamConfig,
-    StreamableHttpUpstreamConfig,
-    UpstreamConfig,
+    UpstreamClientFactory,
     UpstreamRuntime,
 )
 from mcp_bridge_core.handlers import ProxyHandlers
@@ -48,13 +46,7 @@ from mcpapps_bridge.session import (
 )
 
 from .downstream import BridgeDownstreamServer
-from .core_upstream_adapter import CoreUpstreamClientAdapter
 from .plan_adapter import endpoint_plan_from_revision
-from .upstream import (
-    DefaultUpstreamMcpClientFactory,
-    UpstreamMcpClientFactory,
-    UpstreamServerConfig,
-)
 
 logger = get_logger(__name__)
 
@@ -94,7 +86,7 @@ class BridgeManager:
         sessions: BridgeSessionRepository,
         session_store_factory: BridgeSessionStoreFactory,
         *,
-        upstream_client_factory: UpstreamMcpClientFactory | None = None,
+        upstream_client_factory: UpstreamClientFactory | None = None,
         version: str = "0.1.0",
     ) -> None:
         self._upstream_servers = upstream_servers
@@ -102,7 +94,7 @@ class BridgeManager:
         self._topology = topology
         self._sessions = sessions
         self._session_store_factory = session_store_factory
-        self._upstream_client_factory = upstream_client_factory or DefaultUpstreamMcpClientFactory()
+        self._upstream_client_factory = upstream_client_factory or DefaultUpstreamClientFactory()
         self._version = version
         self._published: dict[UUID, PublishedEndpoint] = {}
         self._slug_index: dict[str, UUID] = {}
@@ -409,15 +401,11 @@ class BridgeManager:
         self,
         binding: BindingPlan,
     ) -> UpstreamRuntime:
-        server_config = self._to_server_upstream_config(binding.upstream)
         return UpstreamRuntime(
             binding.upstream,
             name=binding.upstream_name,
             version=self._version,
-            upstream_client=CoreUpstreamClientAdapter(
-                self._upstream_client_factory.create(server_config),
-                server_config,
-            ),
+            upstream_client=self._upstream_client_factory.create(binding.upstream),
         )
 
     def _require_task_group(self) -> TaskGroup:
@@ -449,27 +437,3 @@ class BridgeManager:
             }
         )
         await self._sessions.update(updated)
-
-    def _to_server_upstream_config(self, config: UpstreamConfig) -> UpstreamServerConfig:
-        if isinstance(config, StreamableHttpUpstreamConfig):
-            return UpstreamServerConfig(
-                transport=config.transport,
-                url=str(config.url),
-                headers=config.headers,
-                httpx_timeout_seconds=config.timeout_seconds,
-            )
-        if isinstance(config, SseUpstreamConfig):
-            return UpstreamServerConfig(
-                transport=config.transport,
-                url=str(config.url),
-                headers=config.headers,
-            )
-        if isinstance(config, StdioUpstreamConfig):
-            return UpstreamServerConfig(
-                transport=config.transport,
-                command=config.command,
-                args=list(config.args),
-                cwd=config.cwd,
-                env=config.env,
-            )
-        raise TypeError(f"Unsupported core upstream config: {type(config).__name__}")

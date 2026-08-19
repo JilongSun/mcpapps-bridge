@@ -15,6 +15,7 @@ from .models import (
     EndpointBindingFileConfig,
     EndpointFileConfig,
     McpAppsBridgeConfig,
+    RuntimeUpstreamConfig,
     StorageConfig,
     UpstreamFileConfig,
 )
@@ -29,6 +30,7 @@ __all__ = [
     "McpAppsBridgeConfig",
     "RuntimeConfiguration",
     "RuntimeSelection",
+    "RuntimeUpstreamConfig",
     "StorageConfig",
     "UpstreamFileConfig",
     "load_bridge_config",

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from mcp_bridge_core import UpstreamClientFactory
 from pydantic import AnyHttpUrl, TypeAdapter
 
+from mcpapps_bridge.config.models import RuntimeUpstreamConfig
 from mcpapps_bridge.domain import (
     SseConnection,
     StdioConnection,
@@ -19,7 +21,6 @@ from mcpapps_bridge.repositories import (
 from mcpapps_bridge.session import BridgeSessionStoreFactory
 
 from .manager import BridgeManager
-from .upstream import UpstreamMcpClientFactory, UpstreamServerConfig
 
 HTTP_URL_ADAPTER = TypeAdapter(AnyHttpUrl)
 
@@ -32,7 +33,7 @@ async def assemble_bridge_manager(
     session_store_factory: BridgeSessionStoreFactory,
     *,
     version: str = "0.1.0",
-    upstream_client_factory: UpstreamMcpClientFactory | None = None,
+    upstream_client_factory: UpstreamClientFactory | None = None,
 ) -> BridgeManager:
     manager = BridgeManager(
         upstream_servers,
@@ -47,7 +48,7 @@ async def assemble_bridge_manager(
     return manager
 
 
-def to_domain_connection(upstream: UpstreamServerConfig) -> UpstreamConnection:
+def to_domain_connection(upstream: RuntimeUpstreamConfig) -> UpstreamConnection:
     if upstream.transport == "streamable-http":
         if upstream.url is None:
             raise ValueError("streamable-http upstream requires a URL")

@@ -1,20 +1,22 @@
 """MCP proxy, transport, and resource handling modules."""
 
-from mcp_bridge_core import AggregateRouter, McpSessionRouter, PassthroughRouter, UpstreamRuntime
+from mcp_bridge_core import (
+    AggregateRouter,
+    DefaultUpstreamClientFactory,
+    McpSessionRouter,
+    PassthroughRouter,
+    SseUpstreamClient,
+    StdioUpstreamClient,
+    StreamableHttpUpstreamClient,
+    UpstreamClient,
+    UpstreamClientFactory,
+    UpstreamRuntime,
+    build_upstream_client,
+)
 
 from .builder import assemble_bridge_manager, to_domain_connection
 from .downstream import BridgeDownstreamServer
 from .manager import BridgeManager, BridgeSessionRuntime, PublishedEndpoint
-from .upstream import (
-    SseUpstreamMcpClient,
-    StdioUpstreamMcpClient,
-    StreamableHttpUpstreamMcpClient,
-    DefaultUpstreamMcpClientFactory,
-    UpstreamMcpClient,
-    UpstreamMcpClientFactory,
-    UpstreamServerConfig,
-    build_upstream_client,
-)
 
 __all__ = [
     "AggregateRouter",
@@ -25,14 +27,13 @@ __all__ = [
     "PassthroughRouter",
     "PublishedEndpoint",
     "UpstreamRuntime",
-    "UpstreamServerConfig",
     "build_upstream_client",
     "assemble_bridge_manager",
-    "SseUpstreamMcpClient",
-    "StdioUpstreamMcpClient",
-    "StreamableHttpUpstreamMcpClient",
-    "DefaultUpstreamMcpClientFactory",
-    "UpstreamMcpClient",
-    "UpstreamMcpClientFactory",
+    "SseUpstreamClient",
+    "StdioUpstreamClient",
+    "StreamableHttpUpstreamClient",
+    "DefaultUpstreamClientFactory",
+    "UpstreamClient",
+    "UpstreamClientFactory",
     "to_domain_connection",
 ]

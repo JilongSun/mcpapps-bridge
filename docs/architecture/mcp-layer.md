@@ -6,7 +6,7 @@ The `mcp/` package is the protocol-aware bridge boundary between downstream MCP 
 
 ## Refactor Status
 
-This document describes the staged implementation of [ADR 0006](decisions/0006-core-service-and-server-packages.md). MCP SDK mapping, downstream method behavior, routing, and the upstream owner-task runtime now live in bridge core. Upstream SDK connectors and raw downstream transport hosting remain in the server package during the next extraction steps. The target cross-package API is defined by the [bridge core contract](bridge-core-contract.md).
+This document describes the staged implementation of [ADR 0006](decisions/0006-core-service-and-server-packages.md). MCP SDK mapping, downstream method behavior, routing, the upstream owner-task runtime, and upstream SDK connectors now live in bridge core. Raw downstream transport hosting remains in the server package for the next extraction step. The target cross-package API is defined by the [bridge core contract](bridge-core-contract.md).
 
 The target ownership is:
 
@@ -22,8 +22,7 @@ flowchart LR
 ```
 
 - Bridge core owns protocol models, MCP SDK mapping, downstream method handlers, routing, upstream
-    owner tasks, and caches. It will also own upstream SDK connectors and raw downstream MCP
-    transports.
+    owner tasks, caches, and upstream SDK connectors. It will also own raw downstream MCP transports.
 - Gateway service owns managed topology, immutable revision publication, session coordination,
     durable event semantics, Agent Host contracts, and persistence ports.
 - Deployable server owns FastAPI/Uvicorn lifecycle, transport route selection, SQLite/Alembic,
@@ -32,9 +31,8 @@ flowchart LR
     `BridgeSessionStore`; manager composition connects `JournalBridgeObserver` to the transitional
     store journal adapter.
 
-Upstream SDK connector and raw downstream transport files have not moved to their target package
-yet. The ownership below reflects the current package boundary while physical extraction
-continues.
+The raw downstream transport file has not moved to its target package yet. The ownership below
+reflects the current package boundary while physical extraction continues.
 
 ## Responsibility Model
 
@@ -53,8 +51,7 @@ flowchart TD
     SessionRuntime --> Router["McpSessionRouter"]
     Handlers --> Router
     Router --> Runtime["UpstreamRuntime"]
-    Runtime --> Adapter["CoreUpstreamClientAdapter"]
-    Adapter --> Upstream["UpstreamMcpClient"]
+    Runtime --> Upstream["UpstreamClient"]
     Upstream --> Real["Real MCP Server"]
 
     Factory --> Store["BridgeSessionStore"]
@@ -71,8 +68,6 @@ flowchart TD
         Endpoint
         SessionRuntime
         Downstream
-        Adapter
-        Upstream
     end
 
     subgraph "bridge-core package"
@@ -80,6 +75,7 @@ flowchart TD
         Mapper
         Router
         Runtime
+        Upstream
     end
 ```
 
@@ -105,7 +101,7 @@ The important ownership rule is that lifecycle flows from the host into `BridgeM
 
 Session creation is repository-backed and atomic with session-store creation. Each session stores the exact `endpoint_revision_id` from its published endpoint; changing the current topology head cannot change an active session's routing plan. A new streamable HTTP initialization request starts a session runtime before dispatch. The dispatcher captures the SDK-generated `mcp-session-id` response header and persists the binding before sending that header to the client. Later requests resolve the same runtime through the repository binding. `DELETE` is handled by the MCP SDK first and then closes only the correlated bridge session runtime. For SSE fallback, the dispatcher captures the SDK session ID from the initial `endpoint` event, routes `/mcp/{slug}/messages` by that query ID, and closes the isolated runtime when the SSE connection ends.
 
-### `upstream.py` - Upstream MCP Clients
+### `bridge-core/upstream.py` - Upstream MCP Clients
 
 `upstream.py` connects to real MCP servers and normalizes SDK responses into bridge models.
 
@@ -124,7 +120,8 @@ Key types:
 Boundary rules:
 
 - Does not know about FastAPI, downstream routes, or session event storage.
-- Returns internal models such as `ToolDescriptor`, `ToolCallResult`, `AppResource`, and `UpstreamInitialization`.
+- Returns core models such as `ToolDescriptor`, `ToolCallResult`, `AppResource`, and
+    `UpstreamIdentity`.
 
 ### `bridge-core/runtime.py` - Single-Upstream Runtime
 
@@ -208,8 +205,7 @@ Boundary rules:
 ### Core MCP SDK and Transitional Model Adapters
 
 `bridge-core/_mcp_sdk.py` is stateless conversion code between core models and MCP SDK v1 types.
-The monolith `core_mapper.py` and `core_upstream_adapter.py` temporarily convert existing upstream
-client results to core contracts; they disappear when the SDK connectors move into core.
+Core upstream connectors map SDK responses directly to the same core protocol models.
 
 Key functions:
 

@@ -52,6 +52,17 @@ class UpstreamFileConfig(CamelModel):
         return self
 
 
+class RuntimeUpstreamConfig(BaseModel):
+    transport: Literal["stdio", "sse", "streamable-http"] = "stdio"
+    command: str | None = None
+    args: list[str] = Field(default_factory=list)
+    cwd: Path | None = None
+    env: dict[str, str] = Field(default_factory=dict)
+    url: str | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
+    httpx_timeout_seconds: float | None = None
+
+
 class EndpointBindingFileConfig(CamelModel):
     upstream: str
     namespace: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")

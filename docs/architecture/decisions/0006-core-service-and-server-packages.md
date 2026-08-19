@@ -164,7 +164,7 @@ useful.
 | Current area | Target owner |
 | --- | --- |
 | Upstream owner-task runtime, moved from `mcp/runtime.py` to core | Bridge core |
-| `mcp/upstream.py` SDK connectors | Bridge core |
+| Upstream SDK connectors, moved from `mcp/upstream.py` to core | Bridge core |
 | MCP SDK mapping, moved from `mcp/mapper.py` to core | Bridge core |
 | MCP method handlers, moved from `mcp/handlers.py` to core | Bridge core |
 | Protocol portions of `mcp/downstream.py` | Bridge core |
@@ -232,11 +232,12 @@ As of 2026-08-18, implementation is partial.
   to `BridgeSessionStore`; manager composition adapts those observations to the current durable
   store during migration.
 - Bridge core owns the MCP SDK v1 conversion adapter, its compatibility tests, the downstream MCP
-  method handlers, and the narrow core-typed `McpMethodRouter` contract. A temporary server adapter
-  converts the current monolith upstream client models at the package boundary.
+  method handlers, and the narrow core-typed `McpMethodRouter` contract.
 - Bridge core owns the persistent upstream owner-task runtime and passthrough/aggregate routers.
   Routers consume immutable `EndpointPlan` and `BindingPlan` values without importing managed
   topology, application availability snapshots, or server models.
+- Bridge core owns stdio, SSE compatibility, and streamable HTTP upstream connectors. They map MCP
+  SDK responses directly to core protocol models and are selected through a core-owned factory.
 - Aggregate characterization coverage freezes namespaced tools, ordinary and opaque UI resource
   routes, MCP Apps metadata rewriting, protocol-defined tool result rewriting, and rejection of
   unregistered resource URIs.
@@ -246,7 +247,7 @@ As of 2026-08-18, implementation is partial.
 
 ### Pending
 
-- Move upstream MCP SDK connectors and raw downstream transport adapters into bridge core.
+- Move raw downstream transport adapters into bridge core.
 - Split `BridgeManager` into core engine, application session service, and server composition.
 - Recompose SQLite, FastAPI, configuration, and process lifecycle in the server package.
 - Add real MCP 2025-11-25 transport contract tests across the extracted core and composed server.

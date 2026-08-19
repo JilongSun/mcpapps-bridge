@@ -8,12 +8,11 @@ from pathlib import Path
 import yaml
 from pydantic import ValidationError
 
-from mcpapps_bridge.mcp import UpstreamServerConfig
-
 from .models import (
     BridgeRuntimeConfig,
     EndpointFileConfig,
     McpAppsBridgeConfig,
+    RuntimeUpstreamConfig,
     StorageConfig,
     UpstreamFileConfig,
 )
@@ -36,7 +35,7 @@ class RuntimeSelection:
     config_path: Path
     upstream_name: str
     bridge: BridgeRuntimeConfig
-    upstream: UpstreamServerConfig
+    upstream: RuntimeUpstreamConfig
 
 
 @dataclass(frozen=True)
@@ -44,7 +43,7 @@ class RuntimeConfiguration:
     config_path: Path
     bridge: BridgeRuntimeConfig
     storage: StorageConfig
-    upstreams: dict[str, UpstreamServerConfig]
+    upstreams: dict[str, RuntimeUpstreamConfig]
     endpoints: dict[str, EndpointFileConfig]
     default_upstream: str | None
 
@@ -202,12 +201,12 @@ def _to_runtime_upstream_config(
     upstream: UpstreamFileConfig,
     config_dir: Path,
     bridge: BridgeRuntimeConfig,
-) -> UpstreamServerConfig:
+) -> RuntimeUpstreamConfig:
     cwd = upstream.cwd
     if cwd is not None and not cwd.is_absolute():
         cwd = (config_dir / cwd).resolve()
 
-    return UpstreamServerConfig(
+    return RuntimeUpstreamConfig(
         transport=upstream.transport,
         command=upstream.command,
         args=upstream.args,

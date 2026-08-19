@@ -33,6 +33,14 @@ from .protocol import (
 )
 from .runtime import UpstreamClient, UpstreamRuntime
 from .router import AggregateRouter, McpSessionRouter, PassthroughRouter
+from .upstream import (
+    DefaultUpstreamClientFactory,
+    SseUpstreamClient,
+    StdioUpstreamClient,
+    StreamableHttpUpstreamClient,
+    UpstreamClientFactory,
+    build_upstream_client,
+)
 
 __all__ = [
     "AppResource",
@@ -47,6 +55,7 @@ __all__ = [
     "BridgeObservation",
     "BridgeObserver",
     "BridgeSessionStarted",
+    "DefaultUpstreamClientFactory",
     "EndpointMode",
     "EndpointPlan",
     "NoOpBridgeObserver",
@@ -55,8 +64,11 @@ __all__ = [
     "ResourceDescriptor",
     "ResourceLoaded",
     "SseUpstreamConfig",
+    "SseUpstreamClient",
     "StdioUpstreamConfig",
+    "StdioUpstreamClient",
     "StreamableHttpUpstreamConfig",
+    "StreamableHttpUpstreamClient",
     "ToolCallCompleted",
     "ToolCallResult",
     "ToolCallStarted",
@@ -64,6 +76,8 @@ __all__ = [
     "ToolsPublished",
     "UpstreamConfig",
     "UpstreamClient",
+    "UpstreamClientFactory",
     "UpstreamIdentity",
     "UpstreamRuntime",
+    "build_upstream_client",
 ]

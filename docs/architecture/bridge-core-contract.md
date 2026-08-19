@@ -181,7 +181,8 @@ Each extraction step must preserve these checks:
 
 The workspace package skeleton, core-owned plan/event models, managed-revision adapter, durable
 journal adapter, MCP SDK v1 adapter, downstream method handlers, owner-task runtime, and
-passthrough/aggregate routers now exist. Aggregate protocol characterization and owner-task tests
-run inside the core package without server or persistence imports. A temporary server adapter
-converts the current upstream SDK client models to core contracts. The next implementation slice
-can move those upstream connectors, then the raw downstream transport adapter, into bridge core.
+passthrough/aggregate routers now exist. Core also owns stdio, SSE compatibility, and streamable
+HTTP upstream connectors that map SDK responses directly to core models. Aggregate protocol
+characterization, SDK mapping, and owner-task tests run inside the core package without server or
+persistence imports. The next implementation slice can move the raw downstream transport adapter
+into bridge core.
