@@ -6,7 +6,7 @@ The `mcp/` package is the protocol-aware bridge boundary between downstream MCP 
 
 ## Refactor Status
 
-This document describes the staged implementation of [ADR 0006](decisions/0006-core-service-and-server-packages.md). MCP SDK mapping, downstream method behavior and transport hosting, routing, the upstream owner-task runtime, and upstream SDK connectors now live in bridge core. Manager/session coordination remains in the current server package for the next extraction step. The target cross-package API is defined by the [bridge core contract](bridge-core-contract.md).
+This document describes the staged implementation of [ADR 0006](decisions/0006-core-service-and-server-packages.md). MCP SDK mapping, downstream method behavior and transport hosting, routing, the upstream owner-task runtime, upstream SDK connectors, and the engine/session facade now live in bridge core. Application session coordination remains in the current server package for the next extraction step. The target cross-package API is defined by the [bridge core contract](bridge-core-contract.md).
 
 The target ownership is:
 
@@ -31,8 +31,9 @@ flowchart LR
     `BridgeSessionStore`; manager composition connects `JournalBridgeObserver` to the transitional
     store journal adapter.
 
-Manager/session coordination has not moved to its target service and core facades yet. The
-ownership below reflects the current package boundary while that extraction continues.
+The core facade has moved, while application session coordination has not moved to gateway
+service yet. The ownership below reflects the current package boundary while that extraction
+continues.
 
 ## Responsibility Model
 
@@ -46,10 +47,13 @@ flowchart TD
     Manager --> Factory["BridgeSessionStoreFactory"]
     Manager --> SessionRuntime["BridgeSessionRuntime"]
     Endpoint --> SessionRuntime
+    Manager --> Engine["BridgeEngine"]
+    Engine --> Session["BridgeSession"]
+    SessionRuntime --> Session
     SessionRuntime --> Downstream["BridgeDownstreamServer (bridge-core)"]
     Downstream --> Handlers["ProxyHandlers (bridge-core)"]
-    SessionRuntime --> Router["McpSessionRouter"]
-    Handlers --> Router
+    Handlers --> Session
+    Session --> Router["McpSessionRouter"]
     Router --> Runtime["UpstreamRuntime"]
     Runtime --> Upstream["UpstreamClient"]
     Upstream --> Real["Real MCP Server"]
@@ -70,6 +74,8 @@ flowchart TD
     end
 
     subgraph "bridge-core package"
+        Engine
+        Session
         Downstream
         Handlers
         Mapper
@@ -79,7 +85,7 @@ flowchart TD
     end
 ```
 
-The important ownership rule is that lifecycle flows from the host into `BridgeManager`, then into isolated bridge session runtimes. The CLI and FastAPI application never construct session stores or upstream clients. The dispatcher identifies endpoints and transports requests, while the manager creates and closes the downstream server, router, bound upstream runtimes, observer, journal adapter, and store as one bridge-session-scoped unit. The manager task group also hosts one persistent upstream worker per binding, as defined by [ADR 0005](decisions/0005-upstream-transport-task-ownership.md).
+The important ownership rule is that lifecycle flows from the host into `BridgeManager`, then into `BridgeEngine` and isolated bridge session runtimes. The CLI and FastAPI application never construct session stores or upstream clients. The dispatcher identifies endpoints and transports requests, while the manager creates records and stores, composes observers and downstream transports, and asks the engine to open or close the protocol session. The engine task group hosts one persistent upstream worker per binding, as defined by [ADR 0005](decisions/0005-upstream-transport-task-ownership.md).
 
 ## Modules
 
@@ -95,7 +101,7 @@ The important ownership rule is that lifecycle flows from the host into `BridgeM
 `BridgeSessionRuntime` owns the live objects for one bridge session:
 
 - The bridge domain session ID and endpoint ID.
-- One `McpSessionRouter`: either a transparent `PassthroughRouter` or an `AggregateRouter` over multiple bound upstream runtimes.
+- One core `BridgeSession`, whose router is either a transparent `PassthroughRouter` or an `AggregateRouter` over multiple bound upstream runtimes.
 - One `BridgeDownstreamServer` and streamable HTTP session manager.
 - Structured stop and closed events managed by the manager task group.
 

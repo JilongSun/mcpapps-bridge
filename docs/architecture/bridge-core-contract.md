@@ -185,6 +185,8 @@ passthrough/aggregate routers now exist. Core also owns stdio, SSE compatibility
 HTTP upstream connectors that map SDK responses directly to core models. Aggregate protocol
 characterization, SDK mapping, and owner-task tests run inside the core package without server or
 persistence imports. Core also owns the downstream MCP `Server` and raw ASGI/SSE/stdio transport
-adapter; server code still selects public routes and correlates transport session IDs. The next
-implementation slice can split the current manager into a core engine/session facade, an
-application session coordinator, and server composition.
+adapter. The core `BridgeEngine` and `BridgeSession` facade now owns worker task groups, router
+composition, and session-scoped upstream lifecycle, and the current server manager consumes that
+facade. Server code still selects public routes and correlates transport session IDs. The next
+implementation slice can move application session records, coordination, and persistence ports
+into gateway service, leaving only transport and deployment composition in the server.

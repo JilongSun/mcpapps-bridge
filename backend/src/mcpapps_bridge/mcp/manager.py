@@ -11,17 +11,11 @@ from uuid import UUID
 import anyio
 from anyio.abc import TaskGroup, TaskStatus
 from mcp_bridge_core import (
-    AggregateRouter,
-    BindingPlan,
     BridgeDownstreamServer,
-    BridgeObserver,
-    DefaultUpstreamClientFactory,
-    EndpointMode,
+    BridgeEngine,
+    BridgeSession,
     EndpointPlan,
-    McpSessionRouter,
-    PassthroughRouter,
     UpstreamClientFactory,
-    UpstreamRuntime,
 )
 from mcp_bridge_core.handlers import ProxyHandlers
 from mcp_gateway_service import JournalBridgeObserver
@@ -69,7 +63,7 @@ class PublishedEndpoint:
 class BridgeSessionRuntime:
     session_id: UUID
     endpoint_id: UUID
-    router: McpSessionRouter
+    bridge_session: BridgeSession
     downstream: BridgeDownstreamServer
     stop_event: anyio.Event
     closed_event: anyio.Event
@@ -94,8 +88,11 @@ class BridgeManager:
         self._topology = topology
         self._sessions = sessions
         self._session_store_factory = session_store_factory
-        self._upstream_client_factory = upstream_client_factory or DefaultUpstreamClientFactory()
         self._version = version
+        self._engine = BridgeEngine(
+            client_factory=upstream_client_factory,
+            version=version,
+        )
         self._published: dict[UUID, PublishedEndpoint] = {}
         self._slug_index: dict[str, UUID] = {}
         self._active_sessions: dict[UUID, BridgeSessionRuntime] = {}
@@ -189,8 +186,20 @@ class BridgeManager:
             session_key,
             BridgeSessionStoreJournal(session_key, endpoint.revision, store),
         )
-        router = self._create_session_router(endpoint, observer, session_key)
-        downstream_identity = router.identity
+        try:
+            bridge_session = await self._engine.open_session(
+                session_key=session_key,
+                plan=endpoint.plan,
+                observer=observer,
+            )
+        except Exception as exc:
+            await self._set_session_status(
+                session.session_id,
+                BridgeSessionStatus.FAILED,
+                error_message=str(exc),
+            )
+            raise
+        downstream_identity = bridge_session.identity
         logger.info(
             "Downstream host identity: server_name=%s server_version=%s "
             "tools=%s resources=%s protocol=%s",
@@ -200,17 +209,17 @@ class BridgeManager:
             downstream_identity.supports_resources,
             downstream_identity.protocol_version,
         )
-        handlers = ProxyHandlers(router, observer, session_key)
+        handlers = ProxyHandlers(bridge_session, observer, session_key)
         downstream = BridgeDownstreamServer(
             handlers,
-            identity_provider=lambda: router.identity,
+            identity_provider=lambda: bridge_session.identity,
             name=endpoint.revision.display_name,
             version=self._version,
         )
         active = BridgeSessionRuntime(
             session_id=session.session_id,
             endpoint_id=endpoint.revision.endpoint_id,
-            router=router,
+            bridge_session=bridge_session,
             downstream=downstream,
             stop_event=anyio.Event(),
             closed_event=anyio.Event(),
@@ -290,6 +299,7 @@ class BridgeManager:
         stack = AsyncExitStack()
         try:
             task_group = await stack.enter_async_context(anyio.create_task_group())
+            await stack.enter_async_context(self._engine)
         except Exception:
             await stack.aclose()
             raise
@@ -343,7 +353,6 @@ class BridgeManager:
         ready = False
         failed = False
         try:
-            await active.router.start()
             async with active.downstream.run_http_transports():
                 self._active_sessions[active.session_id] = active
                 await self._set_session_status(active.session_id, BridgeSessionStatus.ACTIVE)
@@ -363,7 +372,7 @@ class BridgeManager:
             self._active_sessions.pop(active.session_id, None)
             with anyio.CancelScope(shield=True):
                 try:
-                    await active.router.close()
+                    await active.bridge_session.aclose()
                     if not failed:
                         await self._set_session_status(
                             active.session_id,
@@ -372,41 +381,6 @@ class BridgeManager:
                         )
                 finally:
                     active.closed_event.set()
-
-    def _create_session_router(
-        self,
-        endpoint: PublishedEndpoint,
-        observer: BridgeObserver,
-        session_key: str,
-    ) -> McpSessionRouter:
-        plan = endpoint.plan
-        if plan.mode is EndpointMode.AGGREGATE:
-            return AggregateRouter(
-                plan,
-                observer,
-                session_key,
-                self._create_bound_upstream_runtime,
-                self._require_task_group(),
-                version=self._version,
-            )
-        binding = plan.bindings[0]
-        return PassthroughRouter(
-            self._create_bound_upstream_runtime(binding),
-            observer,
-            session_key,
-            self._require_task_group(),
-        )
-
-    def _create_bound_upstream_runtime(
-        self,
-        binding: BindingPlan,
-    ) -> UpstreamRuntime:
-        return UpstreamRuntime(
-            binding.upstream,
-            name=binding.upstream_name,
-            version=self._version,
-            upstream_client=self._upstream_client_factory.create(binding.upstream),
-        )
 
     def _require_task_group(self) -> TaskGroup:
         if self._task_group is None:

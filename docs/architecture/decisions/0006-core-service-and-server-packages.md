@@ -215,7 +215,7 @@ protocol compatibility work distinguishable from ownership and import errors.
 
 ## Implementation Status
 
-As of 2026-08-18, implementation is partial.
+As of 2026-08-19, implementation is partial.
 
 ### Implemented
 
@@ -241,6 +241,9 @@ As of 2026-08-18, implementation is partial.
 - Bridge core owns the downstream MCP SDK `Server`, method registration, initialization mapping,
   stdio serving, raw streamable HTTP ASGI handling, and SSE compatibility transport. Server route
   selection and transport-session correlation remain outside core.
+- Bridge core exposes the `BridgeEngine` and `BridgeSession` facade. The engine owns the AnyIO
+  worker task group, router/runtime composition, and reverse-order session cleanup; the current
+  server manager opens protocol sessions exclusively through that facade.
 - Aggregate characterization coverage freezes namespaced tools, ordinary and opaque UI resource
   routes, MCP Apps metadata rewriting, protocol-defined tool result rewriting, and rejection of
   unregistered resource URIs.
@@ -250,6 +253,7 @@ As of 2026-08-18, implementation is partial.
 
 ### Pending
 
-- Split `BridgeManager` into core engine, application session service, and server composition.
+- Move the remaining `BridgeManager` application session records, coordination, and persistence
+  ports into gateway service, leaving transport and deployment composition in the server.
 - Recompose SQLite, FastAPI, configuration, and process lifecycle in the server package.
 - Add real MCP 2025-11-25 transport contract tests across the extracted core and composed server.

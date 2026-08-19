@@ -1,6 +1,7 @@
 """Framework- and persistence-independent MCP bridge contracts."""
 
 from .downstream import BridgeDownstreamServer
+from .engine import BridgeEngine, BridgeSession
 from .observations import (
     BindingAvailabilityStatus,
     BindingAvailabilityChanged,
@@ -51,12 +52,14 @@ __all__ = [
     "BindingPlan",
     "BridgeCapabilities",
     "BridgeDownstreamServer",
+    "BridgeEngine",
     "BridgeErrorRaised",
     "BridgeFailure",
     "BridgeFailureCode",
     "BridgeObservation",
     "BridgeObserver",
     "BridgeSessionStarted",
+    "BridgeSession",
     "DefaultUpstreamClientFactory",
     "EndpointMode",
     "EndpointPlan",
