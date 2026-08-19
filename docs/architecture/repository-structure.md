@@ -22,7 +22,6 @@ mcpapps-bridge/
 │       │   ├── __init__.py
 │       │   ├── manager.py            # Managed endpoints, sessions, and lifecycle ownership
 │       │   ├── builder.py            # Repository-based manager assembly
-│       │   ├── downstream.py         # Downstream MCP Server + HTTP/SSE/stdio transports
 │       │   └── plan_adapter.py       # Temporary managed revision -> core plan adapter
 │       ├── session/                  # Session store and factory ports
 │       ├── events/                   # Typed event envelopes
@@ -83,8 +82,9 @@ server ----------------> bridge-core
 
 The workspace members and core contract models now exist. MCP SDK mapping, downstream method
 handlers, routing, the upstream owner-task runtime, and upstream SDK connectors live in bridge
-core. Raw downstream transport hosting remains in the current server module tree until its
-extraction step lands. The
+core. The downstream MCP SDK `Server` and raw streamable HTTP/SSE/stdio hosting also live in core.
+Manager/session coordination remains in the current server module tree until its extraction step
+lands. The
 [bridge core contract](bridge-core-contract.md) is authoritative for new cross-package types; new
 code must not add dependencies that oppose the target graph.
 
@@ -100,7 +100,7 @@ code must not add dependencies that oppose the target graph.
 | API | `api/app.py` | Dispatches stable `/mcp/{slug}` routes and exposes manager-backed session snapshot/event APIs |
 | Manager | `mcp/manager.py` | Owns topology registration, session creation, endpoint runtime and observer assembly, and lifecycle |
 | Assembly | `bootstrap.py`, `mcp/builder.py` | Opens configured SQLite storage, seeds initial topology, and injects repository/store ports into the manager |
-| Downstream | `mcp/downstream.py` | Hosts the downstream MCP SDK `Server` and transport sessions |
+| Downstream | `packages/bridge-core/.../downstream.py` | Hosts the downstream MCP SDK `Server` and raw transport sessions |
 | Handlers | `packages/bridge-core/.../handlers.py` | Implements MCP methods and emits correlated tool-call observations |
 | Router | `packages/bridge-core/.../router.py` | Owns passthrough/aggregate routing, public names and URIs, discovery, and bridge observations |
 | Runtime | `packages/bridge-core/.../runtime.py` | Proxies one upstream MCP session through a persistent owner task and maintains local caches |

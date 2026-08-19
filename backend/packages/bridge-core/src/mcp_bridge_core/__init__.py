@@ -1,5 +1,6 @@
 """Framework- and persistence-independent MCP bridge contracts."""
 
+from .downstream import BridgeDownstreamServer
 from .observations import (
     BindingAvailabilityStatus,
     BindingAvailabilityChanged,
@@ -49,6 +50,7 @@ __all__ = [
     "BindingAvailabilityStatus",
     "BindingPlan",
     "BridgeCapabilities",
+    "BridgeDownstreamServer",
     "BridgeErrorRaised",
     "BridgeFailure",
     "BridgeFailureCode",

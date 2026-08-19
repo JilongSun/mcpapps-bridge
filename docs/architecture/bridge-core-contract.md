@@ -184,5 +184,7 @@ journal adapter, MCP SDK v1 adapter, downstream method handlers, owner-task runt
 passthrough/aggregate routers now exist. Core also owns stdio, SSE compatibility, and streamable
 HTTP upstream connectors that map SDK responses directly to core models. Aggregate protocol
 characterization, SDK mapping, and owner-task tests run inside the core package without server or
-persistence imports. The next implementation slice can move the raw downstream transport adapter
-into bridge core.
+persistence imports. Core also owns the downstream MCP `Server` and raw ASGI/SSE/stdio transport
+adapter; server code still selects public routes and correlates transport session IDs. The next
+implementation slice can split the current manager into a core engine/session facade, an
+application session coordinator, and server composition.

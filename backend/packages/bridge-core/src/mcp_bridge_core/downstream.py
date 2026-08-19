@@ -1,4 +1,4 @@
-"""Downstream MCP server and transport hosting."""
+"""Raw downstream MCP server and ASGI transport hosting."""
 
 from __future__ import annotations
 
@@ -11,9 +11,10 @@ from mcp.server.models import InitializationOptions
 from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
-from mcp_bridge_core import UpstreamIdentity
-from mcp_bridge_core.handlers import ProxyHandlers
 from starlette.types import Receive, Scope, Send
+
+from .handlers import ProxyHandlers
+from .protocol import UpstreamIdentity
 
 
 class BridgeDownstreamServer:

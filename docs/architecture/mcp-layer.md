@@ -6,7 +6,7 @@ The `mcp/` package is the protocol-aware bridge boundary between downstream MCP 
 
 ## Refactor Status
 
-This document describes the staged implementation of [ADR 0006](decisions/0006-core-service-and-server-packages.md). MCP SDK mapping, downstream method behavior, routing, the upstream owner-task runtime, and upstream SDK connectors now live in bridge core. Raw downstream transport hosting remains in the server package for the next extraction step. The target cross-package API is defined by the [bridge core contract](bridge-core-contract.md).
+This document describes the staged implementation of [ADR 0006](decisions/0006-core-service-and-server-packages.md). MCP SDK mapping, downstream method behavior and transport hosting, routing, the upstream owner-task runtime, and upstream SDK connectors now live in bridge core. Manager/session coordination remains in the current server package for the next extraction step. The target cross-package API is defined by the [bridge core contract](bridge-core-contract.md).
 
 The target ownership is:
 
@@ -21,8 +21,8 @@ flowchart LR
         SQLite --> Ports
 ```
 
-- Bridge core owns protocol models, MCP SDK mapping, downstream method handlers, routing, upstream
-    owner tasks, caches, and upstream SDK connectors. It will also own raw downstream MCP transports.
+- Bridge core owns protocol models, MCP SDK mapping, downstream method handlers and raw transports,
+    routing, upstream owner tasks, caches, and upstream SDK connectors.
 - Gateway service owns managed topology, immutable revision publication, session coordination,
     durable event semantics, Agent Host contracts, and persistence ports.
 - Deployable server owns FastAPI/Uvicorn lifecycle, transport route selection, SQLite/Alembic,
@@ -31,8 +31,8 @@ flowchart LR
     `BridgeSessionStore`; manager composition connects `JournalBridgeObserver` to the transitional
     store journal adapter.
 
-The raw downstream transport file has not moved to its target package yet. The ownership below
-reflects the current package boundary while physical extraction continues.
+Manager/session coordination has not moved to its target service and core facades yet. The
+ownership below reflects the current package boundary while that extraction continues.
 
 ## Responsibility Model
 
@@ -46,7 +46,7 @@ flowchart TD
     Manager --> Factory["BridgeSessionStoreFactory"]
     Manager --> SessionRuntime["BridgeSessionRuntime"]
     Endpoint --> SessionRuntime
-    SessionRuntime --> Downstream["BridgeDownstreamServer"]
+    SessionRuntime --> Downstream["BridgeDownstreamServer (bridge-core)"]
     Downstream --> Handlers["ProxyHandlers (bridge-core)"]
     SessionRuntime --> Router["McpSessionRouter"]
     Handlers --> Router
@@ -67,10 +67,10 @@ flowchart TD
         Manager
         Endpoint
         SessionRuntime
-        Downstream
     end
 
     subgraph "bridge-core package"
+        Downstream
         Handlers
         Mapper
         Router
@@ -161,7 +161,7 @@ Boundary rules:
 - Does not own downstream MCP transport objects or persistence implementation details.
 - Core handlers and routers depend only on core protocol models and immutable plans.
 
-### `downstream.py` - Downstream MCP Transport Host
+### `bridge-core/downstream.py` - Downstream MCP Transport Host
 
 `BridgeDownstreamServer` owns the MCP SDK `Server` and downstream transports: streamable HTTP, SSE fallback, and stdio serving when needed.
 

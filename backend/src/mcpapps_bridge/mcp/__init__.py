@@ -2,6 +2,7 @@
 
 from mcp_bridge_core import (
     AggregateRouter,
+    BridgeDownstreamServer,
     DefaultUpstreamClientFactory,
     McpSessionRouter,
     PassthroughRouter,
@@ -15,7 +16,6 @@ from mcp_bridge_core import (
 )
 
 from .builder import assemble_bridge_manager, to_domain_connection
-from .downstream import BridgeDownstreamServer
 from .manager import BridgeManager, BridgeSessionRuntime, PublishedEndpoint
 
 __all__ = [

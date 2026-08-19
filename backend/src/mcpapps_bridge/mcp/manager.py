@@ -13,6 +13,7 @@ from anyio.abc import TaskGroup, TaskStatus
 from mcp_bridge_core import (
     AggregateRouter,
     BindingPlan,
+    BridgeDownstreamServer,
     BridgeObserver,
     DefaultUpstreamClientFactory,
     EndpointMode,
@@ -45,7 +46,6 @@ from mcpapps_bridge.session import (
     BridgeSessionStoreJournal,
 )
 
-from .downstream import BridgeDownstreamServer
 from .plan_adapter import endpoint_plan_from_revision
 
 logger = get_logger(__name__)
