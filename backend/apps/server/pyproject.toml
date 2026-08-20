@@ -1,12 +1,25 @@
 [project]
 name = "mcp-gateway-server"
-version = "0.0.0"
+version = "0.1.0"
 description = "Internal deployable MCP gateway server composition."
 requires-python = ">=3.12"
 dependencies = [
+  "aiosqlite>=0.22.1",
+  "alembic>=1.18.5",
+  "anyio>=4.4.0",
+  "fastapi>=0.115.0",
+  "greenlet>=3.5.3",
   "mcp-bridge-core",
   "mcp-gateway-service",
+  "pydantic>=2.8.0",
+  "pyyaml>=6.0.3",
+  "sqlalchemy>=2.0.51",
+  "starlette>=0.27.0",
+  "uvicorn>=0.30.0",
 ]
+
+[project.scripts]
+mcp-gateway-server = "mcp_gateway_server.main:main"
 
 [tool.uv.sources]
 mcp-bridge-core = { workspace = true }
@@ -18,3 +31,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcp_gateway_server"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"migrations" = "mcp_gateway_server/persistence/migrations"

@@ -215,7 +215,7 @@ protocol compatibility work distinguishable from ownership and import errors.
 
 ## Implementation Status
 
-As of 2026-08-19, implementation is partial.
+As of 2026-08-19, implementation is complete.
 
 ### Implemented
 
@@ -224,13 +224,14 @@ As of 2026-08-19, implementation is partial.
   their declared dependencies follow the accepted direction.
 - Bridge core owns frozen runtime plan and protocol models, typed observations, the observer port,
   and a no-op observer without importing the monolith, FastAPI, or persistence.
-- Gateway service owns resolved topology DTOs, conversion to core `EndpointPlan`, application
-  journal events, and the core-observation-to-journal adapter.
+- Gateway service owns managed topology and revision models, session records and inspection
+  models, narrow persistence ports, conversion to core `EndpointPlan`, application journal
+  events, and the core-observation-to-journal adapter.
 - Published endpoints now carry both the existing managed revision and its core plan. Immutable
   endpoint, binding, and upstream revision keys survive the conversion.
 - Routers and protocol handlers emit typed observations instead of importing or writing directly
-  to `BridgeSessionStore`; manager composition adapts those observations to the current durable
-  store during migration.
+  to `BridgeSessionStore`; gateway-service composition adapts those observations to the durable
+  inspection store port.
 - Bridge core owns the MCP SDK v1 conversion adapter, its compatibility tests, the downstream MCP
   method handlers, and the narrow core-typed `McpMethodRouter` contract.
 - Bridge core owns the persistent upstream owner-task runtime and passthrough/aggregate routers.
@@ -242,18 +243,21 @@ As of 2026-08-19, implementation is partial.
   stdio serving, raw streamable HTTP ASGI handling, and SSE compatibility transport. Server route
   selection and transport-session correlation remain outside core.
 - Bridge core exposes the `BridgeEngine` and `BridgeSession` facade. The engine owns the AnyIO
-  worker task group, router/runtime composition, and reverse-order session cleanup; the current
-  server manager opens protocol sessions exclusively through that facade.
+  worker task group, router/runtime composition, and reverse-order session cleanup;
+  `GatewaySessionCoordinator` opens protocol sessions exclusively through that facade.
+- Gateway service owns `GatewaySessionCoordinator`, immutable publication, persisted session
+  status transitions, transport-session correlation operations, and inspection journal ports.
+- The deployable `mcp-gateway-server` package owns FastAPI/Uvicorn, YAML configuration,
+  SQLAlchemy/SQLite adapters, Alembic migrations, logging, CLI entry points, and composition.
+- The old `backend/src/mcpapps_bridge` package has been removed. The workspace root is tooling-only;
+  runtime code is contained in the three dependency-ordered members.
 - Aggregate characterization coverage freezes namespaced tools, ordinary and opaque UI resource
   routes, MCP Apps metadata rewriting, protocol-defined tool result rewriting, and rejection of
   unregistered resource URIs.
 - The existing owner-task regression freezes upstream transport context ownership.
+- A composed-server MCP 2025-11-25 streamable HTTP contract covers initialization, notification,
+  tool/resource discovery, tool calls, resource reads, transport deletion, and clean shutdown.
+- A clean SQLite test runs packaged Alembic migrations, seeds revision 1, and assembles the
+  gateway service through server-owned adapters. The server wheel includes its migrations.
 - Cross-package plans, facade responsibilities, observer events, and lifecycle invariants are
   specified in the bridge core contract.
-
-### Pending
-
-- Move the remaining `BridgeManager` application session records, coordination, and persistence
-  ports into gateway service, leaving transport and deployment composition in the server.
-- Recompose SQLite, FastAPI, configuration, and process lifecycle in the server package.
-- Add real MCP 2025-11-25 transport contract tests across the extracted core and composed server.

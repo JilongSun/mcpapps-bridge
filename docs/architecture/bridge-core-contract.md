@@ -186,7 +186,8 @@ HTTP upstream connectors that map SDK responses directly to core models. Aggrega
 characterization, SDK mapping, and owner-task tests run inside the core package without server or
 persistence imports. Core also owns the downstream MCP `Server` and raw ASGI/SSE/stdio transport
 adapter. The core `BridgeEngine` and `BridgeSession` facade now owns worker task groups, router
-composition, and session-scoped upstream lifecycle, and the current server manager consumes that
-facade. Server code still selects public routes and correlates transport session IDs. The next
-implementation slice can move application session records, coordination, and persistence ports
-into gateway service, leaving only transport and deployment composition in the server.
+composition, and session-scoped upstream lifecycle. Gateway service owns managed topology,
+session records, persistence ports, journals, and `GatewaySessionCoordinator`. Server code owns
+FastAPI route selection, SQLite adapters, configuration, and process composition. A composed
+server contract test exercises MCP 2025-11-25 initialization, tools, resources, transport deletion,
+and clean shutdown; a clean-database test verifies packaged Alembic migrations and SQLite assembly.

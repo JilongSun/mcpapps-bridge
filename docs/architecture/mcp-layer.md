@@ -1,12 +1,12 @@
 # MCP Layer Architecture
 
-The `mcp/` package is the protocol-aware bridge boundary between downstream MCP clients and real upstream MCP servers. Downstream clients should experience the selected upstream as a normal MCP server: tools, resources, initialization metadata, and MCP Apps annotations are proxied without exposing bridge management concepts to the model.
+Bridge core is the protocol-aware boundary between downstream MCP clients and real upstream MCP servers. Downstream clients should experience the selected upstream as a normal MCP server: tools, resources, initialization metadata, and MCP Apps annotations are proxied without exposing bridge management concepts to the model.
 
-`BridgeManager` creates all bridge session records and stores through async repository and factory ports. It publishes fully resolved immutable endpoint revisions from `TopologyReader`, so runtime code does not join persistence records or depend on SQLAlchemy. The stable `/mcp/{endpoint_slug}` dispatcher correlates each downstream `mcp-session-id` with one isolated bridge session runtime, as defined by [ADR 0001](decisions/0001-managed-endpoints-and-session-ownership.md).
+`GatewaySessionCoordinator` creates bridge session records and stores through gateway-service ports. It publishes fully resolved immutable endpoint revisions from `TopologyReader`, so core code does not join persistence records or depend on SQLAlchemy. The server-owned `/mcp/{endpoint_slug}` dispatcher correlates each downstream `mcp-session-id` with one isolated bridge session runtime, as defined by [ADR 0001](decisions/0001-managed-endpoints-and-session-ownership.md).
 
 ## Refactor Status
 
-This document describes the staged implementation of [ADR 0006](decisions/0006-core-service-and-server-packages.md). MCP SDK mapping, downstream method behavior and transport hosting, routing, the upstream owner-task runtime, upstream SDK connectors, and the engine/session facade now live in bridge core. Application session coordination remains in the current server package for the next extraction step. The target cross-package API is defined by the [bridge core contract](bridge-core-contract.md).
+The package migration in [ADR 0006](decisions/0006-core-service-and-server-packages.md) is implemented. MCP SDK mapping, downstream method behavior and transport hosting, routing, the upstream owner-task runtime, upstream SDK connectors, and the engine/session facade live in bridge core. Managed topology, session coordination, inspection contracts, journals, and persistence ports live in gateway service. FastAPI, SQLite, configuration, and process composition live in the deployable server. The cross-package API is defined by the [bridge core contract](bridge-core-contract.md).
 
 The target ownership is:
 
@@ -27,27 +27,23 @@ flowchart LR
     durable event semantics, Agent Host contracts, and persistence ports.
 - Deployable server owns FastAPI/Uvicorn lifecycle, transport route selection, SQLite/Alembic,
     concrete agent adapters, static frontend serving, and deployment assembly.
-- Core reports typed observations to service. Routers and handlers no longer write directly to
-    `BridgeSessionStore`; manager composition connects `JournalBridgeObserver` to the transitional
-    store journal adapter.
-
-The core facade has moved, while application session coordination has not moved to gateway
-service yet. The ownership below reflects the current package boundary while that extraction
-continues.
+- Core reports typed observations to service. Routers and handlers never write directly to
+    `BridgeSessionStore`; `GatewaySessionCoordinator` connects `JournalBridgeObserver` to the
+    application store journal adapter.
 
 ## Responsibility Model
 
 ```mermaid
 flowchart TD
     Client["Agent Runtime / Inspector"] --> |"streamable HTTP / SSE fallback"| API["Stable MCP dispatcher"]
-    API --> Manager["BridgeManager"]
-    Manager --> Topology["TopologyReader"]
-    Manager --> Endpoint["PublishedEndpoint"]
-    Manager --> Repositories["Async repositories"]
-    Manager --> Factory["BridgeSessionStoreFactory"]
-    Manager --> SessionRuntime["BridgeSessionRuntime"]
+    API --> Coordinator["GatewaySessionCoordinator"]
+    Coordinator --> Topology["TopologyReader"]
+    Coordinator --> Endpoint["PublishedEndpoint"]
+    Coordinator --> Repositories["Persistence ports"]
+    Coordinator --> Factory["BridgeSessionStoreFactory"]
+    Coordinator --> SessionRuntime["BridgeSessionRuntime"]
     Endpoint --> SessionRuntime
-    Manager --> Engine["BridgeEngine"]
+    Coordinator --> Engine["BridgeEngine"]
     Engine --> Session["BridgeSession"]
     SessionRuntime --> Session
     SessionRuntime --> Downstream["BridgeDownstreamServer (bridge-core)"]
@@ -59,7 +55,7 @@ flowchart TD
     Upstream --> Real["Real MCP Server"]
 
     Factory --> Store["BridgeSessionStore"]
-    Manager --> Observer["JournalBridgeObserver"]
+    Coordinator --> Observer["JournalBridgeObserver"]
     Router --> Observer
     Handlers --> Observer
     Observer --> Journal["BridgeSessionStoreJournal"]
@@ -67,10 +63,15 @@ flowchart TD
     Runtime --> Cache[("Tool/resource cache")]
     Handlers --> Mapper["_mcp_sdk.py (bridge-core)"]
 
-    subgraph "mcp/ package"
-        Manager
+    subgraph "gateway-service package"
+        Coordinator
         Endpoint
         SessionRuntime
+        Topology
+        Repositories
+        Factory
+        Observer
+        Journal
     end
 
     subgraph "bridge-core package"
@@ -85,13 +86,13 @@ flowchart TD
     end
 ```
 
-The important ownership rule is that lifecycle flows from the host into `BridgeManager`, then into `BridgeEngine` and isolated bridge session runtimes. The CLI and FastAPI application never construct session stores or upstream clients. The dispatcher identifies endpoints and transports requests, while the manager creates records and stores, composes observers and downstream transports, and asks the engine to open or close the protocol session. The engine task group hosts one persistent upstream worker per binding, as defined by [ADR 0005](decisions/0005-upstream-transport-task-ownership.md).
+The important ownership rule is that lifecycle flows from the server host into `GatewaySessionCoordinator`, then into `BridgeEngine` and isolated bridge session runtimes. The dispatcher identifies endpoint paths and forwards raw ASGI requests; the coordinator creates records and stores, composes observers and downstream transports, and asks the engine to open or close protocol sessions. The engine task group hosts one persistent upstream worker per binding, as defined by [ADR 0005](decisions/0005-upstream-transport-task-ownership.md).
 
 ## Modules
 
-### `manager.py` - Endpoint, Session, and Lifecycle Ownership
+### `gateway-service/coordinator.py` - Endpoint, Session, and Lifecycle Ownership
 
-`BridgeManager` is the system-level MCP owner for the backend process. It publishes endpoint revisions and their core `EndpointPlan` values, creates session records and stores, composes the journal observer boundary, tracks transport-session bindings, and provides the lifecycle context used by FastAPI. Management repositories remain available for topology mutations, while publication and session routing consume the behavior-oriented `TopologyReader` port.
+`GatewaySessionCoordinator` is the application-level session owner. It publishes endpoint revisions and their core `EndpointPlan` values, creates session records and stores, composes the journal observer boundary, and implements transport-session correlation operations used by the FastAPI dispatcher. Publication and session routing consume the behavior-oriented `TopologyReader` port.
 
 `PublishedEndpoint` binds stable topology only:
 
@@ -103,7 +104,7 @@ The important ownership rule is that lifecycle flows from the host into `BridgeM
 - The bridge domain session ID and endpoint ID.
 - One core `BridgeSession`, whose router is either a transparent `PassthroughRouter` or an `AggregateRouter` over multiple bound upstream runtimes.
 - One `BridgeDownstreamServer` and streamable HTTP session manager.
-- Structured stop and closed events managed by the manager task group.
+- Structured stop and closed events managed by the coordinator task group.
 
 Session creation is repository-backed and atomic with session-store creation. Each session stores the exact `endpoint_revision_id` from its published endpoint; changing the current topology head cannot change an active session's routing plan. A new streamable HTTP initialization request starts a session runtime before dispatch. The dispatcher captures the SDK-generated `mcp-session-id` response header and persists the binding before sending that header to the client. Later requests resolve the same runtime through the repository binding. `DELETE` is handled by the MCP SDK first and then closes only the correlated bridge session runtime. For SSE fallback, the dispatcher captures the SDK session ID from the initial `endpoint` event, routes `/mcp/{slug}/messages` by that query ID, and closes the isolated runtime when the SSE connection ends.
 
@@ -208,7 +209,7 @@ Boundary rules:
     storage packages.
 - Should remain a class so debugging and future handler-level dependencies stay explicit.
 
-### Core MCP SDK and Transitional Model Adapters
+### Core MCP SDK Adapter
 
 `bridge-core/_mcp_sdk.py` is stateless conversion code between core models and MCP SDK v1 types.
 Core upstream connectors map SDK responses directly to the same core protocol models.
@@ -230,9 +231,9 @@ Boundary rules:
 
 ### `bootstrap.py` and `builder.py` - Application Assembly
 
-`bootstrap.py` is the application composition root. It converts resolved YAML topology into seed domain definitions, opens configured SQLite storage, applies migrations when configured, seeds an empty database with revision 1, marks interrupted sessions as failed, and assembles `BridgeManager`. Normal and debug entry points use this same path. After the first seed, managed topology in SQLite is authoritative.
+`apps/server/bootstrap.py` is the application composition root. It converts resolved YAML topology into seed definitions, opens configured SQLite storage, applies migrations when configured, seeds an empty database with revision 1, marks interrupted sessions as failed, and assembles `GatewaySessionCoordinator`. Normal and debug entry points use this same path. After the first seed, managed topology in SQLite is authoritative.
 
-`builder.py` provides repository-based manager assembly and transport configuration conversion. Neither module constructs live session state directly.
+The server's `mcp/builder.py` provides repository-based coordinator assembly and transport configuration conversion. Neither module implements runtime behavior.
 
 Boundary rules:
 
@@ -245,7 +246,7 @@ Boundary rules:
 sequenceDiagram
     participant Client as Agent / Inspector
     participant API as Stable Dispatcher
-    participant Manager as BridgeManager
+    participant Coordinator as GatewaySessionCoordinator
     participant DS as Downstream Server
     participant H as ProxyHandlers
     participant Router as McpSessionRouter
@@ -257,8 +258,8 @@ sequenceDiagram
     participant Store as BridgeSessionStore
 
     Client->>API: tools/call
-    API->>Manager: resolve mcp-session-id
-    Manager-->>API: BridgeSessionRuntime
+    API->>Coordinator: resolve mcp-session-id
+    Coordinator-->>API: BridgeSessionRuntime
     API->>DS: handle_streamable_http(...)
     DS->>H: call_tool(name, arguments)
     H->>Observer: ToolCallStarted(operation_key, ...)
@@ -295,7 +296,7 @@ Endpoints do not require separate TCP ports or static FastAPI route declarations
 
 Passthrough endpoints remain transparent and bind one upstream. Aggregate endpoints use stable binding namespaces to route tool names and ordinary resource URIs, preserve `ui://` for MCP Apps, and continue serving healthy bindings when another binding fails.
 
-`BridgeManager` owns the domain side of the following session relationship:
+`GatewaySessionCoordinator` owns the application side of the following session relationship:
 
 ```mermaid
 flowchart LR
@@ -306,4 +307,4 @@ flowchart LR
 
 Upstream sessions are isolated per bridge session and opened lazily by default. Shared upstream sessions are an explicit policy, never a transport-derived assumption. Streamable HTTP remains the strategic transport; stdio follows the same lifecycle contracts and does not introduce a separate process-pooling architecture.
 
-The dispatcher and manager implement transport-session binding, reverse lookup, isolated upstream lifecycle, and per-session deletion. SQLAlchemy-backed repositories and session stores persist topology, session records, events, and snapshots without exposing database sessions to the MCP runtime or ASGI dispatch contracts.
+The dispatcher and coordinator implement transport-session binding, reverse lookup, isolated upstream lifecycle, and per-session deletion. SQLAlchemy-backed adapters persist topology, session records, events, and snapshots without exposing database sessions to the MCP runtime, gateway service, or ASGI dispatch contracts.

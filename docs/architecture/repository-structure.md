@@ -1,32 +1,21 @@
 # Repository Structure
 
-## Current Structure
+## Backend Structure
 
 ```text
 mcpapps-bridge/
 |
-├── backend/                          # Python MCP Apps Gateway backend
-│   ├── pyproject.toml
-│   ├── alembic.ini
-│   ├── migrations/                   # Versioned database schema migrations
-│   └── src/mcpapps_bridge/
-│       ├── main.py                   # YAML-driven backend CLI entry point
-│       ├── bootstrap.py              # SQLite application composition root
-│       ├── api/                      # FastAPI HTTP + WebSocket control plane
-│       ├── host/                     # Process-level Uvicorn orchestration
-│       ├── config/                   # Typed YAML config and runtime configuration
-│       ├── domain/                   # Managed topology and session domain contracts
-│       ├── repositories/             # Async repository and topology reader ports
-│       ├── persistence/              # SQLAlchemy models, repositories, stores, and database
-│       ├── mcp/
-│       │   ├── __init__.py
-│       │   ├── manager.py            # Managed endpoints, sessions, and lifecycle ownership
-│       │   ├── builder.py            # Repository-based manager assembly
-│       │   └── plan_adapter.py       # Temporary managed revision -> core plan adapter
-│       ├── session/                  # Session store and factory ports
-│       ├── events/                   # Typed event envelopes
-│       ├── models/                   # Shared Pydantic protocol/session/resource models
-│       └── agent_adapters/           # Agent-specific wiring (future)
+├── backend/
+│   ├── pyproject.toml                # Workspace and shared development tooling
+│   ├── uv.lock
+│   ├── packages/
+│   │   ├── bridge-core/              # Reusable MCP protocol bridge
+│   │   └── gateway-service/          # Application use cases, models, events, and ports
+│   └── apps/server/
+│       ├── pyproject.toml
+│       ├── alembic.ini
+│       ├── migrations/               # Versioned SQLite schema migrations
+│       └── src/mcp_gateway_server/   # FastAPI, SQLite, config, CLI, composition
 │
 ├── frontend/                         # React management and Agent Host surface
 │   ├── package.json
@@ -49,30 +38,6 @@ mcpapps-bridge/
 └── LICENSE
 ```
 
-## Target Backend Structure
-
-[ADR 0006](decisions/0006-core-service-and-server-packages.md) replaces the single backend package
-through a staged `uv` workspace migration. Directory and distribution names are internal working
-names; the post-v0.1 product brand is a separate decision.
-
-```text
-backend/
-|-- pyproject.toml                    # uv workspace and shared development tooling
-|-- uv.lock
-|-- packages/
-|   |-- bridge-core/
-|   |   |-- pyproject.toml
-|   |   `-- src/                      # Plans, observations, handlers, routing, runtime, SDK adapters
-|   `-- gateway-service/
-|       |-- pyproject.toml
-|       `-- src/                      # Topology, sessions, events, Agent Host, ports
-`-- apps/
-	`-- server/
-		|-- pyproject.toml
-		|-- migrations/               # Server-owned SQLite schema
-		`-- src/                      # FastAPI, SQLite, adapters, CLI, composition
-```
-
 Allowed production dependencies:
 
 ```text
@@ -80,27 +45,22 @@ server ----------------> bridge-core
    `--> gateway-service ---> bridge-core
 ```
 
-The workspace members and core contract models now exist. MCP SDK mapping, downstream method
-handlers, routing, the upstream owner-task runtime, and upstream SDK connectors live in bridge
-core. The downstream MCP SDK `Server` and raw streamable HTTP/SSE/stdio hosting also live in core.
-The core engine/session facade also lives in core and is consumed by the current manager.
-Application session coordination remains in the server module tree until its service extraction
-lands. The
-[bridge core contract](bridge-core-contract.md) is authoritative for new cross-package types; new
-code must not add dependencies that oppose the target graph.
+The migration in [ADR 0006](decisions/0006-core-service-and-server-packages.md) is complete. The
+[bridge core contract](bridge-core-contract.md) is authoritative for cross-package types; new code
+must not add dependencies that oppose this graph.
 
 ## Backend Layer Responsibilities
 
 | Layer | Module | Role |
 | --- | --- | --- |
-| Config | `config/` | Loads YAML and resolves bridge, storage, topology, and upstream configuration |
-| Domain | `domain/` | Defines persistence-independent topology heads, immutable revisions, bindings, policies, and sessions |
-| Repositories | `repositories/` | Defines async management/session repositories and the resolved `TopologyReader` port |
-| Persistence | `persistence/` | Implements SQLite lifecycle, SQLAlchemy heads and revisions, repository adapters, topology reads, and session stores |
-| Host | `host/runtime.py` | Starts Uvicorn with one `BridgeManager`-backed FastAPI app |
-| API | `api/app.py` | Dispatches stable `/mcp/{slug}` routes and exposes manager-backed session snapshot/event APIs |
-| Manager | `mcp/manager.py` | Owns topology registration, session creation, endpoint runtime and observer assembly, and lifecycle |
-| Assembly | `bootstrap.py`, `mcp/builder.py` | Opens configured SQLite storage, seeds initial topology, and injects repository/store ports into the manager |
+| Config | `apps/server/.../config/` | Loads YAML and resolves bridge, storage, topology, and upstream configuration |
+| Application models | `packages/gateway-service/.../management.py`, `revisions.py`, `sessions.py` | Defines topology heads, immutable revisions, policies, and session records |
+| Application ports | `packages/gateway-service/.../ports.py` | Defines topology, session, and inspection persistence behavior |
+| Coordinator | `packages/gateway-service/.../coordinator.py` | Publishes endpoints and coordinates persisted/core session lifecycles |
+| Persistence | `apps/server/.../persistence/` | Implements SQLite lifecycle, SQLAlchemy adapters, topology reads, and session stores |
+| Host | `apps/server/.../host/runtime.py` | Starts Uvicorn with the composed FastAPI app |
+| API | `apps/server/.../api/app.py` | Dispatches stable `/mcp/{slug}` routes and exposes session snapshot/event APIs |
+| Assembly | `apps/server/.../bootstrap.py`, `mcp/builder.py` | Opens SQLite, seeds topology, and injects adapters into the coordinator |
 | Downstream | `packages/bridge-core/.../downstream.py` | Hosts the downstream MCP SDK `Server` and raw transport sessions |
 | Engine | `packages/bridge-core/.../engine.py` | Owns worker task groups, router composition, core sessions, and upstream lifecycle |
 | Handlers | `packages/bridge-core/.../handlers.py` | Implements MCP methods and emits correlated tool-call observations |
@@ -108,16 +68,13 @@ code must not add dependencies that oppose the target graph.
 | Runtime | `packages/bridge-core/.../runtime.py` | Proxies one upstream MCP session through a persistent owner task and maintains local caches |
 | Upstream | `packages/bridge-core/.../upstream.py` | Connects to real MCP servers via stdio, SSE, or streamable HTTP |
 | SDK adapter | `packages/bridge-core/.../_mcp_sdk.py` | Pure conversion between core models and MCP SDK v1 types |
-| Transitional adapter | `mcp/plan_adapter.py` | Converts current managed revisions to core plans |
-| Session | `session/` | Defines current store/factory ports and the transitional application journal adapter |
-| Events | `events/` | Typed events emitted by session/runtime operations |
-| Models | `models/` | Canonical Pydantic models shared across backend layers |
+| Inspection | `packages/gateway-service/.../inspection.py`, `events.py`, `session_store.py` | Defines durable snapshots/events and adapts core observations |
 
 ## Ownership Rules
 
-- `BridgeManager` is the lifecycle owner for MCP endpoints and creates, resolves, and closes bridge sessions.
+- `GatewaySessionCoordinator` owns endpoint publication and application session lifecycle.
 - `TopologyReader` returns complete immutable endpoint revisions; domain and MCP modules do not depend on SQLAlchemy joins or rows.
-- `main.py`, FastAPI, and builders do not create session stores; they depend on manager operations and injected ports.
+- `main.py` and FastAPI depend on coordinator operations and server-injected ports.
 - `PublishedEndpoint` contains one resolved endpoint revision; it does not own live transport objects.
 - Stable upstream and endpoint rows are management identities whose current pointers select immutable revisions. Binding revisions are routing edges from an endpoint revision to upstream revisions.
 - Every bridge session captures `endpoint_revision_id`, keeping active-session routing stable when a current pointer changes.
@@ -130,6 +87,6 @@ code must not add dependencies that oppose the target graph.
 - Core `ProxyHandlers` own method behavior and emit typed observations. `_mcp_sdk.py` owns SDK v1
 	conversion; core upstream connectors map SDK responses directly to core models.
 - `JournalBridgeObserver` converts core observations to application journal events;
-	`BridgeSessionStoreJournal` adapts those events to the current durable store during migration.
+	`BridgeSessionStoreJournal` adapts those events to the durable inspection store port.
 - Persistent session storage satisfies `BridgeSessionStore`; runtime and handler code never depend on SQLAlchemy or database sessions directly.
 - SQLite owns managed topology after the initial seed. YAML remains the source for host and storage settings and may seed topology only when the database is empty.

@@ -6,7 +6,7 @@ install:
     cd frontend && pnpm install
 
 backend:
-    cd backend && uv run python -m mcpapps_bridge.main
+    cd backend && uv run --package mcp-gateway-server python -m mcp_gateway_server.main
 
 frontend:
     cd frontend && pnpm dev

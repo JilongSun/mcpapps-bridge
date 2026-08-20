@@ -1,5 +1,31 @@
 """Application services for managed MCP gateway and Agent Host workflows."""
 
+from mcp_bridge_core import EndpointMode
+
+from .coordinator import BridgeSessionRuntime, GatewaySessionCoordinator, PublishedEndpoint
+from .events import (
+    AppResourceLoadedEvent,
+    ErrorRaisedEvent,
+    SessionEvent,
+    SessionStartedEvent,
+    ToolCallCompletedEvent,
+    ToolCallStartedEvent,
+    ToolDiscoveredEvent,
+    UpstreamAvailabilityChangedEvent,
+)
+from .inspection import (
+    AppResource,
+    BridgeSessionSnapshot,
+    ResourceDescriptor,
+    SessionStatus,
+    ToolCallRecord,
+    ToolCallResult,
+    ToolCallStatus,
+    ToolDescriptor,
+    UpstreamAvailability,
+    UpstreamAvailabilityStatus,
+    UpstreamInitialization,
+)
 from .journal import (
     BindingAvailabilityJournalEvent,
     ErrorRaisedJournalEvent,
@@ -12,6 +38,38 @@ from .journal import (
     ToolCallStartedJournalEvent,
     ToolsPublishedJournalEvent,
 )
+from .management import (
+    EndpointBinding,
+    EndpointDefinition,
+    EndpointSessionPolicy,
+    SseConnection,
+    StdioConnection,
+    StreamableHttpConnection,
+    UpstreamConnection,
+    UpstreamServerDefinition,
+    UpstreamSessionMode,
+)
+from .ports import (
+    BridgeSessionRepository,
+    BridgeSessionStore,
+    BridgeSessionStoreFactory,
+    EndpointRepository,
+    TopologyReader,
+    UpstreamServerRepository,
+)
+from .revisions import (
+    EndpointBindingRevision,
+    EndpointTopologyRevision,
+    UpstreamRevision,
+    build_endpoint_plan_from_revision,
+)
+from .session_store import BridgeSessionStoreJournal
+from .sessions import (
+    BridgeSessionRecord,
+    BridgeSessionStatus,
+    UpstreamSessionRecord,
+    UpstreamSessionStatus,
+)
 from .topology import (
     ResolvedBindingRevision,
     ResolvedEndpointRevision,
@@ -23,9 +81,29 @@ from .topology import (
 )
 
 __all__ = [
+    "AppResource",
+    "AppResourceLoadedEvent",
     "BindingAvailabilityJournalEvent",
+    "BridgeSessionRecord",
+    "BridgeSessionRepository",
+    "BridgeSessionRuntime",
+    "BridgeSessionSnapshot",
+    "BridgeSessionStatus",
+    "BridgeSessionStore",
+    "BridgeSessionStoreFactory",
+    "BridgeSessionStoreJournal",
+    "EndpointBinding",
+    "EndpointBindingRevision",
+    "EndpointDefinition",
+    "EndpointMode",
+    "EndpointRepository",
+    "EndpointSessionPolicy",
+    "EndpointTopologyRevision",
     "ErrorRaisedJournalEvent",
+    "ErrorRaisedEvent",
+    "GatewaySessionCoordinator",
     "JournalBridgeObserver",
+    "PublishedEndpoint",
     "ResolvedBindingRevision",
     "ResolvedEndpointRevision",
     "ResolvedSseConnection",
@@ -33,11 +111,38 @@ __all__ = [
     "ResolvedStreamableHttpConnection",
     "ResolvedUpstreamRevision",
     "ResourceLoadedJournalEvent",
+    "ResourceDescriptor",
+    "SessionEvent",
     "SessionJournal",
     "SessionJournalEvent",
+    "SessionStartedEvent",
     "SessionStartedJournalEvent",
+    "SessionStatus",
+    "SseConnection",
+    "StdioConnection",
+    "StreamableHttpConnection",
+    "ToolCallCompletedEvent",
     "ToolCallCompletedJournalEvent",
+    "ToolCallRecord",
+    "ToolCallResult",
+    "ToolCallStartedEvent",
     "ToolCallStartedJournalEvent",
+    "ToolCallStatus",
+    "ToolDescriptor",
+    "ToolDiscoveredEvent",
+    "TopologyReader",
     "ToolsPublishedJournalEvent",
+    "UpstreamAvailability",
+    "UpstreamAvailabilityChangedEvent",
+    "UpstreamAvailabilityStatus",
+    "UpstreamConnection",
+    "UpstreamInitialization",
+    "UpstreamRevision",
+    "UpstreamServerDefinition",
+    "UpstreamServerRepository",
+    "UpstreamSessionMode",
+    "UpstreamSessionRecord",
+    "UpstreamSessionStatus",
     "build_endpoint_plan",
+    "build_endpoint_plan_from_revision",
 ]

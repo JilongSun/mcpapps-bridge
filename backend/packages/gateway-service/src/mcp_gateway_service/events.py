@@ -1,0 +1,78 @@
+"""Durable session inspection events emitted by application stores."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any, Literal, TypeAlias
+from uuid import uuid4
+
+from pydantic import BaseModel, Field
+
+from .inspection import (
+    AppResource,
+    ToolCallRecord,
+    ToolDescriptor,
+    UpstreamAvailability,
+    UpstreamInitialization,
+)
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def next_event_id() -> str:
+    return str(uuid4())
+
+
+class BaseSessionEvent(BaseModel):
+    event_id: str = Field(default_factory=next_event_id)
+    session_id: str
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class SessionStartedEvent(BaseSessionEvent):
+    kind: Literal["session.started"] = "session.started"
+    upstream: UpstreamInitialization | None = None
+
+
+class ToolDiscoveredEvent(BaseSessionEvent):
+    kind: Literal["tool.discovered"] = "tool.discovered"
+    tool: ToolDescriptor
+
+
+class ToolCallStartedEvent(BaseSessionEvent):
+    kind: Literal["tool.call.started"] = "tool.call.started"
+    call: ToolCallRecord
+
+
+class ToolCallCompletedEvent(BaseSessionEvent):
+    kind: Literal["tool.call.completed"] = "tool.call.completed"
+    call: ToolCallRecord
+
+
+class AppResourceLoadedEvent(BaseSessionEvent):
+    kind: Literal["app.resource.loaded"] = "app.resource.loaded"
+    resource: AppResource
+
+
+class ErrorRaisedEvent(BaseSessionEvent):
+    kind: Literal["error.raised"] = "error.raised"
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class UpstreamAvailabilityChangedEvent(BaseSessionEvent):
+    kind: Literal["upstream.availability.changed"] = "upstream.availability.changed"
+    availability: UpstreamAvailability
+
+
+SessionEvent: TypeAlias = (
+    SessionStartedEvent
+    | ToolDiscoveredEvent
+    | ToolCallStartedEvent
+    | ToolCallCompletedEvent
+    | AppResourceLoadedEvent
+    | UpstreamAvailabilityChangedEvent
+    | ErrorRaisedEvent
+)
