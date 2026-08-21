@@ -1,6 +1,6 @@
 # ADR 0002: SQLite Persistence and Configuration Authority
 
-- Status: Accepted
+- Status: Accepted; amended by ADR 0008
 - Date: 2026-07-14
 - Amended: 2026-07-20
 
@@ -53,7 +53,7 @@ The default bootstrap policy is `seed-if-empty`:
 
 The topology seed format adds explicit endpoint definitions and bindings so it can describe passthrough and aggregate endpoints. For compatibility, a legacy configuration containing `defaultUpstream` but no endpoints generates one same-slug passthrough endpoint during the first seed. This compatibility conversion is input-only and does not recreate or modify that endpoint after the database contains topology.
 
-Future explicit import/export commands may merge topology, but normal startup never performs an implicit merge. Administrative CRUD writes the database, not the YAML file.
+Future explicit import/export commands may merge topology, but normal startup never performs an implicit merge. Administrative changes write the database, not the YAML file. ADR 0008 requires a process restart before those changes replace the running gateway's startup topology.
 
 ### Relational schema
 
@@ -120,7 +120,7 @@ PostgreSQL is the later persistence target. Multi-process operation additionally
 - Production restarts preserve managed topology and historical debugging data.
 - Debug and normal runs follow identical configured SQLite persistence semantics.
 - YAML becomes safe bootstrap input instead of a competing management database.
-- Future CRUD APIs can operate against stable repository and transaction contracts.
+- Restart-applied management APIs can operate against stable repository and transaction contracts.
 - Session event persistence adds write volume, but provides the audit surface needed by the management product.
 - SQLite deployments are intentionally single-process.
 
@@ -132,7 +132,7 @@ PostgreSQL is the later persistence target. Multi-process operation additionally
 4. Refactor application assembly to inject repository and store ports backed by SQLite.
 5. Implement transactional `seed-if-empty` topology bootstrap and database-driven endpoint loading.
 6. Mark interrupted sessions failed during startup and validate restart behavior.
-7. Add topology CRUD APIs after repository contracts and authorization requirements are reviewed.
+7. Add restart-applied topology management APIs and restart-required reporting.
 
 ## Deferred Decision
 
@@ -140,26 +140,26 @@ Session events are retained indefinitely at first. A future retention and prunin
 
 ## Implementation Status
 
-As of 2026-08-16:
+As of 2026-08-21:
 
 ### Implemented
 
 - SQLite-only normal and debug runtime storage.
 - Async SQLAlchemy repositories, event/snapshot storage, Alembic migrations, and packaged
-	migration resources.
+  migration resources.
 - Seed-if-empty topology bootstrap, database-authoritative endpoint loading, immutable revisions,
-	and interrupted-session cleanup.
+  and interrupted-session cleanup.
 - One-process deployment semantics for live MCP session ownership.
 
 ### Partial
 
 - Repository contracts provide the reads and initial publication required by the gateway, but do
-	not yet expose complete administrative mutations.
+  not yet expose complete administrative mutations.
 - Session history is durable, while upstream connection audit rows are defined but not populated
-	by the runtime.
+  by the runtime.
 
 ### Pending
 
 - Dedicated migration and topology import/export command surfaces.
 - Retention and pruning policy.
-- Management APIs that publish later topology revisions.
+- Management APIs that persist later topology revisions for the next process start.

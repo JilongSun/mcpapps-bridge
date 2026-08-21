@@ -1,6 +1,6 @@
 # ADR 0001: Managed Endpoints and Session Ownership
 
-- Status: Accepted; endpoint priority amended by ADR 0003
+- Status: Accepted; amended by ADR 0003 and ADR 0008
 - Date: 2026-07-13
 
 ## Context
@@ -82,6 +82,8 @@ Configuration is layered by responsibility rather than by field-level overriding
 - YAML and environment variables configure the host process, database connection, logging, and bootstrap behavior.
 - The database is authoritative for managed upstream servers, endpoints, bindings, and session policies.
 - A YAML topology manifest may seed an empty database or be applied through an explicit import operation. Startup must not silently overwrite administrative changes stored in the database.
+- ADR 0008 makes the process-lifetime published topology static for v0.1. Management changes are
+  saved to SQLite and take effect after restart rather than refreshing the running gateway.
 
 ### Persistence boundary
 
@@ -96,7 +98,8 @@ SQLite with `aiosqlite` is the first supported database. The persistence API rem
 - Process-level session construction, the fixed `BridgeSessionState`, and endpoint bootstrap sessions have been removed.
 - Aggregate endpoint support requires explicit tool-name and resource-URI routing tables.
 - Isolated sessions may open multiple upstream connections, but correctness takes priority over implicit connection sharing.
-- Administrative CRUD can change managed topology without making YAML the runtime source of truth.
+- Administrative changes persist managed topology without making YAML the runtime source of truth;
+  ADR 0008 requires restart before those changes affect gateway behavior.
 
 ## Implementation Sequence
 
@@ -106,11 +109,11 @@ SQLite with `aiosqlite` is the first supported database. The persistence API rem
 4. Add async SQLAlchemy persistence, repositories, a unit of work, and a session store factory.
 5. Implement multiple passthrough endpoints.
 6. Implement aggregate tool/resource routing and lazy per-session upstream connections.
-7. Expose administrative CRUD through the control-plane API.
+7. Expose restart-applied management operations through the control-plane API.
 
 ## Implementation Status
 
-As of 2026-08-16:
+As of 2026-08-21:
 
 ### Implemented
 
@@ -122,14 +125,15 @@ As of 2026-08-16:
 
 ### Partial
 
-- Upstream and endpoint repositories support add/get/list operations, but not complete update and
-	delete mutations.
+- Upstream and endpoint repositories support add/get/list operations, but not restart-applied
+  revise and disable mutations.
 - `UpstreamSessionRecord` and its SQL row exist, but runtime connection lifecycle is not persisted
-	through that model.
+  through that model.
 - The `shared` session policy is accepted by configuration and domain models, but runtime behavior
-	remains isolated; shared upstream sessions are not implemented.
+  remains isolated; shared upstream sessions are not implemented.
 
 ### Pending
 
-- Complete management use cases and public CRUD APIs for upstreams, endpoints, and bindings.
-- Revision-producing update and delete workflows with active-session consistency checks.
+- Management use cases and public APIs for inspecting, creating, revising, enabling, and disabling
+  upstreams, endpoints, and bindings.
+- Revision-producing transactions and restart-required reporting defined by ADR 0008.

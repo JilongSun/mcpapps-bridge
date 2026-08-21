@@ -1,6 +1,6 @@
 # ADR 0003: MCP Apps Gateway and Agent Host
 
-- Status: Accepted
+- Status: Accepted; management publication amended by ADR 0008
 - Date: 2026-07-14
 - Amended: 2026-07-20
 
@@ -26,14 +26,14 @@ The product has three planes and two equal product pillars. The Gateway pillar o
 | Plane | Responsibility |
 | --- | --- |
 | MCP data plane | Streamable HTTP/SSE endpoints, MCP session routing, passthrough and aggregate tool/resource forwarding, MCP Apps metadata preservation |
-| Management plane | Upstream and endpoint CRUD, policies, health, session inspection, audit events, and deployment configuration |
+| Management plane | Restart-applied upstream and endpoint configuration, policies, health, session inspection, audit events, and deployment configuration |
 | Agent Host plane | Agent adapters, run lifecycle, assistant text/events, tool activity, rendered MCP App widgets, and host-owned UI actions |
 
 The Gateway and Agent Host pillars are equal core capabilities. The Agent Host depends on adapters and must not leak agent-specific behavior into the generic gateway runtime.
 
 ### Stable aggregate endpoint
 
-Aggregate is the primary publication strategy and the path to a configure-once client experience: an installation may publish a stable endpoint such as `/mcp/default`, which administrators update through the management plane.
+Aggregate is the primary publication strategy and the path to a configure-once client experience: an installation may publish a stable endpoint such as `/mcp/default`, which administrators update through the management plane. ADR 0008 requires a process restart before saved topology changes affect that endpoint.
 
 Passthrough remains a lower-priority compatibility and diagnostic strategy for:
 
@@ -188,9 +188,9 @@ As of 2026-08-16:
 ### Partial
 
 - The management domain and persistence foundations exist, but there is no complete management
-	HTTP API.
+  HTTP API.
 - The frontend can render the latest loaded MCP App resource and bridge activity, but host-owned
-	UI actions and agent transcript workflows are not connected.
+  UI actions and agent transcript workflows are not connected.
 - Health exposes liveness only; readiness is not implemented.
 
 ### Pending
@@ -199,5 +199,5 @@ As of 2026-08-16:
 - OpenAI-compatible chat, responses, models, and streaming APIs.
 - Hermes HTTP/SSE integration and separate Hermes-specific contracts.
 - Prompt aggregation, list-changed notification behavior, and broader latest-spec capability
-	coverage.
+  coverage.
 - Authentication and authorization boundaries for management, MCP, and Agent Host APIs.

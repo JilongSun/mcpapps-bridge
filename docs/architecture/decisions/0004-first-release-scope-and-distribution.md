@@ -1,6 +1,6 @@
 # ADR 0004: First Release Scope and Distribution
 
-- Status: Accepted
+- Status: Accepted; management publication amended by ADR 0008
 - Date: 2026-07-16
 
 ## Context
@@ -25,7 +25,7 @@ Agent Host activation is optional at deployment time, but its implementation and
 The 0.1 backend includes:
 
 - SQLite persistence, Alembic migrations, and seed-if-empty bootstrap.
-- Managed upstream and endpoint CRUD required by the minimal management UI.
+- Restart-applied upstream and endpoint configuration required by the minimal management UI.
 - Normalized immutable upstream and endpoint revisions captured by bridge sessions.
 - Aggregate tool discovery and call routing with stable namespaces.
 - Reversible aggregate resource routing with MCP Apps metadata preservation.
@@ -74,6 +74,7 @@ The 0.1 release excludes:
 - Electron packaging and ACP-based local agent launching.
 - A stable embedded Python or JavaScript SDK.
 - A full enterprise operations console.
+- Live topology reload or process restart orchestration.
 
 ## Consequences
 
@@ -90,7 +91,8 @@ Version 0.1 is ready when:
 
 1. Aggregate tool and MCP App resource flows pass protocol-level integration tests.
 2. Sessions remain bound to immutable topology revisions.
-3. Management mutations create new revisions without changing active sessions.
+3. Management mutations create coherent revisions, report that restart is required, and affect
+   gateway behavior only after a new process loads them.
 4. OpenAI-compatible non-streaming and streaming flows pass contract tests through the Hermes HTTP adapter.
 5. Hermes-specific capabilities cannot leak into the generic OpenAI adapter or MCP gateway modules.
 6. The first-party UI renders assistant output, tool activity, and MCP App widgets against stable backend contracts.
@@ -106,7 +108,7 @@ As of 2026-08-16:
 | Requirement | State | Evidence or gap |
 | --- | --- | --- |
 | SQLite, migrations, and seed-if-empty bootstrap | Implemented | SQLAlchemy/Alembic persistence and SQLite bootstrap are active in normal and debug startup |
-| Managed upstream/endpoint/binding CRUD | Partial | Domain and add/read repository foundations exist; update/delete use cases and HTTP routes do not |
+| Restart-applied upstream/endpoint/binding management | Partial | Domain and add/read repository foundations exist; revise/disable use cases, HTTP routes, and restart reporting do not |
 | Immutable upstream and endpoint revisions | Implemented | Sessions capture an endpoint revision whose bindings reference upstream revisions |
 | Aggregate tool discovery and routing | Implemented | Namespaced discovery, calls, degraded availability, retry, and owner-task lifecycle are present |
 | Aggregate resource and MCP Apps routing | Implemented | Ordinary/UI routes, metadata, resource links, and embedded resources are rewritten |
@@ -133,7 +135,7 @@ As of 2026-08-16:
 | --- | --- | --- |
 | Aggregate tool/resource protocol integration tests | Partial | Manual real-transport validation exists; the automated suite covers owner-task lifecycle only |
 | Sessions remain on immutable revisions | Implemented | `BridgeSessionRecord.endpoint_revision_id` is required and persisted |
-| Management mutations create revisions without changing active sessions | Partial | Initial publication creates revisions; later update/delete mutation workflows do not exist |
+| Management mutations persist coherent revisions for restart | Partial | Initial publication creates revisions; later revise/disable workflows and restart reporting do not exist |
 | OpenAI/Hermes contract tests | Pending | APIs and adapter are absent |
 | Hermes isolation | Pending | No implementation exists to validate the boundary |
 | First-party agent and MCP Apps UI | Partial | MCP App rendering exists; agent transcript and host actions do not |

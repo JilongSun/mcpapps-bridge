@@ -1,7 +1,10 @@
 # ADR 0007: Cembrid Identity and Deployment Shells
 
-- Status: Accepted
+- Status: Accepted; brand superseded by ADR 0009
 - Date: 2026-08-18
+
+ADR 0009 supersedes the Cembrid identity in this decision. The Web/OCI and Tauri deployment-shell
+decisions below remain accepted.
 
 ## Context
 
