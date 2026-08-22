@@ -1,8 +1,11 @@
 # ADR 0006: Core, Service, and Server Packages
 
-- Status: Accepted
+- Status: Accepted; application contexts amended by ADR 0010
 - Date: 2026-08-16
 - Accepted: 2026-08-17
+
+ADR 0010 refines the internal ownership and capability composition of the application-service
+package. The three-package dependency direction in this decision remains unchanged.
 
 ## Context
 

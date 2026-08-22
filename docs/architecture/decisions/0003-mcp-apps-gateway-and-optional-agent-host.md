@@ -1,8 +1,11 @@
 # ADR 0003: MCP Apps Gateway and Agent Host
 
-- Status: Accepted; management publication amended by ADR 0008
+- Status: Accepted; amended by ADR 0008 and ADR 0010
 - Date: 2026-07-14
 - Amended: 2026-07-20
+
+ADR 0010 refines the application layer into Gateway, MCP Apps, and Agent Host bounded contexts and
+defines how their optional capabilities compose without creating separate Gateway implementations.
 
 ## Context
 
