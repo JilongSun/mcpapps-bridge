@@ -2,6 +2,27 @@
 
 from mcp_bridge_core import EndpointMode
 
+from .agent_host import (
+    AgentAdapterCompleted,
+    AgentAdapterEvent,
+    AgentAdapterTextDelta,
+    AgentFinishReason,
+    AgentHostService,
+    AgentMessage,
+    AgentModel,
+    AgentRunCompleted,
+    AgentRunError,
+    AgentRunEvent,
+    AgentRunFailed,
+    AgentRunResult,
+    AgentRunStarted,
+    AgentRuntimeAdapter,
+    AssistantTextCompleted,
+    AssistantTextDelta,
+    GenerationOptions,
+    StartRunCommand,
+    TokenUsage,
+)
 from .coordinator import BridgeSessionRuntime, GatewaySessionCoordinator, PublishedEndpoint
 from .events import (
     AppResourceLoadedEvent,
@@ -81,6 +102,20 @@ from .topology import (
 )
 
 __all__ = [
+    "AgentAdapterCompleted",
+    "AgentAdapterEvent",
+    "AgentAdapterTextDelta",
+    "AgentFinishReason",
+    "AgentHostService",
+    "AgentMessage",
+    "AgentModel",
+    "AgentRunCompleted",
+    "AgentRunError",
+    "AgentRunEvent",
+    "AgentRunFailed",
+    "AgentRunResult",
+    "AgentRunStarted",
+    "AgentRuntimeAdapter",
     "AppResource",
     "AppResourceLoadedEvent",
     "BindingAvailabilityJournalEvent",
@@ -92,6 +127,8 @@ __all__ = [
     "BridgeSessionStore",
     "BridgeSessionStoreFactory",
     "BridgeSessionStoreJournal",
+    "AssistantTextCompleted",
+    "AssistantTextDelta",
     "EndpointBinding",
     "EndpointBindingRevision",
     "EndpointDefinition",
@@ -102,6 +139,7 @@ __all__ = [
     "ErrorRaisedJournalEvent",
     "ErrorRaisedEvent",
     "GatewaySessionCoordinator",
+    "GenerationOptions",
     "JournalBridgeObserver",
     "PublishedEndpoint",
     "ResolvedBindingRevision",
@@ -120,7 +158,9 @@ __all__ = [
     "SessionStatus",
     "SseConnection",
     "StdioConnection",
+    "StartRunCommand",
     "StreamableHttpConnection",
+    "TokenUsage",
     "ToolCallCompletedEvent",
     "ToolCallCompletedJournalEvent",
     "ToolCallRecord",

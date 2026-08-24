@@ -11,6 +11,7 @@ dependencies = [
   "greenlet>=3.5.3",
   "mcp-bridge-core",
   "mcp-gateway-service",
+  "openai>=2.24,<3",
   "pydantic>=2.8.0",
   "pyyaml>=6.0.3",
   "sqlalchemy>=2.0.51",

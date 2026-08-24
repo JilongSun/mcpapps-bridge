@@ -13,15 +13,21 @@ import anyio
 from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from mcp_gateway_service import BridgeSessionRuntime, GatewaySessionCoordinator
+from mcp_gateway_service.agent_host import AgentHostService
 from starlette.routing import Mount
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from mcp_gateway_server.api.openai_api import create_openai_router
 from mcp_gateway_server.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def create_app(manager: GatewaySessionCoordinator) -> FastAPI:
+def create_app(
+    manager: GatewaySessionCoordinator,
+    *,
+    agent_host: AgentHostService | None = None,
+) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         logger.info("FastAPI application starting (lifespan enter)")
@@ -41,6 +47,8 @@ def create_app(manager: GatewaySessionCoordinator) -> FastAPI:
     app.state.bridge_manager = manager
 
     app.router.routes.append(Mount("/mcp", app=create_mcp_transport_app(manager)))
+    if agent_host is not None:
+        app.include_router(create_openai_router(agent_host))
 
     @app.get("/health")
     async def health() -> dict[str, str]:
