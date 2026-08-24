@@ -203,5 +203,8 @@ As of 2026-08-21:
 - **Partial:** MCP Apps resources are preserved and rendered, but the application resource
   lifecycle and host-owned actions are incomplete; current coordinator composition couples runtime
   sessions directly to the detailed inspection journal.
-- **Pending:** topology administration commands, dedicated usage facts and queries, provider-neutral
-  Agent Host contracts, explicit capability configuration, and context-oriented service modules.
+- **Partial:** the Agent Host context has provider-neutral text run commands, ordered application
+  events, model discovery, failure normalization, and an adapter port. Tool activity, MCP Apps
+  correlation, persistence, and production adapter composition remain pending.
+- **Pending:** topology administration commands, dedicated usage facts and queries, explicit
+  capability configuration, and the remaining context-oriented service modules.

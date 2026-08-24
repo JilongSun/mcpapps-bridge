@@ -15,7 +15,7 @@ Implementation states:
 | --- | --- | --- | --- |
 | [0001](decisions/0001-managed-endpoints-and-session-ownership.md) | Accepted; amended by 0003 and 0008 | Partial | Managed topology, stable endpoint dispatch, and isolated sessions exist; restart-applied management and shared sessions do not |
 | [0002](decisions/0002-sqlite-persistence-and-configuration-authority.md) | Accepted; amended by 0008 | Partial | SQLite, migrations, revisions, events, and bootstrap exist; restart-applied management APIs do not |
-| [0003](decisions/0003-mcp-apps-gateway-and-optional-agent-host.md) | Accepted; amended by 0008 and 0010 | Partial | Gateway data-plane behavior exists; restart-applied management, MCP Apps host workflows, and Agent Host remain incomplete |
+| [0003](decisions/0003-mcp-apps-gateway-and-optional-agent-host.md) | Accepted; amended by 0008 and 0010 | Partial | Gateway data plane and the first provider-neutral text-run/OpenAI slice exist; management, MCP Apps host workflows, and complete Agent Host behavior remain incomplete |
 | [0004](decisions/0004-first-release-scope-and-distribution.md) | Accepted; amended by 0008 | Partial | The gateway foundation is implemented; static management UI/API, Agent Host, and OCI delivery remain release blockers |
 | [0005](decisions/0005-upstream-transport-task-ownership.md) | Accepted | Implemented | Upstream SDK contexts run and close in persistent owner tasks |
 | [0006](decisions/0006-core-service-and-server-packages.md) | Accepted | Implemented | Protocol core, application services, and the deployable server are separate dependency-ordered workspace packages |
@@ -30,8 +30,8 @@ The backend is not waiting only on HTTP API routes. The aggregate gateway data p
 complete vertical slice, but the following backend release work remains:
 
 - Restart-applied upstream, endpoint, and binding management use cases and HTTP APIs.
-- Provider-neutral Agent Host run and event contracts.
-- OpenAI-compatible chat, responses, models, streaming, liveness, and readiness APIs.
+- Complete provider-neutral Agent Host tool, MCP, and MCP Apps run events.
+- OpenAI-compatible streaming chat, responses, production composition, liveness, and readiness APIs.
 - The Hermes HTTP/SSE adapter and separation of standard and Hermes-specific behavior.
 - Protocol-level integration coverage for the supported MCP specification versions.
 - OCI assembly, static frontend serving, and release-image startup validation.

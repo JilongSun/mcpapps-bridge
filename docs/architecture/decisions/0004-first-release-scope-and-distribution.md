@@ -114,8 +114,8 @@ As of 2026-08-16:
 | Aggregate resource and MCP Apps routing | Implemented | Ordinary/UI routes, metadata, resource links, and embedded resources are rewritten |
 | Passthrough compatibility mode | Implemented | One-binding transparent routing remains available |
 | Session lifecycle and inspection | Partial | Records, snapshots, events, REST reads, and WebSocket events exist; upstream-session audit and broader health are incomplete |
-| Provider-neutral Agent Host contract | Pending | `agent_adapters` contains no runtime contract or implementation |
-| OpenAI-compatible API | Pending | Chat completions, responses, and models routes do not exist |
+| Provider-neutral Agent Host contract | Partial | Text runs, ordered events, model discovery, terminal results, failure normalization, and an adapter port exist; tool/MCP Apps events and persistence do not |
+| OpenAI-compatible API | Partial | Official-SDK-compatible models and non-streaming chat routes pass client contract tests; streaming, Responses, and production assembly do not exist |
 | Hermes HTTP/SSE adapter | Pending | No Hermes adapter implementation exists |
 | Standard/Hermes contract separation | Pending | No executable adapter contracts exist yet |
 
@@ -136,7 +136,7 @@ As of 2026-08-16:
 | Aggregate tool/resource protocol integration tests | Partial | Manual real-transport validation exists; the automated suite covers owner-task lifecycle only |
 | Sessions remain on immutable revisions | Implemented | `BridgeSessionRecord.endpoint_revision_id` is required and persisted |
 | Management mutations persist coherent revisions for restart | Partial | Initial publication creates revisions; later revise/disable workflows and restart reporting do not exist |
-| OpenAI/Hermes contract tests | Pending | APIs and adapter are absent |
+| OpenAI/Hermes contract tests | Partial | Official `AsyncOpenAI` client tests cover models, non-streaming chat, and provider errors through the server; Hermes integration is absent |
 | Hermes isolation | Pending | No implementation exists to validate the boundary |
 | First-party agent and MCP Apps UI | Partial | MCP App rendering exists; agent transcript and host actions do not |
 | Clean database migration/bootstrap in release image | Pending | Source and wheel checks exist, but there is no OCI image |

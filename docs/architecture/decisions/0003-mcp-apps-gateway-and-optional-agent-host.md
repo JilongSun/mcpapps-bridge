@@ -124,6 +124,12 @@ This surface is prioritized because existing frontends such as Open WebUI, LobeC
 
 The internal event envelope remains provider-neutral, but OpenAI-compatible HTTP contracts are the first public adapter rather than a later compatibility layer. Hermes-specific capabilities such as `/v1/capabilities`, detached runs, run cancellation and approval, session management, jobs, and custom tool-progress events are later enhancements after the common surface works.
 
+The deployable server uses the official OpenAI Python SDK for its canonical request parameter
+definitions, response models, asynchronous client integration, and compatibility tests. The SDK
+does not provide a FastAPI server implementation, so the server adapter still maps validated
+OpenAI input into provider-neutral application commands and maps application results into SDK
+response models. OpenAI SDK types do not enter the application-service contracts.
+
 The `MCP-UI-Org/mcp-ui` TypeScript SDK provides MCP Apps UI resource helpers, sandboxed `AppRenderer`/`AppFrame` rendering, and UI action handling. It does not provide the Agent Run API. It is the preferred renderer candidate for a future host frontend, whether that frontend is built locally or adapted from an existing OpenAI-compatible project.
 
 The current `agent_adapters/` package name and layout are provisional. The durable requirement is an isolated integration boundary between the generic gateway and an independently deployed agent runtime. The first integration uses HTTP and SSE. A generic OpenAI-compatible adapter contains only standard behavior; a separate Hermes HTTP adapter owns Hermes-specific endpoints, event types, and capabilities even when it reuses the common OpenAI request surface.
@@ -195,11 +201,17 @@ As of 2026-08-16:
 - The frontend can render the latest loaded MCP App resource and bridge activity, but host-owned
   UI actions and agent transcript workflows are not connected.
 - Health exposes liveness only; readiness is not implemented.
+- Provider-neutral text run commands, ordered run events, adapter ports, model discovery, and
+  terminal failure normalization exist in the Agent Host application context.
+- The deployable server exposes SDK-validated `GET /v1/models` and non-streaming
+  `POST /v1/chat/completions` when an Agent Host service is composed. Production adapter and
+  configuration assembly are not connected yet.
 
 ### Pending
 
-- Provider-neutral Agent Host run/event contracts.
-- OpenAI-compatible chat, responses, models, and streaming APIs.
+- Provider-neutral tool activity, MCP session correlation, MCP App events, and host-owned actions
+  in the Agent Host run/event contracts.
+- OpenAI-compatible streaming chat and Responses APIs.
 - Hermes HTTP/SSE integration and separate Hermes-specific contracts.
 - Prompt aggregation, list-changed notification behavior, and broader latest-spec capability
   coverage.
