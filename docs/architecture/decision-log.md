@@ -31,8 +31,8 @@ complete vertical slice, but the following backend release work remains:
 
 - Restart-applied upstream, endpoint, and binding management use cases and HTTP APIs.
 - Complete provider-neutral Agent Host tool, MCP, and MCP Apps run events.
-- OpenAI-compatible streaming chat, responses, production composition, liveness, and readiness APIs.
-- The Hermes HTTP/SSE adapter and separation of standard and Hermes-specific behavior.
+- OpenAI-compatible streaming chat, Responses, capability reporting, and readiness APIs.
+- Hermes streaming, session continuity, tool-progress events, and separate Hermes-specific APIs.
 - Protocol-level integration coverage for the supported MCP specification versions.
 - OCI assembly, static frontend serving, and release-image startup validation.
 

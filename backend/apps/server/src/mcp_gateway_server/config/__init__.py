@@ -11,10 +11,12 @@ from .loader import (
     resolve_runtime_selection,
 )
 from .models import (
+    AgentHostFileConfig,
     BridgeRuntimeConfig,
     EndpointBindingFileConfig,
     EndpointFileConfig,
     McpAppsBridgeConfig,
+    RuntimeAgentHostConfig,
     RuntimeUpstreamConfig,
     StorageConfig,
     UpstreamFileConfig,
@@ -22,6 +24,7 @@ from .models import (
 
 __all__ = [
     "CONFIG_FILE_NAME",
+    "AgentHostFileConfig",
     "BridgeRuntimeConfig",
     "ConfigError",
     "EndpointBindingFileConfig",
@@ -30,6 +33,7 @@ __all__ = [
     "McpAppsBridgeConfig",
     "RuntimeConfiguration",
     "RuntimeSelection",
+    "RuntimeAgentHostConfig",
     "RuntimeUpstreamConfig",
     "StorageConfig",
     "UpstreamFileConfig",

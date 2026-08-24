@@ -62,12 +62,15 @@ async def serve_runtime(args: argparse.Namespace) -> None:
 
     runtime = BridgeHostRuntime(
         result.manager,
+        agent_host=result.agent_host.service if result.agent_host is not None else None,
         api_host=configuration.bridge.api_host,
         api_port=configuration.bridge.api_port,
     )
     try:
         await runtime.serve()
     finally:
+        if result.agent_host is not None:
+            await result.agent_host.adapter.close()
         await result.storage.close()
 
 

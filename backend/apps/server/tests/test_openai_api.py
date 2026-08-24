@@ -94,3 +94,20 @@ async def test_official_openai_client_receives_provider_failure() -> None:
             )
 
     assert error.value.status_code == 502
+
+
+async def test_openai_api_rejects_tool_messages_until_tool_events_are_supported() -> None:
+    async with _openai_client(AgentHostService(FixtureAgentAdapter())) as client:
+        with pytest.raises(APIStatusError, match="Tool messages are not supported") as error:
+            await client.chat.completions.create(
+                model="fixture-model",
+                messages=[
+                    {
+                        "role": "tool",
+                        "content": "Tool result",
+                        "tool_call_id": "call_fixture",
+                    }
+                ],
+            )
+
+    assert error.value.status_code == 422

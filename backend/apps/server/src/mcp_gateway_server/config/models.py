@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, PositiveFloat, SecretStr, model_validator
 
 
 def to_camel(value: str) -> str:
@@ -32,6 +32,22 @@ class StorageConfig(CamelModel):
     sqlite_path: Path = Path("backend/var/mcpapps-bridge.db")
     auto_migrate: bool = True
     bootstrap_mode: Literal["seed-if-empty"] = "seed-if-empty"
+
+
+class AgentHostFileConfig(CamelModel):
+    enabled: bool = False
+    adapter: Literal["hermes-http"] = "hermes-http"
+    base_url: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:8642/v1")
+    api_key_env: str = Field(default="API_SERVER_KEY", min_length=1)
+    timeout_seconds: PositiveFloat = 120.0
+
+
+class RuntimeAgentHostConfig(BaseModel):
+    enabled: bool = False
+    adapter: Literal["hermes-http"] = "hermes-http"
+    base_url: str = "http://127.0.0.1:8642/v1"
+    api_key: SecretStr | None = None
+    timeout_seconds: PositiveFloat = 120.0
 
 
 class UpstreamFileConfig(CamelModel):
@@ -83,6 +99,7 @@ class EndpointFileConfig(CamelModel):
 class McpAppsBridgeConfig(CamelModel):
     bridge: BridgeRuntimeConfig = Field(default_factory=BridgeRuntimeConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
+    agent_host: AgentHostFileConfig = Field(default_factory=AgentHostFileConfig)
     upstreams: dict[str, UpstreamFileConfig] = Field(default_factory=dict)
     endpoints: dict[str, EndpointFileConfig] = Field(default_factory=dict)
     default_upstream: str | None = None

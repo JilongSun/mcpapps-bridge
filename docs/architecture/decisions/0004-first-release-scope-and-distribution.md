@@ -113,11 +113,11 @@ As of 2026-08-16:
 | Aggregate tool discovery and routing | Implemented | Namespaced discovery, calls, degraded availability, retry, and owner-task lifecycle are present |
 | Aggregate resource and MCP Apps routing | Implemented | Ordinary/UI routes, metadata, resource links, and embedded resources are rewritten |
 | Passthrough compatibility mode | Implemented | One-binding transparent routing remains available |
-| Session lifecycle and inspection | Partial | Records, snapshots, events, REST reads, and WebSocket events exist; upstream-session audit and broader health are incomplete |
+| Session lifecycle and inspection | Partial | Runtime records, snapshots, events, and transport correlation exist; the obsolete mock REST/WebSocket inspection surface was removed, and a real diagnostics API plus upstream-session audit remain to be designed |
 | Provider-neutral Agent Host contract | Partial | Text runs, ordered events, model discovery, terminal results, failure normalization, and an adapter port exist; tool/MCP Apps events and persistence do not |
-| OpenAI-compatible API | Partial | Official-SDK-compatible models and non-streaming chat routes pass client contract tests; streaming, Responses, and production assembly do not exist |
-| Hermes HTTP/SSE adapter | Pending | No Hermes adapter implementation exists |
-| Standard/Hermes contract separation | Pending | No executable adapter contracts exist yet |
+| OpenAI-compatible API | Partial | Official-SDK-compatible models and non-streaming chat routes pass client contract tests and are assembled by production configuration; streaming and Responses do not exist |
+| Hermes HTTP/SSE adapter | Partial | An official-`AsyncOpenAI` HTTP adapter supports model discovery and non-streaming chat against an independently deployed Hermes service; streaming and Hermes-specific endpoints/events do not |
+| Standard/Hermes contract separation | Partial | Provider-neutral application ports and server-owned Hermes composition are executable; session, tool-progress, capability, and detached-run contracts remain undefined |
 
 ### Frontend Scope
 
@@ -136,8 +136,8 @@ As of 2026-08-16:
 | Aggregate tool/resource protocol integration tests | Partial | Manual real-transport validation exists; the automated suite covers owner-task lifecycle only |
 | Sessions remain on immutable revisions | Implemented | `BridgeSessionRecord.endpoint_revision_id` is required and persisted |
 | Management mutations persist coherent revisions for restart | Partial | Initial publication creates revisions; later revise/disable workflows and restart reporting do not exist |
-| OpenAI/Hermes contract tests | Partial | Official `AsyncOpenAI` client tests cover models, non-streaming chat, and provider errors through the server; Hermes integration is absent |
-| Hermes isolation | Pending | No implementation exists to validate the boundary |
+| OpenAI/Hermes contract tests | Partial | Official `AsyncOpenAI` client tests cover the inbound API, and mock-transport wire tests cover Hermes models, non-streaming chat, authentication, request omission, and failure normalization; streaming is absent |
+| Hermes isolation | Implemented | The concrete adapter is confined to the deployable server package and talks to a separately managed Hermes HTTP process; lower packages depend only on provider-neutral ports |
 | First-party agent and MCP Apps UI | Partial | MCP App rendering exists; agent transcript and host actions do not |
 | Clean database migration/bootstrap in release image | Pending | Source and wheel checks exist, but there is no OCI image |
 | Image startup, liveness, and readiness | Pending | No container artifact exists and readiness is absent |

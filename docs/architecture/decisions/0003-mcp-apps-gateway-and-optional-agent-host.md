@@ -192,7 +192,7 @@ As of 2026-08-16:
 - Ordinary resource URI namespacing and opaque `ui://` routing with exact session route tables.
 - MCP Apps metadata, resource-link, and embedded-resource rewriting at defined protocol locations.
 - Immutable endpoint/upstream revision capture for active sessions.
-- Session snapshots, events, and basic inspection APIs.
+- Persisted bridge session records, snapshots, and events used by the MCP runtime.
 
 ### Partial
 
@@ -204,15 +204,22 @@ As of 2026-08-16:
 - Provider-neutral text run commands, ordered run events, adapter ports, model discovery, and
   terminal failure normalization exist in the Agent Host application context.
 - The deployable server exposes SDK-validated `GET /v1/models` and non-streaming
-  `POST /v1/chat/completions` when an Agent Host service is composed. Production adapter and
-  configuration assembly are not connected yet.
+  `POST /v1/chat/completions` when an Agent Host service is composed.
+- Server configuration can optionally compose an official-`AsyncOpenAI` Hermes HTTP adapter
+  against an independently deployed `hermes gateway` API using `API_SERVER_KEY`. The server does
+  not import, launch, or supervise Hermes.
+- The Hermes adapter currently uses model discovery and stateless non-streaming Chat Completions.
+  It does not pass session-continuity headers, consume Hermes tool-progress events, proxy Hermes
+  session APIs, or bind an Agent Host run to a Gateway endpoint. Hermes tools and MCP servers must
+  therefore be configured independently until explicit run-to-Gateway correlation is designed.
 
 ### Pending
 
 - Provider-neutral tool activity, MCP session correlation, MCP App events, and host-owned actions
   in the Agent Host run/event contracts.
 - OpenAI-compatible streaming chat and Responses APIs.
-- Hermes HTTP/SSE integration and separate Hermes-specific contracts.
+- Hermes streaming and separate contracts for session continuity, capabilities, detached runs,
+  approvals, cancellation, and custom events.
 - Prompt aggregation, list-changed notification behavior, and broader latest-spec capability
   coverage.
 - Authentication and authorization boundaries for management, MCP, and Agent Host APIs.

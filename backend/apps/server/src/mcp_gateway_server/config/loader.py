@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 
 import yaml
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
 from .models import (
+    AgentHostFileConfig,
     BridgeRuntimeConfig,
     EndpointFileConfig,
     McpAppsBridgeConfig,
+    RuntimeAgentHostConfig,
     RuntimeUpstreamConfig,
     StorageConfig,
     UpstreamFileConfig,
@@ -46,6 +50,7 @@ class RuntimeConfiguration:
     upstreams: dict[str, RuntimeUpstreamConfig]
     endpoints: dict[str, EndpointFileConfig]
     default_upstream: str | None
+    agent_host: RuntimeAgentHostConfig = field(default_factory=RuntimeAgentHostConfig)
 
 
 def load_bridge_config(path: str | None = None) -> LoadedBridgeConfig:
@@ -126,6 +131,22 @@ def resolve_runtime_configuration(
         upstreams=resolved_upstreams,
         endpoints=loaded.config.endpoints,
         default_upstream=upstream_name or loaded.config.default_upstream,
+        agent_host=_resolve_agent_host_config(loaded.config.agent_host),
+    )
+
+
+def _resolve_agent_host_config(config: AgentHostFileConfig) -> RuntimeAgentHostConfig:
+    api_key = os.environ.get(config.api_key_env)
+    if config.enabled and not api_key:
+        raise ConfigError(
+            f"Agent Host is enabled but environment variable '{config.api_key_env}' is not set"
+        )
+    return RuntimeAgentHostConfig(
+        enabled=config.enabled,
+        adapter=config.adapter,
+        base_url=str(config.base_url),
+        api_key=SecretStr(api_key) if api_key is not None else None,
+        timeout_seconds=config.timeout_seconds,
     )
 
 

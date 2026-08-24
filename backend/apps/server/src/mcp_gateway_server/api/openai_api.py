@@ -100,18 +100,18 @@ def _to_start_run_command(payload: Mapping[str, Any]) -> StartRunCommand:
     for message in raw_messages:
         role = message.get("role")
         content = message.get("content")
-        if role not in {"developer", "system", "user", "assistant", "tool"}:
+        if role == "tool":
+            raise ValueError("Tool messages are not supported in this release")
+        if role not in {"developer", "system", "user", "assistant"}:
             raise ValueError(f"Unsupported chat message role: {role}")
         if not isinstance(content, str):
             raise ValueError("Only text message content is supported in this release")
         name = message.get("name")
-        tool_call_id = message.get("tool_call_id")
         messages.append(
             AgentMessage(
                 role=role,
                 content=content,
                 name=name if isinstance(name, str) else None,
-                tool_call_id=tool_call_id if isinstance(tool_call_id, str) else None,
             )
         )
 

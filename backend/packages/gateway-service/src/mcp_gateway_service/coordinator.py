@@ -151,7 +151,7 @@ class GatewaySessionCoordinator:
             session.session_id,
             endpoint_slug,
         )
-        store = await self.get_session_store(session.session_id)
+        store = await self._get_session_store(session.session_id)
         session_key = str(session.session_id)
         observer = JournalBridgeObserver(
             session_key,
@@ -238,13 +238,7 @@ class GatewaySessionCoordinator:
         active.stop_event.set()
         await active.closed_event.wait()
 
-    async def get_session(self, session_id: UUID) -> BridgeSessionRecord | None:
-        return await self._sessions.get(session_id)
-
-    async def list_sessions(self, endpoint_id: UUID | None = None) -> list[BridgeSessionRecord]:
-        return await self._sessions.list(endpoint_id)
-
-    async def get_session_store(self, session_id: UUID) -> BridgeSessionStore:
+    async def _get_session_store(self, session_id: UUID) -> BridgeSessionStore:
         store = await self._session_store_factory.get(session_id)
         if store is None:
             raise KeyError(f"No session store for bridge session: {session_id}")

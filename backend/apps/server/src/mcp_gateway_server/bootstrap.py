@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from mcp_gateway_service import (
+    AgentHostService,
     EndpointBinding,
     EndpointDefinition,
     EndpointMode,
@@ -16,6 +17,7 @@ from mcp_gateway_service import (
     UpstreamSessionMode,
 )
 
+from mcp_gateway_server.agent_adapters import HermesHttpAgentAdapter
 from mcp_gateway_server.config import RuntimeConfiguration
 from mcp_gateway_server.logging import get_logger
 from mcp_gateway_server.mcp import assemble_gateway_session_coordinator, to_domain_connection
@@ -41,6 +43,13 @@ class AsyncCloser(Protocol):
 class BootstrapResult:
     manager: GatewaySessionCoordinator
     storage: AsyncCloser
+    agent_host: AgentHostComposition | None
+
+
+@dataclass(frozen=True)
+class AgentHostComposition:
+    service: AgentHostService
+    adapter: HermesHttpAgentAdapter
 
 
 async def bootstrap_gateway(configuration: RuntimeConfiguration) -> BootstrapResult:
@@ -53,6 +62,7 @@ async def bootstrap_gateway(configuration: RuntimeConfiguration) -> BootstrapRes
 
     database = SqliteDatabase(configuration.storage.sqlite_path)
     logger.info("SQLite database opened: %s", configuration.storage.sqlite_path)
+    agent_host: AgentHostComposition | None = None
 
     try:
         if configuration.storage.auto_migrate:
@@ -71,11 +81,29 @@ async def bootstrap_gateway(configuration: RuntimeConfiguration) -> BootstrapRes
             SqlAlchemyBridgeSessionStoreFactory(database.session_factory),
         )
         logger.info("Bridge manager assembled successfully")
+        agent_host = _assemble_agent_host(configuration)
     except BaseException:
         logger.exception("Bootstrap failed — closing database")
+        if agent_host is not None:
+            await agent_host.adapter.close()
         await database.close()
         raise
-    return BootstrapResult(manager=manager, storage=database)
+    return BootstrapResult(manager=manager, storage=database, agent_host=agent_host)
+
+
+def _assemble_agent_host(configuration: RuntimeConfiguration) -> AgentHostComposition | None:
+    config = configuration.agent_host
+    if not config.enabled:
+        return None
+    if config.api_key is None:
+        raise ValueError("Enabled Agent Host configuration has no Hermes API key")
+    adapter = HermesHttpAgentAdapter(
+        base_url=config.base_url,
+        api_key=config.api_key.get_secret_value(),
+        timeout_seconds=config.timeout_seconds,
+    )
+    logger.info("Agent Host enabled with Hermes HTTP adapter: %s", config.base_url)
+    return AgentHostComposition(service=AgentHostService(adapter), adapter=adapter)
 
 
 def _build_topology_seed(

@@ -7,10 +7,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import cast
 from urllib.parse import parse_qs
-from uuid import UUID
 
 import anyio
-from fastapi import FastAPI, HTTPException, Response, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from mcp_gateway_service import BridgeSessionRuntime, GatewaySessionCoordinator
 from mcp_gateway_service.agent_host import AgentHostService
@@ -53,50 +52,6 @@ def create_app(
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok"}
-
-    @app.get("/api/sessions")
-    async def list_sessions() -> list[dict[str, object]]:
-        sessions = await manager.list_sessions()
-        return [session.model_dump(mode="json") for session in sessions]
-
-    @app.get("/api/sessions/{session_id}")
-    async def get_session(session_id: UUID) -> dict[str, object]:
-        session = await manager.get_session(session_id)
-        if session is None:
-            raise HTTPException(status_code=404, detail="Bridge session not found")
-        store = await manager.get_session_store(session_id)
-        snapshot = await store.snapshot()
-        return {
-            "session": session.model_dump(mode="json"),
-            "snapshot": snapshot.model_dump(mode="json"),
-        }
-
-    @app.get("/api/sessions/{session_id}/events")
-    async def get_events(session_id: UUID, after: int = 0) -> list[dict[str, object]]:
-        try:
-            store = await manager.get_session_store(session_id)
-        except KeyError:
-            raise HTTPException(status_code=404, detail="Bridge session not found") from None
-        events = await store.events(after_index=after)
-        return [event.model_dump(mode="json") for event in events]
-
-    @app.websocket("/api/sessions/{session_id}/events/ws")
-    async def events_websocket(websocket: WebSocket, session_id: UUID) -> None:
-        try:
-            store = await manager.get_session_store(session_id)
-        except KeyError:
-            await websocket.close(code=4404, reason="Bridge session not found")
-            return
-        after = int(websocket.query_params.get("after", "0"))
-        await websocket.accept()
-        try:
-            while True:
-                events = await store.wait_for_events(after_index=after)
-                payload = [event.model_dump(mode="json") for event in events]
-                after += len(events)
-                await websocket.send_json({"after": after, "events": payload})
-        except WebSocketDisconnect:
-            return
 
     return app
 

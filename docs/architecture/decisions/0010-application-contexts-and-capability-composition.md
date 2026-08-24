@@ -198,13 +198,14 @@ because the names overlap.
 As of 2026-08-21:
 
 - **Implemented:** bridge-core observations, immutable topology and session identities, Gateway
-  runtime coordination, detailed session events/snapshots, and server-owned adapter composition
-  foundations.
+  runtime coordination, detailed session events/snapshots, and optional server-owned composition
+  of an independently deployed Hermes HTTP adapter.
 - **Partial:** MCP Apps resources are preserved and rendered, but the application resource
   lifecycle and host-owned actions are incomplete; current coordinator composition couples runtime
   sessions directly to the detailed inspection journal.
 - **Partial:** the Agent Host context has provider-neutral text run commands, ordered application
-  events, model discovery, failure normalization, and an adapter port. Tool activity, MCP Apps
-  correlation, persistence, and production adapter composition remain pending.
-- **Pending:** topology administration commands, dedicated usage facts and queries, explicit
-  capability configuration, and the remaining context-oriented service modules.
+  events, model discovery, failure normalization, an adapter port, and non-streaming production
+  composition. Tool activity, Gateway endpoint and MCP Apps correlation, session continuity,
+  streaming, and persistence remain pending.
+- **Pending:** topology administration commands, dedicated usage facts and queries, effective
+  capability reporting, and the remaining context-oriented service modules.
