@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import uuid4
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Body
 from mcp_gateway_service.agent_host import (
     AgentHostService,
     AgentMessage,
@@ -21,18 +21,7 @@ from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.completion_create_params import CompletionCreateParams
 from openai.types.completion_usage import CompletionUsage
-from pydantic import TypeAdapter, ValidationError
 from starlette.responses import JSONResponse
-
-CHAT_COMPLETION_REQUEST = TypeAdapter(CompletionCreateParams)
-CHAT_COMPLETION_REQUEST_BODY = {
-    "required": True,
-    "content": {
-        "application/json": {
-            "schema": CHAT_COMPLETION_REQUEST.json_schema(),
-        }
-    },
-}
 
 
 def create_openai_router(agent_host: AgentHostService) -> APIRouter:
@@ -55,15 +44,25 @@ def create_openai_router(agent_host: AgentHostService) -> APIRouter:
         )
         return JSONResponse(response.model_dump(mode="json", exclude_none=True))
 
-    @router.post(
-        "/chat/completions",
-        openapi_extra={"requestBody": CHAT_COMPLETION_REQUEST_BODY},
-    )
-    async def create_chat_completion(request: Request) -> JSONResponse:
+    @router.post("/chat/completions")
+    async def create_chat_completion(
+        payload: CompletionCreateParams = Body(
+            ...,
+            openapi_examples={
+                "basic": {
+                    "summary": "Basic text completion",
+                    "value": {
+                        "model": agent_host.target.target_id,
+                        "messages": [{"role": "user", "content": "Hello"}],
+                        "stream": False,
+                    },
+                }
+            },
+        ),
+    ) -> JSONResponse:
         try:
-            payload = CHAT_COMPLETION_REQUEST.validate_python(await request.json())
             command = _to_start_run_command(payload)
-        except (TypeError, ValueError, ValidationError) as exc:
+        except (TypeError, ValueError) as exc:
             return _error_response(str(exc), status_code=422, error_type="invalid_request_error")
 
         if payload.get("stream") is True:

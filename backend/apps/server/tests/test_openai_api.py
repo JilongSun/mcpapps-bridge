@@ -68,11 +68,23 @@ def test_chat_completions_openapi_describes_the_official_sdk_request_body() -> N
 
     operation = app.openapi()["paths"]["/v1/chat/completions"]["post"]
     request_body = operation["requestBody"]
-    schema = request_body["content"]["application/json"]["schema"]
+    json_body = request_body["content"]["application/json"]
+    schema = json_body["schema"]
+    components = app.openapi()["components"]["schemas"]
 
     assert request_body["required"] is True
-    assert schema
-    assert "$defs" in schema or "$ref" in schema or "anyOf" in schema
+    assert schema["anyOf"] == [
+        {"$ref": "#/components/schemas/CompletionCreateParamsNonStreaming"},
+        {"$ref": "#/components/schemas/CompletionCreateParamsStreaming"},
+    ]
+    assert {"model", "messages"} <= set(
+        components["CompletionCreateParamsNonStreaming"]["properties"]
+    )
+    assert json_body["examples"]["basic"]["value"] == {
+        "model": "fixture-target",
+        "messages": [{"role": "user", "content": "Hello"}],
+        "stream": False,
+    }
 
 
 async def test_official_openai_client_lists_agent_models() -> None:
