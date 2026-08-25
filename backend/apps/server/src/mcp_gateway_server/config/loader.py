@@ -8,6 +8,7 @@ from dataclasses import field
 from pathlib import Path
 
 import yaml
+from dotenv import load_dotenv
 from pydantic import SecretStr, ValidationError
 
 from .models import (
@@ -107,6 +108,7 @@ def resolve_runtime_configuration(
     httpx_timeout_seconds: float | None = None,
 ) -> RuntimeConfiguration:
     loaded = load_bridge_config(config_path)
+    load_dotenv(loaded.path.with_name(".env"), override=False)
     if upstream_name is not None and upstream_name not in loaded.config.upstreams:
         raise ConfigError(f"Unknown upstream '{upstream_name}'")
     bridge = _apply_bridge_overrides(

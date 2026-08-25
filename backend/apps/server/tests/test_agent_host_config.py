@@ -93,3 +93,67 @@ upstreams:
 
     assert configuration.agent_host.api_key is not None
     assert configuration.agent_host.api_key.get_secret_value() == "fixture-secret"
+
+
+def test_agent_host_loads_api_key_from_dotenv_next_to_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "fixture.yaml"
+    config_path.write_text(
+        """
+agentHost:
+  enabled: true
+defaultUpstream: fixture
+upstreams:
+  fixture:
+    transport: stdio
+    command: fixture-server
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / ".env").write_text("API_SERVER_KEY=dotenv-secret\n", encoding="utf-8")
+    monkeypatch.delenv("API_SERVER_KEY", raising=False)
+
+    configuration = resolve_runtime_configuration(
+        str(config_path),
+        upstream_name=None,
+        api_host=None,
+        api_port=None,
+        proxy_name=None,
+    )
+
+    assert configuration.agent_host.api_key is not None
+    assert configuration.agent_host.api_key.get_secret_value() == "dotenv-secret"
+
+
+def test_process_environment_takes_precedence_over_dotenv(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "fixture.yaml"
+    config_path.write_text(
+        """
+agentHost:
+  enabled: true
+defaultUpstream: fixture
+upstreams:
+  fixture:
+    transport: stdio
+    command: fixture-server
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / ".env").write_text("API_SERVER_KEY=dotenv-secret\n", encoding="utf-8")
+    monkeypatch.setenv("API_SERVER_KEY", "process-secret")
+
+    configuration = resolve_runtime_configuration(
+        str(config_path),
+        upstream_name=None,
+        api_host=None,
+        api_port=None,
+        proxy_name=None,
+    )
+
+    assert configuration.agent_host.api_key is not None
+    assert configuration.agent_host.api_key.get_secret_value() == "process-secret"
