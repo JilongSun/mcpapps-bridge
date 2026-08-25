@@ -10,8 +10,7 @@ from mcp_gateway_server.config import ConfigError, resolve_runtime_configuration
 def _write_config(path: Path) -> None:
     path.write_text(
         """
-agentHost:
-  enabled: true
+agentHost: {enabled: true, targetId: fixture-target, endpointSlug: fixture}
   baseUrl: http://hermes.test:8642/v1
   apiKeyEnv: FIXTURE_HERMES_KEY
 defaultUpstream: fixture
@@ -41,6 +40,9 @@ def test_enabled_agent_host_resolves_api_key_from_environment(
     )
 
     assert configuration.agent_host.enabled is True
+    assert configuration.agent_host.target_id == "fixture-target"
+    assert configuration.agent_host.endpoint_slug == "fixture"
+    assert configuration.agent_host.integration == "hermes-http"
     assert configuration.agent_host.base_url == "http://hermes.test:8642/v1"
     assert configuration.agent_host.api_key is not None
     assert configuration.agent_host.api_key.get_secret_value() == "fixture-secret"
@@ -71,8 +73,7 @@ def test_agent_host_uses_hermes_api_server_key_by_default(
     config_path = tmp_path / "fixture.yaml"
     config_path.write_text(
         """
-agentHost:
-  enabled: true
+agentHost: {enabled: true, targetId: fixture-target, endpointSlug: fixture}
 defaultUpstream: fixture
 upstreams:
   fixture:
@@ -102,8 +103,7 @@ def test_agent_host_loads_api_key_from_dotenv_next_to_config(
     config_path = tmp_path / "fixture.yaml"
     config_path.write_text(
         """
-agentHost:
-  enabled: true
+agentHost: {enabled: true, targetId: fixture-target, endpointSlug: fixture}
 defaultUpstream: fixture
 upstreams:
   fixture:
@@ -134,8 +134,7 @@ def test_process_environment_takes_precedence_over_dotenv(
     config_path = tmp_path / "fixture.yaml"
     config_path.write_text(
         """
-agentHost:
-  enabled: true
+agentHost: {enabled: true, targetId: fixture-target, endpointSlug: fixture}
 defaultUpstream: fixture
 upstreams:
   fixture:

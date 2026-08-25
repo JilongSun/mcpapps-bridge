@@ -12,10 +12,12 @@ from .events import (
     AssistantTextDelta,
 )
 from .models import (
+    AgentEndpointAssignment,
     AgentFinishReason,
     AgentMessage,
     AgentModel,
     AgentRunResult,
+    AgentTarget,
     GenerationOptions,
     StartRunCommand,
     TokenUsage,
@@ -27,6 +29,7 @@ __all__ = [
     "AgentAdapterCompleted",
     "AgentAdapterEvent",
     "AgentAdapterTextDelta",
+    "AgentEndpointAssignment",
     "AgentHostService",
     "AgentFinishReason",
     "AgentMessage",
@@ -38,6 +41,7 @@ __all__ = [
     "AgentRunResult",
     "AgentRunStarted",
     "AgentRuntimeAdapter",
+    "AgentTarget",
     "AssistantTextCompleted",
     "AssistantTextDelta",
     "GenerationOptions",

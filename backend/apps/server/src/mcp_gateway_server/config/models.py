@@ -36,15 +36,27 @@ class StorageConfig(CamelModel):
 
 class AgentHostFileConfig(CamelModel):
     enabled: bool = False
-    adapter: Literal["hermes-http"] = "hermes-http"
+    target_id: str | None = Field(default=None, min_length=1)
+    endpoint_slug: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
+    integration: Literal["hermes-http"] = "hermes-http"
     base_url: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:8642/v1")
     api_key_env: str = Field(default="API_SERVER_KEY", min_length=1)
     timeout_seconds: PositiveFloat = 120.0
 
+    @model_validator(mode="after")
+    def validate_enabled_target(self) -> AgentHostFileConfig:
+        if self.enabled and self.target_id is None:
+            raise ValueError("enabled Agent Host requires 'targetId'")
+        if self.enabled and self.endpoint_slug is None:
+            raise ValueError("enabled Agent Host requires 'endpointSlug'")
+        return self
+
 
 class RuntimeAgentHostConfig(BaseModel):
     enabled: bool = False
-    adapter: Literal["hermes-http"] = "hermes-http"
+    target_id: str | None = Field(default=None, min_length=1)
+    endpoint_slug: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
+    integration: Literal["hermes-http"] = "hermes-http"
     base_url: str = "http://127.0.0.1:8642/v1"
     api_key: SecretStr | None = None
     timeout_seconds: PositiveFloat = 120.0

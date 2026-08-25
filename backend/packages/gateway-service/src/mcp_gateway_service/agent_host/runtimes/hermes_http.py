@@ -1,22 +1,15 @@
-"""Hermes Agent Host adapter over its OpenAI-compatible HTTP API."""
+"""Hermes Agent Runtime integration over its OpenAI-compatible HTTP API."""
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
 from typing import cast
 
-from mcp_gateway_service import (
-    AgentAdapterCompleted,
-    AgentAdapterEvent,
-    AgentAdapterTextDelta,
-    AgentMessage,
-    AgentModel,
-    StartRunCommand,
-    TokenUsage,
-)
 from openai import AsyncOpenAI, omit
 from openai.types.chat import ChatCompletionMessageParam
+
+from ..events import AgentAdapterCompleted, AgentAdapterEvent, AgentAdapterTextDelta
+from ..models import AgentMessage, StartRunCommand, TokenUsage
 
 STANDARD_FINISH_REASONS = {
     "stop",
@@ -27,7 +20,7 @@ STANDARD_FINISH_REASONS = {
 }
 
 
-class HermesHttpAgentAdapter:
+class HermesHttpAgentRuntime:
     """Run Hermes as an independently deployed OpenAI-compatible service."""
 
     def __init__(
@@ -43,21 +36,6 @@ class HermesHttpAgentAdapter:
             api_key=api_key,
             timeout=timeout_seconds,
         )
-
-    async def list_models(self) -> list[AgentModel]:
-        page = await self._client.models.list()
-        return [
-            AgentModel(
-                model_id=model.id,
-                created_at=(
-                    datetime.fromtimestamp(model.created, timezone.utc)
-                    if model.created > 0
-                    else None
-                ),
-                owned_by=model.owned_by,
-            )
-            for model in page.data
-        ]
 
     async def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]:
         completion = await self._client.chat.completions.create(

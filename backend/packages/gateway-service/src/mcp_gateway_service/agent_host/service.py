@@ -14,7 +14,7 @@ from .events import (
     AssistantTextCompleted,
     AssistantTextDelta,
 )
-from .models import AgentModel, AgentRunResult, StartRunCommand
+from .models import AgentModel, AgentRunResult, AgentTarget, StartRunCommand
 from .ports import AgentRuntimeAdapter
 
 
@@ -23,13 +23,24 @@ class AgentRunError(RuntimeError):
 
 
 class AgentHostService:
-    def __init__(self, adapter: AgentRuntimeAdapter) -> None:
+    def __init__(self, target: AgentTarget, adapter: AgentRuntimeAdapter) -> None:
+        self._target = target
         self._adapter = adapter
 
+    @property
+    def target(self) -> AgentTarget:
+        return self._target
+
     async def list_models(self) -> list[AgentModel]:
-        return await self._adapter.list_models()
+        return [
+            AgentModel(
+                model_id=self._target.target_id,
+                owned_by=self._target.integration_kind,
+            )
+        ]
 
     async def run_events(self, command: StartRunCommand) -> AsyncIterator[AgentRunEvent]:
+        command = command.model_copy(update={"model": self._target.target_id})
         sequence = 1
         yield AgentRunStarted(
             run_id=command.run_id,

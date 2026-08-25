@@ -7,7 +7,9 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from mcp_gateway_service import (
+    AgentEndpointAssignment,
     AgentHostService,
+    AgentTarget,
     EndpointBinding,
     EndpointDefinition,
     EndpointMode,
@@ -16,8 +18,8 @@ from mcp_gateway_service import (
     UpstreamServerDefinition,
     UpstreamSessionMode,
 )
+from mcp_gateway_service.agent_host.runtimes import HermesHttpAgentRuntime
 
-from mcp_gateway_server.agent_adapters import HermesHttpAgentAdapter
 from mcp_gateway_server.config import RuntimeConfiguration
 from mcp_gateway_server.logging import get_logger
 from mcp_gateway_server.mcp import assemble_gateway_session_coordinator, to_domain_connection
@@ -49,7 +51,7 @@ class BootstrapResult:
 @dataclass(frozen=True)
 class AgentHostComposition:
     service: AgentHostService
-    adapter: HermesHttpAgentAdapter
+    runtime: HermesHttpAgentRuntime
 
 
 async def bootstrap_gateway(configuration: RuntimeConfiguration) -> BootstrapResult:
@@ -81,29 +83,56 @@ async def bootstrap_gateway(configuration: RuntimeConfiguration) -> BootstrapRes
             SqlAlchemyBridgeSessionStoreFactory(database.session_factory),
         )
         logger.info("Bridge manager assembled successfully")
-        agent_host = _assemble_agent_host(configuration)
+        agent_host = _assemble_agent_host(configuration, manager)
     except BaseException:
         logger.exception("Bootstrap failed — closing database")
         if agent_host is not None:
-            await agent_host.adapter.close()
+            await agent_host.runtime.close()
         await database.close()
         raise
     return BootstrapResult(manager=manager, storage=database, agent_host=agent_host)
 
 
-def _assemble_agent_host(configuration: RuntimeConfiguration) -> AgentHostComposition | None:
+def _assemble_agent_host(
+    configuration: RuntimeConfiguration,
+    manager: GatewaySessionCoordinator,
+) -> AgentHostComposition | None:
     config = configuration.agent_host
     if not config.enabled:
         return None
+    if config.target_id is None:
+        raise ValueError("Enabled Agent Host configuration has no target ID")
+    if config.endpoint_slug is None:
+        raise ValueError("Enabled Agent Host configuration has no endpoint assignment")
     if config.api_key is None:
         raise ValueError("Enabled Agent Host configuration has no Hermes API key")
-    adapter = HermesHttpAgentAdapter(
+    endpoint = manager.resolve_published_endpoint(config.endpoint_slug)
+    if endpoint is None:
+        raise ValueError(
+            f"Agent Target '{config.target_id}' references endpoint "
+            f"'{config.endpoint_slug}', which is not published and enabled"
+        )
+    target = AgentTarget(
+        target_id=config.target_id,
+        integration_kind=config.integration,
+        endpoint_assignment=AgentEndpointAssignment(endpoint_slug=config.endpoint_slug),
+    )
+    runtime = HermesHttpAgentRuntime(
         base_url=config.base_url,
         api_key=config.api_key.get_secret_value(),
         timeout_seconds=config.timeout_seconds,
     )
-    logger.info("Agent Host enabled with Hermes HTTP adapter: %s", config.base_url)
-    return AgentHostComposition(service=AgentHostService(adapter), adapter=adapter)
+    logger.info(
+        "Agent Target enabled: id=%s integration=%s endpoint=%s runtime_url=%s",
+        target.target_id,
+        target.integration_kind,
+        endpoint.path,
+        config.base_url,
+    )
+    return AgentHostComposition(
+        service=AgentHostService(target, runtime),
+        runtime=runtime,
+    )
 
 
 def _build_topology_seed(

@@ -70,7 +70,7 @@ async def serve_runtime(args: argparse.Namespace) -> None:
         await runtime.serve()
     finally:
         if result.agent_host is not None:
-            await result.agent_host.adapter.close()
+            await result.agent_host.runtime.close()
         await result.storage.close()
 
 

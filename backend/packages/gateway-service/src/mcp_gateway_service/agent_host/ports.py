@@ -6,10 +6,8 @@ from collections.abc import AsyncIterator
 from typing import Protocol
 
 from .events import AgentAdapterEvent
-from .models import AgentModel, StartRunCommand
+from .models import StartRunCommand
 
 
 class AgentRuntimeAdapter(Protocol):
-    async def list_models(self) -> list[AgentModel]: ...
-
     def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]: ...

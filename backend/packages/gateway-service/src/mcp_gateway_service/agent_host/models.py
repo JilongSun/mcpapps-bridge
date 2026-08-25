@@ -21,6 +21,16 @@ class AgentModel(AgentHostModel):
     owned_by: str = "unknown"
 
 
+class AgentEndpointAssignment(AgentHostModel):
+    endpoint_slug: str = Field(pattern=r"^[a-z][a-z0-9-]*$")
+
+
+class AgentTarget(AgentHostModel):
+    target_id: str = Field(min_length=1)
+    integration_kind: str = Field(min_length=1)
+    endpoint_assignment: AgentEndpointAssignment
+
+
 class AgentMessage(AgentHostModel):
     role: Literal["developer", "system", "user", "assistant", "tool"]
     content: str
@@ -37,7 +47,6 @@ class StartRunCommand(AgentHostModel):
     run_id: UUID = Field(default_factory=uuid4)
     model: str = Field(min_length=1)
     messages: tuple[AgentMessage, ...] = Field(min_length=1)
-    endpoint_slug: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
     options: GenerationOptions = Field(default_factory=GenerationOptions)
 
 

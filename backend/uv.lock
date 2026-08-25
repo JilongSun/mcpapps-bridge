@@ -633,12 +633,14 @@ version = "0.0.0"
 source = { editable = "packages/gateway-service" }
 dependencies = [
     { name = "mcp-bridge-core" },
+    { name = "openai" },
     { name = "pydantic" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "mcp-bridge-core", editable = "packages/bridge-core" },
+    { name = "openai", specifier = ">=2.24,<3" },
     { name = "pydantic", specifier = ">=2.8.0" },
 ]
 

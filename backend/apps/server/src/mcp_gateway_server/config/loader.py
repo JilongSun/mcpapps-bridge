@@ -145,7 +145,9 @@ def _resolve_agent_host_config(config: AgentHostFileConfig) -> RuntimeAgentHostC
         )
     return RuntimeAgentHostConfig(
         enabled=config.enabled,
-        adapter=config.adapter,
+        target_id=config.target_id,
+        endpoint_slug=config.endpoint_slug,
+        integration=config.integration,
         base_url=str(config.base_url),
         api_key=SecretStr(api_key) if api_key is not None else None,
         timeout_seconds=config.timeout_seconds,
