@@ -1,11 +1,13 @@
 # ADR 0003: MCP Apps Gateway and Agent Host
 
-- Status: Accepted; amended by ADR 0008 and ADR 0010
+- Status: Accepted; amended by ADR 0008, ADR 0010, and ADR 0011
 - Date: 2026-07-14
 - Amended: 2026-07-20
 
 ADR 0010 refines the application layer into Gateway, MCP Apps, and Agent Host bounded contexts and
 defines how their optional capabilities compose without creating separate Gateway implementations.
+ADR 0011 narrows the first Agent Host selection model to one Agent Target with one OpenAI model
+identity and one declared Gateway endpoint assignment.
 
 ## Context
 
