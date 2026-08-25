@@ -180,18 +180,16 @@ As of 2026-08-25, this decision is **Partial**.
 
 Implemented foundations:
 
-- one optionally composed Hermes HTTP runtime integration;
-- one `AgentHostService` runtime port;
-- SDK-compatible model discovery and non-streaming Chat Completions; and
+- one configured Agent Target with a canonical OpenAI model identity and endpoint assignment;
+- one `AgentHostService` runtime port that normalizes incoming model selectors to that target;
+- SDK-compatible model-list discovery and non-streaming Chat Completions, with the sole remote
+  Hermes model cached as runtime state;
+- one reusable Hermes/OpenAI runtime integration isolated under `gateway-service.agent_host`;
+- composition-time validation against the current published and enabled Gateway endpoint; and
 - stable managed Gateway endpoint identities and immutable revisions.
 
 Pending work:
 
-- introduce the Agent Target identity and endpoint assignment into application and configuration
-  contracts;
-- canonicalize the OpenAI model representation around the configured target identifier;
-- move the reusable Hermes/OpenAI outbound runtime integration into an isolated
-  `gateway-service.agent_host` runtime module;
-- validate the assigned endpoint during composition and expose the relationship through future
-  management contracts; and
+- expose the Target-to-endpoint relationship and operator configuration guidance through future
+  management and readiness contracts; and
 - implement streaming while preserving normalized Hermes session and tool-progress semantics.

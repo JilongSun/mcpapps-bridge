@@ -23,7 +23,7 @@ Implementation states:
 | [0008](decisions/0008-restart-applied-managed-topology.md) | Accepted | Partial | Persist management changes as immutable revisions and apply them only after process restart |
 | [0009](decisions/0009-mabrid-product-identity.md) | Accepted | Pending | Adopt Mabrid through a coordinated rename after v0.1 contracts stabilize |
 | [0010](decisions/0010-application-contexts-and-capability-composition.md) | Accepted; amended by 0011 | Partial | Organize the application layer into Gateway, MCP Apps, and Agent Host contexts within one service package |
-| [0011](decisions/0011-single-agent-target-and-endpoint-assignment.md) | Accepted | Partial | Use one Agent Target with one OpenAI model identity and one declared Gateway endpoint assignment for v0.1 |
+| [0011](decisions/0011-single-agent-target-and-endpoint-assignment.md) | Accepted | Partial | Single Target identity, canonical OpenAI model list, endpoint validation, and reusable Hermes runtime are implemented; management exposure and runtime correlation remain deferred |
 
 ## Current v0.1 Position
 
@@ -31,8 +31,7 @@ The backend is not waiting only on HTTP API routes. The aggregate gateway data p
 complete vertical slice, but the following backend release work remains:
 
 - Restart-applied upstream, endpoint, and binding management use cases and HTTP APIs.
-- Agent Target identity, declared Gateway endpoint assignment, and reusable runtime integration
-  ownership in the service distribution.
+- Agent Target management/readiness exposure and endpoint configuration guidance.
 - Complete provider-neutral Agent Host tool, MCP, and MCP Apps run events.
 - OpenAI-compatible streaming chat, Responses, capability reporting, and readiness APIs.
 - Hermes streaming, session continuity, tool-progress events, and separate Hermes-specific APIs.

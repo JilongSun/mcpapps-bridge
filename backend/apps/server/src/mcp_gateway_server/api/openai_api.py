@@ -25,6 +25,14 @@ from pydantic import TypeAdapter, ValidationError
 from starlette.responses import JSONResponse
 
 CHAT_COMPLETION_REQUEST = TypeAdapter(CompletionCreateParams)
+CHAT_COMPLETION_REQUEST_BODY = {
+    "required": True,
+    "content": {
+        "application/json": {
+            "schema": CHAT_COMPLETION_REQUEST.json_schema(),
+        }
+    },
+}
 
 
 def create_openai_router(agent_host: AgentHostService) -> APIRouter:
@@ -47,7 +55,10 @@ def create_openai_router(agent_host: AgentHostService) -> APIRouter:
         )
         return JSONResponse(response.model_dump(mode="json", exclude_none=True))
 
-    @router.post("/chat/completions")
+    @router.post(
+        "/chat/completions",
+        openapi_extra={"requestBody": CHAT_COMPLETION_REQUEST_BODY},
+    )
     async def create_chat_completion(request: Request) -> JSONResponse:
         try:
             payload = CHAT_COMPLETION_REQUEST.validate_python(await request.json())

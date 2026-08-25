@@ -36,17 +36,16 @@ class HermesHttpAgentRuntime:
             api_key=api_key,
             timeout=timeout_seconds,
         )
+        self._remote_model_id: str | None = None
 
     async def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]:
         completion = await self._client.chat.completions.create(
-            model=command.model,
+            model=await self._resolve_remote_model_id(),
             messages=[_to_openai_message(message) for message in command.messages],
             max_completion_tokens=command.options.max_output_tokens or omit,
             stream=False,
             temperature=(
-                command.options.temperature
-                if command.options.temperature is not None
-                else omit
+                command.options.temperature if command.options.temperature is not None else omit
             ),
         )
         if not completion.choices:
@@ -71,6 +70,18 @@ class HermesHttpAgentRuntime:
 
     async def close(self) -> None:
         await self._client.close()
+
+    async def _resolve_remote_model_id(self) -> str:
+        if self._remote_model_id is not None:
+            return self._remote_model_id
+        page = await self._client.models.list()
+        models = page.data
+        if len(models) != 1:
+            raise RuntimeError(
+                f"Hermes Agent Target requires exactly one model, received {len(models)}"
+            )
+        self._remote_model_id = models[0].id
+        return self._remote_model_id
 
 
 def _to_openai_message(message: AgentMessage) -> ChatCompletionMessageParam:

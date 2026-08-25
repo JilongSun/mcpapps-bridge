@@ -5,7 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, PositiveFloat, SecretStr, model_validator
+from pydantic import (
+    AnyHttpUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    PositiveFloat,
+    SecretStr,
+    model_validator,
+)
 
 
 def to_camel(value: str) -> str:

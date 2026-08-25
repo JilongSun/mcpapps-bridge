@@ -10,9 +10,7 @@ from mcp_gateway_server.config import ConfigError, resolve_runtime_configuration
 def _write_config(path: Path) -> None:
     path.write_text(
         """
-agentHost: {enabled: true, targetId: fixture-target, endpointSlug: fixture}
-  baseUrl: http://hermes.test:8642/v1
-  apiKeyEnv: FIXTURE_HERMES_KEY
+agentHost: {enabled: true, targetId: fixture-target, endpointSlug: fixture, baseUrl: http://hermes.test:8642/v1, apiKeyEnv: FIXTURE_HERMES_KEY}
 defaultUpstream: fixture
 upstreams:
     fixture:

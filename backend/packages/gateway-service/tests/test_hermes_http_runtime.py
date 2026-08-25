@@ -19,6 +19,21 @@ async def test_hermes_runtime_uses_official_openai_chat_contract() -> None:
 
     async def handle(request: httpx.Request) -> httpx.Response:
         requests.append(request)
+        if request.url.path == "/v1/models":
+            return httpx.Response(
+                200,
+                json={
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": "hermes-agent",
+                            "object": "model",
+                            "created": 1_700_000_000,
+                            "owned_by": "hermes",
+                        }
+                    ],
+                },
+            )
         return httpx.Response(
             200,
             json={
@@ -73,20 +88,64 @@ async def test_hermes_runtime_uses_official_openai_chat_contract() -> None:
     assert events[0].delta == "Hello from Hermes"
     assert isinstance(events[1], AgentAdapterCompleted)
     assert events[1].usage.total_tokens == 7
-    assert [request.url.path for request in requests] == ["/v1/chat/completions"]
-    assert requests[0].headers["authorization"] == "Bearer fixture-key"
-    assert json.loads(requests[0].content) == {
+    assert [request.url.path for request in requests] == [
+        "/v1/models",
+        "/v1/chat/completions",
+    ]
+    assert all(request.headers["authorization"] == "Bearer fixture-key" for request in requests)
+    assert json.loads(requests[1].content) == {
         "messages": [
             {"role": "system", "content": "Be concise"},
             {"role": "user", "content": "Say hello"},
         ],
-        "model": "fixture-target",
+        "model": "hermes-agent",
         "stream": False,
     }
 
 
+async def test_hermes_runtime_requires_exactly_one_remote_model() -> None:
+    async def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"object": "list", "data": []})
+
+    runtime = HermesHttpAgentRuntime(
+        base_url="http://unused.test/v1",
+        api_key="unused",
+        client=AsyncOpenAI(
+            base_url="http://hermes.test/v1",
+            api_key="fixture-key",
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle)),
+        ),
+    )
+    try:
+        events = runtime.run(
+            StartRunCommand(
+                model="fixture-target",
+                messages=(AgentMessage(role="user", content="Say hello"),),
+            )
+        )
+        with pytest.raises(RuntimeError, match="exactly one model, received 0"):
+            await anext(events)
+    finally:
+        await runtime.close()
+
+
 async def test_hermes_runtime_normalizes_nonstandard_error_finish_reason() -> None:
     async def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/models":
+            return httpx.Response(
+                200,
+                json={
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": "hermes-agent",
+                            "object": "model",
+                            "created": 1_700_000_000,
+                            "owned_by": "hermes",
+                        }
+                    ],
+                },
+            )
         return httpx.Response(
             200,
             json={

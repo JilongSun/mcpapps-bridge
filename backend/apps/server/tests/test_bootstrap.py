@@ -65,9 +65,7 @@ async def test_enabled_agent_host_composes_hermes_http_adapter(tmp_path: Path) -
     try:
         assert result.agent_host is not None
         assert result.agent_host.service.target.target_id == "fixture-target"
-        assert (
-            result.agent_host.service.target.endpoint_assignment.endpoint_slug == "fixture"
-        )
+        assert result.agent_host.service.target.endpoint_assignment.endpoint_slug == "fixture"
     finally:
         if result.agent_host is not None:
             await result.agent_host.runtime.close()

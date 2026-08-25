@@ -94,7 +94,5 @@ async def test_agent_host_advertises_only_its_canonical_target() -> None:
 
     models = await service.list_models()
 
-    assert [(model.model_id, model.owned_by) for model in models] == [
-        ("fixture-target", "fixture")
-    ]
+    assert [(model.model_id, model.owned_by) for model in models] == [("fixture-target", "fixture")]
     assert service.target.endpoint_assignment.endpoint_slug == "fixture-endpoint"
