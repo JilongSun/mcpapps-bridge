@@ -1,4 +1,4 @@
-"""Typed contract for the Hermes API server capability document."""
+"""Wire models for the Hermes API server capability document."""
 
 from __future__ import annotations
 
@@ -8,23 +8,23 @@ from openai import BaseModel
 from pydantic import ConfigDict
 
 
-class HermesCapabilityModel(BaseModel):
+class HermesCapabilityDocumentModel(BaseModel):
     model_config = ConfigDict(extra="allow", frozen=True)
 
 
-class HermesAuthCapabilities(HermesCapabilityModel):
+class HermesAuthDescriptor(HermesCapabilityDocumentModel):
     type: str
     required: bool
 
 
-class HermesRuntimeCapabilities(HermesCapabilityModel):
+class HermesRuntimeDescriptor(HermesCapabilityDocumentModel):
     mode: str
     tool_execution: str
     split_runtime: bool
     description: str | None = None
 
 
-class HermesFeatureCapabilities(HermesCapabilityModel):
+class HermesFeatureSet(HermesCapabilityDocumentModel):
     chat_completions: bool = False
     chat_completions_streaming: bool = False
     responses_api: bool = False
@@ -44,16 +44,16 @@ class HermesFeatureCapabilities(HermesCapabilityModel):
     session_key_header: str | None = None
 
 
-class HermesApiEndpoint(HermesCapabilityModel):
+class HermesEndpointDescriptor(HermesCapabilityDocumentModel):
     method: str
     path: str
 
 
-class HermesApiCapabilities(HermesCapabilityModel):
+class HermesCapabilityDocument(HermesCapabilityDocumentModel):
     object: Literal["hermes.api_server.capabilities"]
     platform: str
     model: str
-    auth: HermesAuthCapabilities
-    runtime: HermesRuntimeCapabilities
-    features: HermesFeatureCapabilities
-    endpoints: dict[str, HermesApiEndpoint]
+    auth: HermesAuthDescriptor
+    runtime: HermesRuntimeDescriptor
+    features: HermesFeatureSet
+    endpoints: dict[str, HermesEndpointDescriptor]

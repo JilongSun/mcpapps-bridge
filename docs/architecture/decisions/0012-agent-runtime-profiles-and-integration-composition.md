@@ -85,6 +85,26 @@ narrow optional ports when their application commands and events exist. The base
 not accumulate methods that most integrations implement only by raising unsupported-operation
 errors.
 
+The Agent Host package separates three kinds of contracts:
+
+- provider-neutral commands, events, targets, and runtime profiles owned by the application;
+- outbound ports owned by the application and implemented by runtime integrations; and
+- provider wire documents owned by a specific integration.
+
+The Hermes capability document is a provider wire contract. It does not extend the provider-neutral
+Agent Host contracts and is not exposed through the base `AgentRuntime` port.
+
+### Keep inbound protocols outside the Agent Host application
+
+OpenAI-compatible HTTP routes are inbound server adapters. They translate official OpenAI SDK
+request and response types to and from provider-neutral Agent Host commands and results. MCP
+transport routes are a separate inbound adapter. Neither HTTP surface belongs to the reusable
+Agent Host application package.
+
+The core OpenAI-compatible ingress remains `/v1/models` and `/v1/chat/completions`. Future
+provider-neutral product APIs and provider-specific extension APIs must use separate routers rather
+than adding provider concepts to the OpenAI-compatible surface.
+
 ### Allow multiple integration types without multiple active targets
 
 The service distribution may contain multiple isolated runtime implementations. The deployable

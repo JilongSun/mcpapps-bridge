@@ -122,9 +122,7 @@ async def test_agent_host_advertises_only_its_canonical_target() -> None:
 
 
 def test_agent_host_rejects_a_runtime_that_does_not_match_the_target() -> None:
-    mismatched_profile = PROFILE.model_copy(
-        update={"interface": AgentRuntimeInterface.OPENAI_RESPONSES}
-    )
+    mismatched_profile = PROFILE.model_copy(update={"integration_kind": "other-fixture"})
 
     class MismatchedRuntime(SuccessfulAdapter):
         @property

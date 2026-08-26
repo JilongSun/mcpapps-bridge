@@ -1,4 +1,4 @@
-"""Provider-neutral adapter and application run events."""
+"""Events emitted by Agent Host run orchestration."""
 
 from __future__ import annotations
 
@@ -8,28 +8,12 @@ from uuid import UUID, uuid4
 
 from pydantic import Field, PositiveInt
 
-from .models import AgentFinishReason, AgentHostModel, AgentRunResult, TokenUsage
+from .base import AgentHostModel
+from .run import AgentRunResult
 
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-class AgentAdapterTextDelta(AgentHostModel):
-    kind: Literal["adapter.text.delta"] = "adapter.text.delta"
-    delta: str
-
-
-class AgentAdapterCompleted(AgentHostModel):
-    kind: Literal["adapter.completed"] = "adapter.completed"
-    finish_reason: AgentFinishReason = "stop"
-    usage: TokenUsage = Field(default_factory=TokenUsage)
-
-
-AgentAdapterEvent: TypeAlias = Annotated[
-    AgentAdapterTextDelta | AgentAdapterCompleted,
-    Field(discriminator="kind"),
-]
 
 
 class AgentRunEventBase(AgentHostModel):

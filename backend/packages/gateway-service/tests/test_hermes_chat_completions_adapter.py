@@ -11,9 +11,9 @@ from mcp_gateway_service import (
     AgentRuntimeInterface,
     StartRunCommand,
 )
-from mcp_gateway_service.agent_host.runtimes import (
-    HermesApiCapabilities,
-    HermesHttpAgentRuntime,
+from mcp_gateway_service.agent_host.integrations.hermes import (
+    HermesCapabilityDocument,
+    HermesChatCompletionsAdapter,
 )
 from openai import AsyncOpenAI
 import pytest
@@ -57,7 +57,7 @@ async def test_hermes_runtime_reads_its_typed_capabilities() -> None:
             },
         )
 
-    runtime = HermesHttpAgentRuntime(
+    runtime = HermesChatCompletionsAdapter(
         base_url="http://unused.test/v1",
         api_key="unused",
         client=AsyncOpenAI(
@@ -67,11 +67,11 @@ async def test_hermes_runtime_reads_its_typed_capabilities() -> None:
         ),
     )
     try:
-        capabilities = await runtime.get_capabilities()
+        capabilities = await runtime.fetch_capability_document()
     finally:
         await runtime.close()
 
-    assert isinstance(capabilities, HermesApiCapabilities)
+    assert isinstance(capabilities, HermesCapabilityDocument)
     assert capabilities.platform == "hermes-agent"
     assert capabilities.features.responses_api is True
     assert capabilities.features.session_continuity_header == "X-Hermes-Session-Id"
@@ -128,7 +128,7 @@ async def test_hermes_runtime_uses_official_openai_chat_contract() -> None:
         api_key="fixture-key",
         http_client=http_client,
     )
-    runtime = HermesHttpAgentRuntime(
+    runtime = HermesChatCompletionsAdapter(
         base_url="http://unused.test/v1",
         api_key="unused",
         client=openai_client,
@@ -181,7 +181,7 @@ async def test_hermes_runtime_requires_exactly_one_remote_model() -> None:
     async def handle(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"object": "list", "data": []})
 
-    runtime = HermesHttpAgentRuntime(
+    runtime = HermesChatCompletionsAdapter(
         base_url="http://unused.test/v1",
         api_key="unused",
         client=AsyncOpenAI(
@@ -242,7 +242,7 @@ async def test_hermes_runtime_normalizes_nonstandard_error_finish_reason() -> No
         api_key="fixture-key",
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle)),
     )
-    runtime = HermesHttpAgentRuntime(
+    runtime = HermesChatCompletionsAdapter(
         base_url="http://unused.test/v1",
         api_key="unused",
         client=openai_client,

@@ -1,4 +1,4 @@
-"""OpenAI-compatible HTTP adapter for the provider-neutral Agent Host."""
+"""Inbound OpenAI-compatible HTTP adapter for the Agent Host application."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from openai.types.completion_usage import CompletionUsage
 from starlette.responses import JSONResponse
 
 
-def create_openai_router(agent_host: AgentHostService) -> APIRouter:
+def create_openai_compatibility_router(agent_host: AgentHostService) -> APIRouter:
     router = APIRouter(prefix="/v1")
 
     @router.get("/models")

@@ -1,4 +1,4 @@
-"""Hermes Agent Runtime integration over its OpenAI-compatible HTTP API."""
+"""Hermes runtime adapter for its OpenAI-compatible Chat Completions API."""
 
 from __future__ import annotations
 
@@ -8,8 +8,10 @@ from typing import cast
 from openai import AsyncOpenAI, omit
 from openai.types.chat import ChatCompletionMessageParam
 
-from ..events import AgentAdapterCompleted, AgentAdapterEvent, AgentAdapterTextDelta
-from ..models import (
+from ...contracts import (
+    AgentAdapterCompleted,
+    AgentAdapterEvent,
+    AgentAdapterTextDelta,
     AgentCapability,
     AgentMessage,
     AgentRuntimeInterface,
@@ -17,7 +19,7 @@ from ..models import (
     StartRunCommand,
     TokenUsage,
 )
-from .hermes_capabilities import HermesApiCapabilities
+from .capability_document import HermesCapabilityDocument
 
 STANDARD_FINISH_REASONS = {
     "stop",
@@ -38,8 +40,8 @@ HERMES_CHAT_COMPLETIONS_PROFILE = AgentRuntimeProfile(
 )
 
 
-class HermesHttpAgentRuntime:
-    """Run Hermes as an independently deployed OpenAI-compatible service."""
+class HermesChatCompletionsAdapter:
+    """Run Hermes through its independently deployed Chat Completions API."""
 
     def __init__(
         self,
@@ -60,10 +62,10 @@ class HermesHttpAgentRuntime:
     def profile(self) -> AgentRuntimeProfile:
         return HERMES_CHAT_COMPLETIONS_PROFILE
 
-    async def get_capabilities(self) -> HermesApiCapabilities:
+    async def fetch_capability_document(self) -> HermesCapabilityDocument:
         return await self._client.get(
             "/capabilities",
-            cast_to=HermesApiCapabilities,
+            cast_to=HermesCapabilityDocument,
         )
 
     async def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]:

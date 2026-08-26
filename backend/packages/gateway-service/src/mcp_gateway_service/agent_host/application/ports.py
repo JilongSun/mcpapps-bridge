@@ -1,12 +1,11 @@
-"""Provider ports used by the Agent Host application context."""
+"""Outbound ports owned by the Agent Host application."""
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from typing import Protocol
 
-from .events import AgentAdapterEvent
-from .models import AgentRuntimeProfile, StartRunCommand
+from ..contracts import AgentAdapterEvent, AgentRuntimeProfile, StartRunCommand
 
 
 class AgentRuntime(Protocol):
