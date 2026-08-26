@@ -7,24 +7,42 @@ from mcp_gateway_service.agent_host import (
     AgentAdapterCompleted,
     AgentAdapterEvent,
     AgentAdapterTextDelta,
+    AgentCapability,
     AgentEndpointAssignment,
     AgentHostService,
     AgentMessage,
     AgentRunError,
-    AgentRuntimeAdapter,
+    AgentRuntime,
+    AgentRuntimeInterface,
+    AgentRuntimeProfile,
     AgentTarget,
     StartRunCommand,
     TokenUsage,
 )
 
+PROFILE = AgentRuntimeProfile(
+    integration_kind="fixture",
+    interface=AgentRuntimeInterface.OPENAI_CHAT_COMPLETIONS,
+    capabilities=frozenset(
+        {
+            AgentCapability.TEXT_GENERATION,
+            AgentCapability.TOKEN_USAGE,
+        }
+    ),
+)
+
 TARGET = AgentTarget(
     target_id="fixture-target",
-    integration_kind="fixture",
+    runtime_profile=PROFILE,
     endpoint_assignment=AgentEndpointAssignment(endpoint_slug="fixture-endpoint"),
 )
 
 
 class SuccessfulAdapter:
+    @property
+    def profile(self) -> AgentRuntimeProfile:
+        return PROFILE
+
     async def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]:
         assert command.model == TARGET.target_id
         yield AgentAdapterTextDelta(delta="Hello")
@@ -36,6 +54,10 @@ class SuccessfulAdapter:
 
 
 class FailingAdapter:
+    @property
+    def profile(self) -> AgentRuntimeProfile:
+        return PROFILE
+
     async def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]:
         raise RuntimeError(f"Provider unavailable for {command.model}")
         yield
@@ -78,7 +100,7 @@ async def test_agent_host_complete_returns_the_terminal_result() -> None:
 
 
 async def test_agent_host_normalizes_adapter_failure() -> None:
-    adapter: AgentRuntimeAdapter = FailingAdapter()
+    adapter: AgentRuntime = FailingAdapter()
     service = AgentHostService(TARGET, adapter)
 
     events = [event async for event in service.run_events(_command())]
@@ -95,4 +117,19 @@ async def test_agent_host_advertises_only_its_canonical_target() -> None:
     models = await service.list_models()
 
     assert [(model.model_id, model.owned_by) for model in models] == [("fixture-target", "fixture")]
+    assert service.runtime_profile == PROFILE
     assert service.target.endpoint_assignment.endpoint_slug == "fixture-endpoint"
+
+
+def test_agent_host_rejects_a_runtime_that_does_not_match_the_target() -> None:
+    mismatched_profile = PROFILE.model_copy(
+        update={"interface": AgentRuntimeInterface.OPENAI_RESPONSES}
+    )
+
+    class MismatchedRuntime(SuccessfulAdapter):
+        @property
+        def profile(self) -> AgentRuntimeProfile:
+            return mismatched_profile
+
+    with pytest.raises(ValueError, match="does not match Agent Target"):
+        AgentHostService(TARGET, MismatchedRuntime())

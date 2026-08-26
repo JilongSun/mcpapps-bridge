@@ -9,7 +9,14 @@ from openai import AsyncOpenAI, omit
 from openai.types.chat import ChatCompletionMessageParam
 
 from ..events import AgentAdapterCompleted, AgentAdapterEvent, AgentAdapterTextDelta
-from ..models import AgentMessage, StartRunCommand, TokenUsage
+from ..models import (
+    AgentCapability,
+    AgentMessage,
+    AgentRuntimeInterface,
+    AgentRuntimeProfile,
+    StartRunCommand,
+    TokenUsage,
+)
 
 STANDARD_FINISH_REASONS = {
     "stop",
@@ -18,6 +25,16 @@ STANDARD_FINISH_REASONS = {
     "content_filter",
     "function_call",
 }
+HERMES_CHAT_COMPLETIONS_PROFILE = AgentRuntimeProfile(
+    integration_kind="hermes",
+    interface=AgentRuntimeInterface.OPENAI_CHAT_COMPLETIONS,
+    capabilities=frozenset(
+        {
+            AgentCapability.TEXT_GENERATION,
+            AgentCapability.TOKEN_USAGE,
+        }
+    ),
+)
 
 
 class HermesHttpAgentRuntime:
@@ -37,6 +54,10 @@ class HermesHttpAgentRuntime:
             timeout=timeout_seconds,
         )
         self._remote_model_id: str | None = None
+
+    @property
+    def profile(self) -> AgentRuntimeProfile:
+        return HERMES_CHAT_COMPLETIONS_PROFILE
 
     async def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]:
         completion = await self._client.chat.completions.create(

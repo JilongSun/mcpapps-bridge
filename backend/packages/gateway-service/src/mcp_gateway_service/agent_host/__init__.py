@@ -12,23 +12,27 @@ from .events import (
     AssistantTextDelta,
 )
 from .models import (
+    AgentCapability,
     AgentEndpointAssignment,
     AgentFinishReason,
     AgentMessage,
     AgentModel,
     AgentRunResult,
+    AgentRuntimeInterface,
+    AgentRuntimeProfile,
     AgentTarget,
     GenerationOptions,
     StartRunCommand,
     TokenUsage,
 )
-from .ports import AgentRuntimeAdapter
+from .ports import AgentRuntime, ManagedAgentRuntime
 from .service import AgentHostService, AgentRunError
 
 __all__ = [
     "AgentAdapterCompleted",
     "AgentAdapterEvent",
     "AgentAdapterTextDelta",
+    "AgentCapability",
     "AgentEndpointAssignment",
     "AgentHostService",
     "AgentFinishReason",
@@ -40,11 +44,14 @@ __all__ = [
     "AgentRunFailed",
     "AgentRunResult",
     "AgentRunStarted",
-    "AgentRuntimeAdapter",
+    "AgentRuntime",
+    "AgentRuntimeInterface",
+    "AgentRuntimeProfile",
     "AgentTarget",
     "AssistantTextCompleted",
     "AssistantTextDelta",
     "GenerationOptions",
+    "ManagedAgentRuntime",
     "StartRunCommand",
     "TokenUsage",
 ]

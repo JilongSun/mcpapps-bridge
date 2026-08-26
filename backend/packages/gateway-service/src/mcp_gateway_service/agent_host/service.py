@@ -14,8 +14,8 @@ from .events import (
     AssistantTextCompleted,
     AssistantTextDelta,
 )
-from .models import AgentModel, AgentRunResult, AgentTarget, StartRunCommand
-from .ports import AgentRuntimeAdapter
+from .models import AgentModel, AgentRunResult, AgentRuntimeProfile, AgentTarget, StartRunCommand
+from .ports import AgentRuntime
 
 
 class AgentRunError(RuntimeError):
@@ -23,19 +23,28 @@ class AgentRunError(RuntimeError):
 
 
 class AgentHostService:
-    def __init__(self, target: AgentTarget, adapter: AgentRuntimeAdapter) -> None:
+    def __init__(self, target: AgentTarget, runtime: AgentRuntime) -> None:
+        if target.runtime_profile != runtime.profile:
+            raise ValueError(
+                f"Runtime profile {runtime.profile.interface!s} does not match Agent Target "
+                f"profile {target.runtime_profile.interface!s}"
+            )
         self._target = target
-        self._adapter = adapter
+        self._runtime = runtime
 
     @property
     def target(self) -> AgentTarget:
         return self._target
 
+    @property
+    def runtime_profile(self) -> AgentRuntimeProfile:
+        return self._target.runtime_profile
+
     async def list_models(self) -> list[AgentModel]:
         return [
             AgentModel(
                 model_id=self._target.target_id,
-                owned_by=self._target.integration_kind,
+                owned_by=self._target.runtime_profile.integration_kind,
             )
         ]
 
@@ -49,7 +58,7 @@ class AgentHostService:
         )
         text_parts: list[str] = []
         try:
-            async for event in self._adapter.run(command):
+            async for event in self._runtime.run(command):
                 sequence += 1
                 if isinstance(event, AgentAdapterTextDelta):
                     text_parts.append(event.delta)

@@ -15,11 +15,12 @@ from mcp_gateway_service import (
     EndpointMode,
     EndpointSessionPolicy,
     GatewaySessionCoordinator,
+    ManagedAgentRuntime,
     UpstreamServerDefinition,
     UpstreamSessionMode,
 )
-from mcp_gateway_service.agent_host.runtimes import HermesHttpAgentRuntime
 
+from mcp_gateway_server.agent_runtime import build_agent_runtime
 from mcp_gateway_server.config import RuntimeConfiguration
 from mcp_gateway_server.logging import get_logger
 from mcp_gateway_server.mcp import assemble_gateway_session_coordinator, to_domain_connection
@@ -51,7 +52,7 @@ class BootstrapResult:
 @dataclass(frozen=True)
 class AgentHostComposition:
     service: AgentHostService
-    runtime: HermesHttpAgentRuntime
+    runtime: ManagedAgentRuntime
 
 
 async def bootstrap_gateway(configuration: RuntimeConfiguration) -> BootstrapResult:
@@ -104,30 +105,24 @@ def _assemble_agent_host(
         raise ValueError("Enabled Agent Host configuration has no target ID")
     if config.endpoint_slug is None:
         raise ValueError("Enabled Agent Host configuration has no endpoint assignment")
-    if config.api_key is None:
-        raise ValueError("Enabled Agent Host configuration has no Hermes API key")
     endpoint = manager.resolve_published_endpoint(config.endpoint_slug)
     if endpoint is None:
         raise ValueError(
             f"Agent Target '{config.target_id}' references endpoint "
             f"'{config.endpoint_slug}', which is not published and enabled"
         )
+    runtime = build_agent_runtime(config.runtime)
     target = AgentTarget(
         target_id=config.target_id,
-        integration_kind=config.integration,
+        runtime_profile=runtime.profile,
         endpoint_assignment=AgentEndpointAssignment(endpoint_slug=config.endpoint_slug),
-    )
-    runtime = HermesHttpAgentRuntime(
-        base_url=config.base_url,
-        api_key=config.api_key.get_secret_value(),
-        timeout_seconds=config.timeout_seconds,
     )
     logger.info(
         "Agent Target enabled: id=%s integration=%s endpoint=%s runtime_url=%s",
         target.target_id,
-        target.integration_kind,
+        target.runtime_profile.integration_kind,
         endpoint.path,
-        config.base_url,
+        config.runtime.base_url,
     )
     return AgentHostComposition(
         service=AgentHostService(target, runtime),

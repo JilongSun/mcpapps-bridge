@@ -17,6 +17,7 @@ from .models import (
     EndpointFileConfig,
     McpAppsBridgeConfig,
     RuntimeAgentHostConfig,
+    RuntimeHermesAgentConfig,
     RuntimeUpstreamConfig,
     StorageConfig,
     UpstreamFileConfig,
@@ -138,19 +139,23 @@ def resolve_runtime_configuration(
 
 
 def _resolve_agent_host_config(config: AgentHostFileConfig) -> RuntimeAgentHostConfig:
-    api_key = os.environ.get(config.api_key_env)
+    runtime = config.runtime
+    api_key = os.environ.get(runtime.api_key_env)
     if config.enabled and not api_key:
         raise ConfigError(
-            f"Agent Host is enabled but environment variable '{config.api_key_env}' is not set"
+            f"Agent Host is enabled but environment variable '{runtime.api_key_env}' is not set"
         )
     return RuntimeAgentHostConfig(
         enabled=config.enabled,
         target_id=config.target_id,
         endpoint_slug=config.endpoint_slug,
-        integration=config.integration,
-        base_url=str(config.base_url),
-        api_key=SecretStr(api_key) if api_key is not None else None,
-        timeout_seconds=config.timeout_seconds,
+        runtime=RuntimeHermesAgentConfig(
+            integration=runtime.integration,
+            interface=runtime.interface,
+            base_url=str(runtime.base_url),
+            api_key=SecretStr(api_key) if api_key is not None else None,
+            timeout_seconds=runtime.timeout_seconds,
+        ),
     )
 
 

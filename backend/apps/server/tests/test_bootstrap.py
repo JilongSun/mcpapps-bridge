@@ -3,12 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from pydantic import SecretStr
+from mcp_gateway_service import AgentCapability, AgentRuntimeInterface
 
 from mcp_gateway_server.bootstrap import bootstrap_gateway
 from mcp_gateway_server.config import (
     BridgeRuntimeConfig,
     RuntimeAgentHostConfig,
     RuntimeConfiguration,
+    RuntimeHermesAgentConfig,
     RuntimeUpstreamConfig,
     StorageConfig,
 )
@@ -56,8 +58,10 @@ async def test_enabled_agent_host_composes_hermes_http_adapter(tmp_path: Path) -
             enabled=True,
             target_id="fixture-target",
             endpoint_slug="fixture",
-            base_url="http://hermes.test:8642/v1",
-            api_key=SecretStr("fixture-secret"),
+            runtime=RuntimeHermesAgentConfig(
+                base_url="http://hermes.test:8642/v1",
+                api_key=SecretStr("fixture-secret"),
+            ),
         ),
     )
 
@@ -65,6 +69,15 @@ async def test_enabled_agent_host_composes_hermes_http_adapter(tmp_path: Path) -
     try:
         assert result.agent_host is not None
         assert result.agent_host.service.target.target_id == "fixture-target"
+        assert result.agent_host.service.runtime_profile.interface is (
+            AgentRuntimeInterface.OPENAI_CHAT_COMPLETIONS
+        )
+        assert result.agent_host.service.runtime_profile.capabilities == frozenset(
+            {
+                AgentCapability.TEXT_GENERATION,
+                AgentCapability.TOKEN_USAGE,
+            }
+        )
         assert result.agent_host.service.target.endpoint_assignment.endpoint_slug == "fixture"
     finally:
         if result.agent_host is not None:
@@ -89,8 +102,10 @@ async def test_agent_target_requires_a_published_enabled_endpoint(tmp_path: Path
             enabled=True,
             target_id="fixture-target",
             endpoint_slug="missing-endpoint",
-            base_url="http://hermes.test:8642/v1",
-            api_key=SecretStr("fixture-secret"),
+            runtime=RuntimeHermesAgentConfig(
+                base_url="http://hermes.test:8642/v1",
+                api_key=SecretStr("fixture-secret"),
+            ),
         ),
     )
 

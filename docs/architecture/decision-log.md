@@ -22,8 +22,9 @@ Implementation states:
 | [0007](decisions/0007-cembrid-identity-and-deployment-shells.md) | Accepted; brand superseded by 0009 | Partial | Retain Web/OCI and Tauri desktop service shells; its Cembrid identity is superseded |
 | [0008](decisions/0008-restart-applied-managed-topology.md) | Accepted | Partial | Persist management changes as immutable revisions and apply them only after process restart |
 | [0009](decisions/0009-mabrid-product-identity.md) | Accepted | Pending | Adopt Mabrid through a coordinated rename after v0.1 contracts stabilize |
-| [0010](decisions/0010-application-contexts-and-capability-composition.md) | Accepted; amended by 0011 | Partial | Organize the application layer into Gateway, MCP Apps, and Agent Host contexts within one service package |
-| [0011](decisions/0011-single-agent-target-and-endpoint-assignment.md) | Accepted | Partial | Single Target identity, canonical OpenAI model list, endpoint validation, and reusable Hermes runtime are implemented; management exposure and runtime correlation remain deferred |
+| [0010](decisions/0010-application-contexts-and-capability-composition.md) | Accepted; amended by 0011 and 0012 | Partial | Organize the application layer into Gateway, MCP Apps, and Agent Host contexts within one service package |
+| [0011](decisions/0011-single-agent-target-and-endpoint-assignment.md) | Accepted; amended by 0012 | Partial | Single Target identity, canonical OpenAI model list, endpoint validation, and reusable Hermes runtime are implemented; management exposure and runtime correlation remain deferred |
+| [0012](decisions/0012-agent-runtime-profiles-and-integration-composition.md) | Accepted | Partial | Runtime profiles, conservative capabilities, nested runtime configuration, and single-instance integration composition are implemented |
 
 ## Current v0.1 Position
 
@@ -32,6 +33,7 @@ complete vertical slice, but the following backend release work remains:
 
 - Restart-applied upstream, endpoint, and binding management use cases and HTTP APIs.
 - Agent Target management/readiness exposure and endpoint configuration guidance.
+- Effective Agent Runtime capability exposure and additional runtime interface implementations.
 - Complete provider-neutral Agent Host tool, MCP, and MCP Apps run events.
 - OpenAI-compatible streaming chat, Responses, capability reporting, and readiness APIs.
 - Hermes streaming, session continuity, tool-progress events, and separate Hermes-specific APIs.

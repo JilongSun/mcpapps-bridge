@@ -1,12 +1,14 @@
 # ADR 0010: Application Contexts and Capability Composition
 
-- Status: Accepted; amended by ADR 0011
+- Status: Accepted; amended by ADR 0011 and ADR 0012
 - Date: 2026-08-21
 - Amends: ADR 0003 and ADR 0006
 
 ADR 0011 defines the v0.1 single Agent Target and its declared Gateway endpoint assignment, and it
 moves reusable outbound Agent Runtime integrations from the deployment server into an isolated
 area of the service distribution.
+ADR 0012 separates runtime integration, API interface, and effective capabilities while retaining
+one configured Agent Target and one runtime instance.
 
 ## Context
 

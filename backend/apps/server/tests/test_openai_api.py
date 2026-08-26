@@ -10,9 +10,12 @@ from mcp_gateway_service.agent_host import (
     AgentAdapterCompleted,
     AgentAdapterEvent,
     AgentAdapterTextDelta,
+    AgentCapability,
     AgentEndpointAssignment,
     AgentHostService,
-    AgentRuntimeAdapter,
+    AgentRuntime,
+    AgentRuntimeInterface,
+    AgentRuntimeProfile,
     AgentTarget,
     StartRunCommand,
     TokenUsage,
@@ -22,14 +25,28 @@ from openai import APIStatusError
 
 from mcp_gateway_server.api import create_app
 
+PROFILE = AgentRuntimeProfile(
+    integration_kind="fixture",
+    interface=AgentRuntimeInterface.OPENAI_CHAT_COMPLETIONS,
+    capabilities=frozenset(
+        {
+            AgentCapability.TEXT_GENERATION,
+            AgentCapability.TOKEN_USAGE,
+        }
+    ),
+)
 TARGET = AgentTarget(
     target_id="fixture-target",
-    integration_kind="fixture",
+    runtime_profile=PROFILE,
     endpoint_assignment=AgentEndpointAssignment(endpoint_slug="fixture-endpoint"),
 )
 
 
 class FixtureAgentAdapter:
+    @property
+    def profile(self) -> AgentRuntimeProfile:
+        return PROFILE
+
     async def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]:
         assert command.model == TARGET.target_id
         assert command.messages[-1].content == "Say hello"
@@ -59,8 +76,8 @@ def _openai_client(agent_host: AgentHostService) -> AsyncOpenAI:
     )
 
 
-def _agent_host(adapter: AgentRuntimeAdapter | None = None) -> AgentHostService:
-    return AgentHostService(TARGET, adapter or FixtureAgentAdapter())
+def _agent_host(runtime: AgentRuntime | None = None) -> AgentHostService:
+    return AgentHostService(TARGET, runtime or FixtureAgentAdapter())
 
 
 def test_chat_completions_openapi_describes_the_official_sdk_request_body() -> None:

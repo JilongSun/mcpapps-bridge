@@ -42,14 +42,19 @@ class StorageConfig(CamelModel):
     bootstrap_mode: Literal["seed-if-empty"] = "seed-if-empty"
 
 
+class HermesAgentRuntimeFileConfig(CamelModel):
+    integration: Literal["hermes"] = "hermes"
+    interface: Literal["openai-chat-completions"] = "openai-chat-completions"
+    base_url: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:8642/v1")
+    api_key_env: str = Field(default="API_SERVER_KEY", min_length=1)
+    timeout_seconds: PositiveFloat = 120.0
+
+
 class AgentHostFileConfig(CamelModel):
     enabled: bool = False
     target_id: str | None = Field(default=None, min_length=1)
     endpoint_slug: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
-    integration: Literal["hermes-http"] = "hermes-http"
-    base_url: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:8642/v1")
-    api_key_env: str = Field(default="API_SERVER_KEY", min_length=1)
-    timeout_seconds: PositiveFloat = 120.0
+    runtime: HermesAgentRuntimeFileConfig = Field(default_factory=HermesAgentRuntimeFileConfig)
 
     @model_validator(mode="after")
     def validate_enabled_target(self) -> AgentHostFileConfig:
@@ -60,14 +65,19 @@ class AgentHostFileConfig(CamelModel):
         return self
 
 
+class RuntimeHermesAgentConfig(BaseModel):
+    integration: Literal["hermes"] = "hermes"
+    interface: Literal["openai-chat-completions"] = "openai-chat-completions"
+    base_url: str = "http://127.0.0.1:8642/v1"
+    api_key: SecretStr | None = None
+    timeout_seconds: PositiveFloat = 120.0
+
+
 class RuntimeAgentHostConfig(BaseModel):
     enabled: bool = False
     target_id: str | None = Field(default=None, min_length=1)
     endpoint_slug: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
-    integration: Literal["hermes-http"] = "hermes-http"
-    base_url: str = "http://127.0.0.1:8642/v1"
-    api_key: SecretStr | None = None
-    timeout_seconds: PositiveFloat = 120.0
+    runtime: RuntimeHermesAgentConfig = Field(default_factory=RuntimeHermesAgentConfig)
 
 
 class UpstreamFileConfig(CamelModel):

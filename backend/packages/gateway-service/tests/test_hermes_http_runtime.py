@@ -6,7 +6,9 @@ import httpx
 from mcp_gateway_service import (
     AgentAdapterCompleted,
     AgentAdapterTextDelta,
+    AgentCapability,
     AgentMessage,
+    AgentRuntimeInterface,
     StartRunCommand,
 )
 from mcp_gateway_service.agent_host.runtimes import HermesHttpAgentRuntime
@@ -68,6 +70,14 @@ async def test_hermes_runtime_uses_official_openai_chat_contract() -> None:
         client=openai_client,
     )
     try:
+        assert runtime.profile.integration_kind == "hermes"
+        assert runtime.profile.interface is AgentRuntimeInterface.OPENAI_CHAT_COMPLETIONS
+        assert runtime.profile.capabilities == frozenset(
+            {
+                AgentCapability.TEXT_GENERATION,
+                AgentCapability.TOKEN_USAGE,
+            }
+        )
         events = [
             event
             async for event in runtime.run(
