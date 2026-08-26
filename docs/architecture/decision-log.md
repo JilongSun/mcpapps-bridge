@@ -24,7 +24,7 @@ Implementation states:
 | [0009](decisions/0009-mabrid-product-identity.md) | Accepted | Pending | Adopt Mabrid through a coordinated rename after v0.1 contracts stabilize |
 | [0010](decisions/0010-application-contexts-and-capability-composition.md) | Accepted; amended by 0011 and 0012 | Partial | Organize the application layer into Gateway, MCP Apps, and Agent Host contexts within one service package |
 | [0011](decisions/0011-single-agent-target-and-endpoint-assignment.md) | Accepted; amended by 0012 | Partial | Single Target identity, canonical OpenAI model list, endpoint validation, and reusable Hermes runtime are implemented; management exposure and runtime correlation remain deferred |
-| [0012](decisions/0012-agent-runtime-profiles-and-integration-composition.md) | Accepted | Partial | Runtime profiles, conservative capabilities, nested runtime configuration, and single-instance integration composition are implemented |
+| [0012](decisions/0012-agent-runtime-profiles-and-integration-composition.md) | Accepted | Partial | Runtime profiles, typed Hermes capability discovery, nested runtime configuration, and single-instance integration composition are implemented |
 
 ## Current v0.1 Position
 

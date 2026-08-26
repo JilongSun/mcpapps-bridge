@@ -61,9 +61,10 @@ capability contract. The eventual effective set is the intersection of:
 2. behavior advertised or verified by the configured remote runtime; and
 3. behavior enabled by deployment policy.
 
-The first implementation uses only the static local implementation profile. Dynamic probing of
-Hermes `/v1/capabilities`, readiness state, and drift reporting are deferred. Startup therefore
-does not require Hermes to be reachable.
+The Hermes integration provides an explicit typed client for `/v1/capabilities`, but the first
+composition still uses only the static local implementation profile. Automatic probing, readiness
+state, effective-capability calculation, and drift reporting are deferred. Startup therefore does
+not require Hermes to be reachable.
 
 MCP Apps rendering is not an Agent Runtime capability. It is a composed product capability that
 requires provider-neutral tool and resource events, Gateway session correlation, the MCP Apps
@@ -167,11 +168,12 @@ Implemented:
 - profile compatibility validation in `AgentHostService`;
 - narrow application and managed-lifecycle runtime ports;
 - a static Hermes Chat Completions profile;
+- a typed Hermes-specific `/v1/capabilities` discovery client;
 - nested runtime configuration; and
 - a server-owned runtime builder that composes one target and runtime.
 
 Pending:
 
 - additional runtime integration or interface implementations;
-- effective capability exposure through management and readiness APIs; and
-- dynamic remote capability verification.
+- effective capability calculation and exposure through management and readiness APIs; and
+- automatic remote capability verification and drift reporting.

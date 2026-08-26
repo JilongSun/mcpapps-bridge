@@ -17,6 +17,7 @@ from ..models import (
     StartRunCommand,
     TokenUsage,
 )
+from .hermes_capabilities import HermesApiCapabilities
 
 STANDARD_FINISH_REASONS = {
     "stop",
@@ -58,6 +59,12 @@ class HermesHttpAgentRuntime:
     @property
     def profile(self) -> AgentRuntimeProfile:
         return HERMES_CHAT_COMPLETIONS_PROFILE
+
+    async def get_capabilities(self) -> HermesApiCapabilities:
+        return await self._client.get(
+            "/capabilities",
+            cast_to=HermesApiCapabilities,
+        )
 
     async def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]:
         completion = await self._client.chat.completions.create(

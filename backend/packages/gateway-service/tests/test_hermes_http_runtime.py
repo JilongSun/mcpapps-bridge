@@ -11,9 +11,73 @@ from mcp_gateway_service import (
     AgentRuntimeInterface,
     StartRunCommand,
 )
-from mcp_gateway_service.agent_host.runtimes import HermesHttpAgentRuntime
+from mcp_gateway_service.agent_host.runtimes import (
+    HermesApiCapabilities,
+    HermesHttpAgentRuntime,
+)
 from openai import AsyncOpenAI
 import pytest
+
+
+async def test_hermes_runtime_reads_its_typed_capabilities() -> None:
+    requests: list[httpx.Request] = []
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "object": "hermes.api_server.capabilities",
+                "platform": "hermes-agent",
+                "model": "hermes-agent",
+                "auth": {"type": "bearer", "required": True},
+                "runtime": {
+                    "mode": "server_agent",
+                    "tool_execution": "server",
+                    "split_runtime": False,
+                },
+                "features": {
+                    "chat_completions": True,
+                    "chat_completions_streaming": True,
+                    "responses_api": True,
+                    "run_submission": True,
+                    "run_stop": True,
+                    "run_steer": True,
+                    "run_approval_response": True,
+                    "tool_progress_events": True,
+                    "session_continuity_header": "X-Hermes-Session-Id",
+                },
+                "endpoints": {
+                    "chat_completions": {
+                        "method": "POST",
+                        "path": "/v1/chat/completions",
+                    },
+                    "runs": {"method": "POST", "path": "/v1/runs"},
+                },
+            },
+        )
+
+    runtime = HermesHttpAgentRuntime(
+        base_url="http://unused.test/v1",
+        api_key="unused",
+        client=AsyncOpenAI(
+            base_url="http://hermes.test/v1",
+            api_key="fixture-key",
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle)),
+        ),
+    )
+    try:
+        capabilities = await runtime.get_capabilities()
+    finally:
+        await runtime.close()
+
+    assert isinstance(capabilities, HermesApiCapabilities)
+    assert capabilities.platform == "hermes-agent"
+    assert capabilities.features.responses_api is True
+    assert capabilities.features.session_continuity_header == "X-Hermes-Session-Id"
+    assert capabilities.endpoints["runs"].path == "/v1/runs"
+    assert [request.url.path for request in requests] == ["/v1/capabilities"]
+    assert requests[0].headers["authorization"] == "Bearer fixture-key"
 
 
 async def test_hermes_runtime_uses_official_openai_chat_contract() -> None:
