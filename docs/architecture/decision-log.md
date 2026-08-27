@@ -21,10 +21,11 @@ Implementation states:
 | [0006](decisions/0006-core-service-and-server-packages.md) | Accepted | Implemented | Protocol core, application services, and the deployable server are separate dependency-ordered workspace packages |
 | [0007](decisions/0007-cembrid-identity-and-deployment-shells.md) | Accepted; brand superseded by 0009 | Partial | Retain Web/OCI and Tauri desktop service shells; its Cembrid identity is superseded |
 | [0008](decisions/0008-restart-applied-managed-topology.md) | Accepted | Partial | Persist management changes as immutable revisions and apply them only after process restart |
-| [0009](decisions/0009-mabrid-product-identity.md) | Accepted | Pending | Adopt Mabrid through a coordinated rename after v0.1 contracts stabilize |
+| [0009](decisions/0009-mabrid-product-identity.md) | Accepted; code migration timing amended by 0013 | Partial | Mabrid code identity migrates with the backend refactor; repository and remote migration remain deferred |
 | [0010](decisions/0010-application-contexts-and-capability-composition.md) | Accepted; amended by 0011 and 0012 | Partial | Organize the application layer into Gateway, MCP Apps, and Agent Host contexts within one service package |
 | [0011](decisions/0011-single-agent-target-and-endpoint-assignment.md) | Accepted; amended by 0012 | Partial | Single Target identity, canonical OpenAI model list, endpoint validation, and reusable Hermes runtime are implemented; management exposure and runtime correlation remain deferred |
 | [0012](decisions/0012-agent-runtime-profiles-and-integration-composition.md) | Accepted | Partial | Runtime profiles, typed Hermes capability discovery, nested runtime configuration, and single-instance integration composition are implemented |
+| [0013](decisions/0013-backend-semantic-boundaries-and-mabrid-code-identity.md) | Accepted | Pending | Reorganize backend contexts, centralize MCP transport in core, prune provisional contracts, and adopt Mabrid code namespaces |
 
 ## Current v0.1 Position
 

@@ -7,7 +7,6 @@ bridge:
 storage:
   sqlitePath: ./backend/var/mcpapps-bridge.db
   autoMigrate: true
-  bootstrapMode: seed-if-empty
 
 endpoints:
   test-endpoint:

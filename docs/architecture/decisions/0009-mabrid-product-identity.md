@@ -1,8 +1,12 @@
 # ADR 0009: Mabrid Product Identity
 
-- Status: Accepted
+- Status: Accepted; code migration timing amended by ADR 0013
 - Date: 2026-08-21
 - Supersedes: the Cembrid brand decision in ADR 0007
+
+ADR 0013 starts the coordinated Python and deployment-code identity migration during the backend
+semantic refactor. Repository directory and Git remote migration remain deferred until the owner
+completes the v0.1 scope. The product identity decision in this ADR is unchanged.
 
 ## Context
 
@@ -42,8 +46,9 @@ or the public DNS namespace.
 
 ## Implementation Status
 
-As of 2026-08-21:
+As of 2026-08-26:
 
 - **Decision complete:** Mabrid replaces Cembrid as the intended future brand.
-- **Deferred:** coordinated repository, package, executable, configuration, UI, and
-  protocol-identity migration.
+- **In progress under ADR 0013:** coordinated Python package and deployment-code migration.
+- **Deferred:** repository directory, GitHub repository, Git remote, and frontend identity
+  migration.
