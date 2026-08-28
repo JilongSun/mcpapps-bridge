@@ -1,51 +1,54 @@
 """Framework- and persistence-independent MCP bridge contracts."""
 
-from .downstream import BridgeDownstreamServer
+from .downstream import (
+    BridgeDownstreamServer,
+    McpSessionBroker,
+    McpTransportSession,
+    create_mcp_asgi_app,
+)
 from .engine import BridgeEngine, BridgeSession
-from .observations import (
+from .contracts import (
+    BindingPlan,
     BindingAvailabilityStatus,
     BindingAvailabilityChanged,
+    BridgeCapabilities,
     BridgeErrorRaised,
     BridgeFailure,
     BridgeFailureCode,
     BridgeObservation,
     BridgeSessionStarted,
-    ResourceLoaded,
-    ToolCallCompleted,
-    ToolCallStarted,
-    ToolsPublished,
-)
-from .observer import BridgeObserver, NoOpBridgeObserver
-from .plans import (
-    BindingPlan,
-    BridgeCapabilities,
+    ResourceRead,
+    ReadResourceResult,
+    ResourceContent,
+    ResourceDescriptor,
     EndpointMode,
     EndpointPlan,
+    NoOpBridgeObserver,
+    BridgeObserver,
     SseUpstreamConfig,
     StdioUpstreamConfig,
     StreamableHttpUpstreamConfig,
-    UpstreamConfig,
-)
-from .protocol import (
-    AppResource,
-    ResourceDescriptor,
+    ToolCallCompleted,
     ToolCallResult,
+    ToolCallStarted,
     ToolDescriptor,
+    ToolsPublished,
+    UpstreamConfig,
     UpstreamIdentity,
 )
-from .runtime import UpstreamClient, UpstreamRuntime
-from .router import AggregateRouter, McpSessionRouter, PassthroughRouter
+from .routing import AggregateRouter, McpSessionRouter, PassthroughRouter
 from .upstream import (
     DefaultUpstreamClientFactory,
     SseUpstreamClient,
     StdioUpstreamClient,
     StreamableHttpUpstreamClient,
+    UpstreamClient,
     UpstreamClientFactory,
+    UpstreamRuntime,
     build_upstream_client,
 )
 
 __all__ = [
-    "AppResource",
     "AggregateRouter",
     "BindingAvailabilityChanged",
     "BindingAvailabilityStatus",
@@ -65,9 +68,13 @@ __all__ = [
     "EndpointPlan",
     "NoOpBridgeObserver",
     "McpSessionRouter",
+    "McpSessionBroker",
+    "McpTransportSession",
     "PassthroughRouter",
+    "ReadResourceResult",
+    "ResourceContent",
     "ResourceDescriptor",
-    "ResourceLoaded",
+    "ResourceRead",
     "SseUpstreamConfig",
     "SseUpstreamClient",
     "StdioUpstreamConfig",
@@ -85,4 +92,5 @@ __all__ = [
     "UpstreamIdentity",
     "UpstreamRuntime",
     "build_upstream_client",
+    "create_mcp_asgi_app",
 ]

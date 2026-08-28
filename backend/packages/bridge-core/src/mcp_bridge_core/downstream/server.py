@@ -13,8 +13,8 @@ from mcp.server.stdio import stdio_server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.types import Receive, Scope, Send
 
+from ..contracts import UpstreamIdentity
 from .handlers import ProxyHandlers
-from .protocol import UpstreamIdentity
 
 
 class BridgeDownstreamServer:

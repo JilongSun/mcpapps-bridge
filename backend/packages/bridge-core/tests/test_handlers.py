@@ -3,18 +3,22 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from mcp import types
+from mcp.server import Server
+from pydantic import AnyUrl
 
 from mcp_bridge_core import (
-    AppResource,
     BridgeFailureCode,
     BridgeObservation,
+    ReadResourceResult,
+    ResourceContent,
     ResourceDescriptor,
     ToolCallCompleted,
     ToolCallResult,
     ToolCallStarted,
     ToolDescriptor,
 )
-from mcp_bridge_core.handlers import ProxyHandlers
+from mcp_bridge_core.downstream.handlers import ProxyHandlers
 
 
 class RecordingObserver:
@@ -44,8 +48,22 @@ class ToolRouter:
     async def list_resources(self) -> list[ResourceDescriptor]:
         return []
 
-    async def read_resource(self, uri: str) -> AppResource:
-        return AppResource(uri=uri, mime_type="text/plain", text="fixture")
+    async def read_resource(self, uri: str) -> ReadResourceResult:
+        return ReadResourceResult(
+            contents=(
+                ResourceContent(
+                    uri=uri,
+                    mime_type="text/plain",
+                    text="fixture",
+                    metadata={"content": "fixture"},
+                ),
+                ResourceContent(
+                    uri="file:///related.txt",
+                    blob="Zmlyc3Q=",
+                ),
+            ),
+            metadata={"requestId": "fixture-read"},
+        )
 
 
 async def test_proxy_handlers_correlate_tool_call_observations() -> None:
@@ -80,3 +98,26 @@ async def test_proxy_handlers_emit_typed_failure_before_reraising() -> None:
     assert completed.result is None
     assert completed.failure is not None
     assert completed.failure.code is BridgeFailureCode.UPSTREAM_PROTOCOL
+
+
+async def test_registered_resource_handler_preserves_complete_sdk_result() -> None:
+    observer = RecordingObserver()
+    handlers = ProxyHandlers(ToolRouter(), observer, "session-1")
+    server = Server("fixture")
+    handlers.register(server)
+
+    handler = server.request_handlers[types.ReadResourceRequest]
+    response = await handler(
+        types.ReadResourceRequest(
+            params=types.ReadResourceRequestParams(uri=AnyUrl("file:///fixture.txt"))
+        )
+    )
+
+    result = response.root
+    assert isinstance(result, types.ReadResourceResult)
+    assert [str(content.uri) for content in result.contents] == [
+        "file:///fixture.txt",
+        "file:///related.txt",
+    ]
+    assert result.contents[0].meta == {"content": "fixture"}
+    assert result.meta == {"requestId": "fixture-read"}

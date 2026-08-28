@@ -1,127 +1,35 @@
-"""Session-scoped passthrough and aggregate MCP routing."""
+"""Namespaced multi-upstream routing for one bridge session."""
 
 from __future__ import annotations
 
-import re
-from base64 import urlsafe_b64encode
 from collections.abc import Callable, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from hashlib import sha256
-from typing import Any, Protocol
+from typing import Any
 
 import anyio
 from anyio.abc import TaskGroup
-from pydantic import AnyUrl
 
-from .handlers import McpMethodRouter
-from .observations import (
+from ..contracts import (
     BindingAvailabilityChanged,
     BindingAvailabilityStatus,
-    BridgeErrorRaised,
     BridgeFailure,
     BridgeFailureCode,
     BridgeSessionStarted,
-    ResourceLoaded,
-    ToolsPublished,
-)
-from .observer import BridgeObserver
-from .plans import BindingPlan, EndpointPlan
-from .protocol import (
-    AppResource,
+    ReadResourceResult,
     ResourceDescriptor,
+    ResourceRead,
     ToolCallResult,
     ToolDescriptor,
+    ToolsPublished,
+    BindingPlan,
+    BridgeObserver,
+    EndpointPlan,
     UpstreamIdentity,
 )
-from .runtime import UpstreamRuntime
-
-
-class McpSessionRouter(McpMethodRouter, Protocol):
-    @property
-    def identity(self) -> UpstreamIdentity: ...
-
-    async def start(self) -> None: ...
-
-    async def close(self) -> None: ...
-
-
-class PassthroughRouter:
-    def __init__(
-        self,
-        runtime: UpstreamRuntime,
-        observer: BridgeObserver,
-        session_key: str,
-        worker_task_group: TaskGroup,
-    ) -> None:
-        self._runtime = runtime
-        self._observer = observer
-        self._session_key = session_key
-        self._worker_task_group = worker_task_group
-
-    @property
-    def identity(self) -> UpstreamIdentity:
-        return self._runtime.identity
-
-    async def start(self) -> None:
-        await self._runtime.start_worker(self._worker_task_group)
-        try:
-            await self._runtime.start()
-            await self._observer.observe(
-                BridgeSessionStarted(
-                    session_key=self._session_key,
-                    identity=self._runtime.identity,
-                )
-            )
-            await self.list_tools()
-            await self.list_resources()
-        except BaseException:
-            await self.close()
-            raise
-
-    async def close(self) -> None:
-        await self._runtime.shutdown_worker()
-
-    async def list_tools(self) -> list[ToolDescriptor]:
-        tools = await self._runtime.refresh_tools()
-        await self._observer.observe(
-            ToolsPublished(session_key=self._session_key, tools=tuple(tools))
-        )
-        return tools
-
-    async def call_tool(
-        self,
-        tool_name: str,
-        arguments: dict[str, Any],
-    ) -> ToolCallResult:
-        return await self._runtime.call_tool(tool_name, arguments)
-
-    async def preload_tool_resource(self, tool_name: str) -> None:
-        try:
-            await self._runtime.preload_tool_resource(tool_name)
-        except Exception as exc:
-            await self._observer.observe(
-                BridgeErrorRaised(
-                    session_key=self._session_key,
-                    operation="resource_preload",
-                    failure=BridgeFailure(
-                        code=BridgeFailureCode.UPSTREAM_PROTOCOL,
-                        message=f"Failed to preload UI resource for tool '{tool_name}'",
-                        details={"reason": str(exc)},
-                    ),
-                )
-            )
-
-    async def list_resources(self) -> list[ResourceDescriptor]:
-        return await self._runtime.refresh_resources()
-
-    async def read_resource(self, uri: str) -> AppResource:
-        resource = await self._runtime.read_and_cache_resource(uri)
-        await self._observer.observe(
-            ResourceLoaded(session_key=self._session_key, resource=resource)
-        )
-        return resource
+from ..upstream.runtime import UpstreamRuntime
+from .resource_uris import canonical_uri, public_resource_uri, rewrite_ui_metadata
 
 
 @dataclass
@@ -308,14 +216,14 @@ class AggregateRouter:
             resource for bound in self._bindings for resource in discovered.get(bound.namespace, [])
         ]
 
-    async def read_resource(self, uri: str) -> AppResource:
-        route = self._resource_routes.get(_canonical_uri(uri))
+    async def read_resource(self, uri: str) -> ReadResourceResult:
+        route = self._resource_routes.get(canonical_uri(uri))
         if route is None:
             raise KeyError(f"Unknown aggregate resource URI: {uri}")
         bound, upstream_uri = route
         try:
             await bound.runtime.start()
-            resource = await bound.runtime.read_and_cache_resource(upstream_uri)
+            result = await bound.runtime.read_and_cache_resource(upstream_uri)
             self._mark_available(bound)
         except Exception as exc:
             self._mark_failed(bound, "resource_read", exc)
@@ -323,15 +231,26 @@ class AggregateRouter:
             await self._publish_availability()
             raise
         await self._publish_availability()
-        public_resource = resource.model_copy(update={"uri": _canonical_uri(uri)})
+        public_result = result.model_copy(
+            update={
+                "contents": tuple(
+                    content.model_copy(
+                        update={"uri": self._register_resource_route(bound, content.uri)}
+                    )
+                    for content in result.contents
+                )
+            },
+            deep=True,
+        )
         await self._observer.observe(
-            ResourceLoaded(
+            ResourceRead(
                 session_key=self._session_key,
                 binding_key=bound.binding.binding_key,
-                resource=public_resource,
+                requested_uri=canonical_uri(uri),
+                result=public_result,
             )
         )
-        return public_resource
+        return public_result
 
     def _public_tool(
         self,
@@ -349,7 +268,7 @@ class AggregateRouter:
             update={
                 "name": public_name,
                 "ui_resource_uri": public_ui_uri,
-                "metadata": _rewrite_ui_metadata(tool.metadata, public_ui_uri),
+                "metadata": rewrite_ui_metadata(tool.metadata, public_ui_uri),
             },
             deep=True,
         )
@@ -386,8 +305,8 @@ class AggregateRouter:
         return tuple(rewritten)
 
     def _register_resource_route(self, bound: BoundUpstreamRuntime, upstream_uri: str) -> str:
-        public_uri = _public_resource_uri(bound.namespace, upstream_uri)
-        canonical_public_uri = _canonical_uri(public_uri)
+        public_uri = public_resource_uri(bound.namespace, upstream_uri)
+        canonical_public_uri = canonical_uri(public_uri)
         existing = self._resource_routes.get(canonical_public_uri)
         route = (bound, upstream_uri)
         if existing is not None and existing != route:
@@ -459,62 +378,6 @@ class AggregateRouter:
                 )
             )
             self._published_availability[binding_key] = deepcopy(availability)
-
-
-def _public_resource_uri(namespace: str, upstream_uri: str) -> str:
-    if upstream_uri.startswith("ui://"):
-        digest = sha256(upstream_uri.encode("utf-8")).digest()[:18]
-        token = urlsafe_b64encode(digest).decode("ascii").rstrip("=")
-        return f"ui://{namespace}/{token}"
-    if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", upstream_uri) is None:
-        raise ValueError(f"Upstream resource URI has no valid scheme: {upstream_uri}")
-    return f"{namespace}+{upstream_uri}"
-
-
-def _canonical_uri(uri: str) -> str:
-    return str(AnyUrl(uri))
-
-
-def _rewrite_ui_metadata(
-    metadata: dict[str, Any],
-    public_ui_uri: str | None,
-) -> dict[str, Any]:
-    rewritten = dict(metadata)
-    if public_ui_uri is None:
-        return rewritten
-    if "ui" in rewritten:
-        rewritten["ui"] = (
-            {**rewritten["ui"], "resourceUri": public_ui_uri}
-            if isinstance(rewritten["ui"], dict)
-            else public_ui_uri
-        )
-    if "ui/resourceUri" in rewritten:
-        rewritten["ui/resourceUri"] = public_ui_uri
-    if "openai/outputTemplate" in rewritten:
-        rewritten["openai/outputTemplate"] = public_ui_uri
-    if "openai/resourceUri" in rewritten:
-        rewritten["openai/resourceUri"] = public_ui_uri
-    if isinstance(rewritten.get("openai"), dict):
-        openai = dict(rewritten["openai"])
-        if "resourceUri" in openai:
-            openai["resourceUri"] = public_ui_uri
-        if "outputTemplate" in openai:
-            openai["outputTemplate"] = public_ui_uri
-        rewritten["openai"] = openai
-    nested_meta = rewritten.get("_meta")
-    if isinstance(nested_meta, dict):
-        rewritten_nested_meta = dict(nested_meta)
-        if "ui" in rewritten_nested_meta:
-            rewritten_nested_meta["ui"] = (
-                {**rewritten_nested_meta["ui"], "resourceUri": public_ui_uri}
-                if isinstance(rewritten_nested_meta["ui"], dict)
-                else public_ui_uri
-            )
-        if "ui/resourceUri" in rewritten_nested_meta:
-            rewritten_nested_meta["ui/resourceUri"] = public_ui_uri
-        rewritten["_meta"] = rewritten_nested_meta
-    return rewritten
-
 
 def _all_bindings_failed_message(operation: str, failures: dict[str, Exception]) -> str:
     details = ", ".join(f"{namespace}: {error}" for namespace, error in sorted(failures.items()))

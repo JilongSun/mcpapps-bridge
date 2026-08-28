@@ -2,12 +2,19 @@ from __future__ import annotations
 
 from base64 import b64encode
 
-from mcp_bridge_core import AppResource, ResourceDescriptor, ToolCallResult, ToolDescriptor
-from mcp_bridge_core._mcp_sdk import (
+from mcp import types
+from mcp_bridge_core import (
+    ReadResourceResult,
+    ResourceContent,
+    ResourceDescriptor,
+    ToolCallResult,
+    ToolDescriptor,
+)
+from mcp_bridge_core.downstream.sdk_v1 import (
     to_mcp_call_tool_result,
+    to_mcp_read_resource_result,
     to_mcp_resource,
     to_mcp_tool,
-    to_read_resource_contents,
 )
 
 
@@ -43,28 +50,37 @@ def test_tool_result_mapping_preserves_protocol_fields() -> None:
     assert mapped["_meta"] == {"resourceUri": "ui://opaque/result"}
 
 
-def test_resource_mapping_preserves_descriptor_and_decodes_blob() -> None:
+def test_resource_mapping_preserves_descriptor_and_complete_read_result() -> None:
     descriptor = ResourceDescriptor(
         name="report",
         uri="file:///reports/latest.txt",
         mime_type="text/plain",
         metadata={"audience": "agent"},
     )
-    resource = AppResource(
-        uri=descriptor.uri,
-        mime_type="application/octet-stream",
-        blob=b64encode(b"report").decode("ascii"),
-        metadata={"checksum": "fixture"},
+    result = ReadResourceResult(
+        contents=(
+            ResourceContent(
+                uri=descriptor.uri,
+                mime_type="application/octet-stream",
+                blob=b64encode(b"report").decode("ascii"),
+                metadata={"checksum": "fixture"},
+            ),
+        ),
+        metadata={"requestId": "fixture-read"},
     )
 
     mapped_descriptor = to_mcp_resource(descriptor).model_dump(
         mode="json", by_alias=True, exclude_none=True
     )
-    mapped_contents = to_read_resource_contents(resource)
+    mapped_result = to_mcp_read_resource_result(result)
+    mapped_contents = mapped_result.contents[0]
 
     assert mapped_descriptor["uri"] == descriptor.uri
     assert mapped_descriptor["mimeType"] == "text/plain"
     assert mapped_descriptor["_meta"] == {"audience": "agent"}
-    assert mapped_contents.content == b"report"
-    assert mapped_contents.mime_type == "application/octet-stream"
+    assert isinstance(mapped_contents, types.BlobResourceContents)
+    assert str(mapped_contents.uri) == descriptor.uri
+    assert mapped_contents.blob == b64encode(b"report").decode("ascii")
+    assert mapped_contents.mimeType == "application/octet-stream"
     assert mapped_contents.meta == {"checksum": "fixture"}
+    assert mapped_result.meta == {"requestId": "fixture-read"}

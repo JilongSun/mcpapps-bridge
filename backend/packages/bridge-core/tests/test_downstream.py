@@ -6,15 +6,16 @@ import pytest
 from starlette.types import Message, Receive, Scope, Send
 
 from mcp_bridge_core import (
-    AppResource,
     BridgeDownstreamServer,
     NoOpBridgeObserver,
+    ReadResourceResult,
+    ResourceContent,
     ResourceDescriptor,
     ToolCallResult,
     ToolDescriptor,
     UpstreamIdentity,
 )
-from mcp_bridge_core.handlers import ProxyHandlers
+from mcp_bridge_core.downstream.handlers import ProxyHandlers
 
 
 class EmptyRouter:
@@ -30,8 +31,10 @@ class EmptyRouter:
     async def list_resources(self) -> list[ResourceDescriptor]:
         return []
 
-    async def read_resource(self, uri: str) -> AppResource:
-        return AppResource(uri=uri, mime_type="text/plain", text="fixture")
+    async def read_resource(self, uri: str) -> ReadResourceResult:
+        return ReadResourceResult(
+            contents=(ResourceContent(uri=uri, mime_type="text/plain", text="fixture"),)
+        )
 
 
 class RecordingSseTransport:

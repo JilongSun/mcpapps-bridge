@@ -8,7 +8,12 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .protocol import AppResource, ToolCallResult, ToolDescriptor, UpstreamIdentity
+from .protocol import (
+    ReadResourceResult,
+    ToolCallResult,
+    ToolDescriptor,
+    UpstreamIdentity,
+)
 
 
 def utc_now() -> datetime:
@@ -81,10 +86,11 @@ class ToolCallCompleted(ObservationBase):
     failure: BridgeFailure | None = None
 
 
-class ResourceLoaded(ObservationBase):
-    kind: Literal["bridge.resource.loaded"] = "bridge.resource.loaded"
+class ResourceRead(ObservationBase):
+    kind: Literal["bridge.resource.read"] = "bridge.resource.read"
     binding_key: str | None = None
-    resource: AppResource
+    requested_uri: str
+    result: ReadResourceResult
 
 
 class BridgeErrorRaised(ObservationBase):
@@ -99,7 +105,7 @@ BridgeObservation = Annotated[
     | ToolsPublished
     | ToolCallStarted
     | ToolCallCompleted
-    | ResourceLoaded
+    | ResourceRead
     | BridgeErrorRaised,
     Field(discriminator="kind"),
 ]

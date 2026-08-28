@@ -7,7 +7,6 @@ import pytest
 
 from mcp_bridge_core import (
     AggregateRouter,
-    AppResource,
     BindingAvailabilityChanged,
     BindingAvailabilityStatus,
     BindingPlan,
@@ -15,6 +14,8 @@ from mcp_bridge_core import (
     BridgeObservation,
     EndpointMode,
     EndpointPlan,
+    ReadResourceResult,
+    ResourceContent,
     ResourceDescriptor,
     StdioUpstreamConfig,
     ToolCallResult,
@@ -28,6 +29,7 @@ TOOL_UI_URI = "ui://widgets/inspector"
 RESULT_UI_URI = "ui://widgets/result"
 ORDINARY_RESOURCE_URI = "https://example.test/manual?view=full#install"
 LINKED_RESOURCE_URI = "file:///reports/latest.txt"
+RELATED_RESOURCE_URI = "file:///reports/related.txt"
 
 
 class RecordingObserver:
@@ -105,12 +107,28 @@ class AggregateFixtureClient:
             )
         ]
 
-    async def read_resource(self, uri: str) -> AppResource:
+    async def read_resource(self, uri: str) -> ReadResourceResult:
         self.resource_reads.append(uri)
-        return AppResource(
-            uri=uri,
-            mime_type=("text/html;profile=mcp-app" if uri.startswith("ui://") else "text/plain"),
-            text=f"content for {uri}",
+        contents = [
+            ResourceContent(
+                uri=uri,
+                mime_type=(
+                    "text/html;profile=mcp-app" if uri.startswith("ui://") else "text/plain"
+                ),
+                text=f"content for {uri}",
+            )
+        ]
+        if uri == ORDINARY_RESOURCE_URI:
+            contents.append(
+                ResourceContent(
+                    uri=RELATED_RESOURCE_URI,
+                    mime_type="text/plain",
+                    text="related content",
+                )
+            )
+        return ReadResourceResult(
+            contents=tuple(contents),
+            metadata={"requestId": "fixture-read"},
         )
 
     async def close(self) -> None:
@@ -183,11 +201,16 @@ async def test_aggregate_router_preserves_public_mcp_and_mcp_apps_semantics() ->
             assert [resource.uri for resource in resources] == [f"docs+{ORDINARY_RESOURCE_URI}"]
 
             ordinary_resource = await router.read_resource(resources[0].uri)
-            assert ordinary_resource.uri == resources[0].uri
+            assert ordinary_resource.contents[0].uri == resources[0].uri
+            assert ordinary_resource.contents[1].uri == f"docs+{RELATED_RESOURCE_URI}"
+            assert ordinary_resource.metadata == {"requestId": "fixture-read"}
             assert client.resource_reads[-1] == ORDINARY_RESOURCE_URI
 
+            await router.read_resource(ordinary_resource.contents[1].uri)
+            assert client.resource_reads[-1] == RELATED_RESOURCE_URI
+
             tool_resource = await router.read_resource(tool.ui_resource_uri)
-            assert tool_resource.uri == tool.ui_resource_uri
+            assert tool_resource.contents[0].uri == tool.ui_resource_uri
             assert client.resource_reads[-1] == TOOL_UI_URI
 
             result = await router.call_tool("docs__inspect", {"depth": 2})
@@ -201,11 +224,11 @@ async def test_aggregate_router_preserves_public_mcp_and_mcp_apps_semantics() ->
             assert result.metadata == {"resourceUri": TOOL_UI_URI}
 
             linked_resource = await router.read_resource(result.content[0]["uri"])
-            assert linked_resource.uri == result.content[0]["uri"]
+            assert linked_resource.contents[0].uri == result.content[0]["uri"]
             assert client.resource_reads[-1] == LINKED_RESOURCE_URI
 
             result_resource = await router.read_resource(result_ui_uri)
-            assert result_resource.uri == result_ui_uri
+            assert result_resource.contents[0].uri == result_ui_uri
             assert client.resource_reads[-1] == RESULT_UI_URI
 
             with pytest.raises(KeyError, match="Unknown aggregate resource URI"):

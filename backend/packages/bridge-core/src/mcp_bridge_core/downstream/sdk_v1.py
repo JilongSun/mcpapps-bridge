@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
-from base64 import b64decode
 from typing import Any
 
 from mcp import types
-from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.types import Annotations, ToolAnnotations
 from pydantic import AnyUrl
 
-from .protocol import AppResource, ResourceDescriptor, ToolCallResult, ToolDescriptor
+from ..contracts import (
+    ReadResourceResult,
+    ResourceContent,
+    ResourceDescriptor,
+    ToolCallResult,
+    ToolDescriptor,
+)
 
 
 def to_mcp_tool(tool: ToolDescriptor) -> types.Tool:
@@ -73,19 +77,28 @@ def to_mcp_resource(resource: ResourceDescriptor) -> types.Resource:
     )
 
 
-def to_read_resource_contents(resource: AppResource) -> ReadResourceContents:
-    if resource.text is not None:
-        return ReadResourceContents(
-            content=resource.text,
-            mime_type=resource.mime_type,
-            meta=resource.metadata or None,
+def to_mcp_read_resource_result(result: ReadResourceResult) -> types.ReadResourceResult:
+    return types.ReadResourceResult(
+        contents=[to_mcp_resource_content(content) for content in result.contents],
+        _meta=result.metadata or None,
+    )
+
+
+def to_mcp_resource_content(
+    content: ResourceContent,
+) -> types.TextResourceContents | types.BlobResourceContents:
+    if content.text is not None:
+        return types.TextResourceContents(
+            uri=AnyUrl(content.uri),
+            mimeType=content.mime_type,
+            text=content.text,
+            _meta=content.metadata or None,
         )
-    if resource.blob is not None:
-        return ReadResourceContents(
-            content=b64decode(resource.blob),
-            mime_type=resource.mime_type,
-            meta=resource.metadata or None,
-        )
-    return ReadResourceContents(
-        content="", mime_type=resource.mime_type, meta=resource.metadata or None
+    if content.blob is None:
+        raise ValueError("resource content has no text or blob payload")
+    return types.BlobResourceContents(
+        uri=AnyUrl(content.uri),
+        mimeType=content.mime_type,
+        blob=content.blob,
+        _meta=content.metadata or None,
     )

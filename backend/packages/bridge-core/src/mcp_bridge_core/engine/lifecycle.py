@@ -10,18 +10,21 @@ from typing import Any, Self
 import anyio
 from anyio.abc import TaskGroup
 
-from .observer import BridgeObserver
-from .plans import BindingPlan, EndpointMode, EndpointPlan
-from .protocol import (
-    AppResource,
+from ..contracts import (
+    BindingPlan,
+    BridgeObserver,
+    EndpointMode,
+    EndpointPlan,
+    ReadResourceResult,
     ResourceDescriptor,
     ToolCallResult,
     ToolDescriptor,
     UpstreamIdentity,
 )
-from .router import AggregateRouter, McpSessionRouter, PassthroughRouter
-from .runtime import UpstreamRuntime
-from .upstream import DefaultUpstreamClientFactory, UpstreamClientFactory
+from ..downstream import BridgeDownstreamServer, McpTransportSession
+from ..downstream.handlers import ProxyHandlers
+from ..routing import AggregateRouter, McpSessionRouter, PassthroughRouter
+from ..upstream import DefaultUpstreamClientFactory, UpstreamClientFactory, UpstreamRuntime
 
 
 class BridgeSession:
@@ -32,11 +35,13 @@ class BridgeSession:
         session_key: str,
         plan: EndpointPlan,
         router: McpSessionRouter,
+        downstream: BridgeDownstreamServer,
         on_closed: Callable[[BridgeSession], None],
     ) -> None:
         self.session_key = session_key
         self.plan = plan
         self._router = router
+        self._downstream = downstream
         self._on_closed = on_closed
         self._close_lock = anyio.Lock()
         self._closed = False
@@ -44,6 +49,15 @@ class BridgeSession:
     @property
     def identity(self) -> UpstreamIdentity:
         return self._router.identity
+
+    @property
+    def transport(self) -> McpTransportSession:
+        return self._downstream
+
+    @asynccontextmanager
+    async def transport_lifecycle(self) -> AsyncIterator[None]:
+        async with self._downstream.run_http_transports():
+            yield
 
     async def list_tools(self) -> list[ToolDescriptor]:
         return await self._router.list_tools()
@@ -57,7 +71,7 @@ class BridgeSession:
     async def list_resources(self) -> list[ResourceDescriptor]:
         return await self._router.list_resources()
 
-    async def read_resource(self, uri: str) -> AppResource:
+    async def read_resource(self, uri: str) -> ReadResourceResult:
         return await self._router.read_resource(uri)
 
     async def aclose(self) -> None:
@@ -124,7 +138,19 @@ class BridgeEngine:
         if session_key in self._session_keys:
             raise ValueError(f"Bridge session is already open: {session_key}")
         router = self._create_router(plan, observer, session_key, worker_task_group)
-        session = BridgeSession(session_key, plan, router, self._remove_session)
+        downstream = BridgeDownstreamServer(
+            ProxyHandlers(router, observer, session_key),
+            identity_provider=lambda: router.identity,
+            name=plan.display_name,
+            version=self._version,
+        )
+        session = BridgeSession(
+            session_key,
+            plan,
+            router,
+            downstream,
+            self._remove_session,
+        )
         await router.start()
         self._sessions.append(session)
         self._session_keys.add(session_key)

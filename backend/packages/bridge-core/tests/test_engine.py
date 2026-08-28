@@ -5,13 +5,14 @@ from typing import Any
 import pytest
 
 from mcp_bridge_core import (
-    AppResource,
     BindingPlan,
     BridgeCapabilities,
     BridgeEngine,
     EndpointMode,
     EndpointPlan,
     NoOpBridgeObserver,
+    ReadResourceResult,
+    ResourceContent,
     ResourceDescriptor,
     StdioUpstreamConfig,
     ToolCallResult,
@@ -38,8 +39,10 @@ class FixtureClient:
     async def list_resources(self) -> list[ResourceDescriptor]:
         return [ResourceDescriptor(name="status", uri="data://status")]
 
-    async def read_resource(self, uri: str) -> AppResource:
-        return AppResource(uri=uri, mime_type="text/plain", text="ready")
+    async def read_resource(self, uri: str) -> ReadResourceResult:
+        return ReadResourceResult(
+            contents=(ResourceContent(uri=uri, mime_type="text/plain", text="ready"),)
+        )
 
     async def close(self) -> None:
         self.closed.append(self.name)
@@ -95,7 +98,8 @@ async def test_session_delegates_protocol_methods_and_closes_idempotently() -> N
         assert [tool.name for tool in await session.list_tools()] == ["echo"]
         assert (await session.call_tool("echo", {})).is_error is False
         assert [resource.uri for resource in await session.list_resources()] == ["data://status"]
-        assert (await session.read_resource("data://status")).text == "ready"
+        resource = await session.read_resource("data://status")
+        assert resource.contents[0].text == "ready"
         await session.aclose()
         await session.aclose()
 

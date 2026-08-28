@@ -11,12 +11,12 @@ import anyio
 from anyio.abc import TaskGroup, TaskStatus
 from anyio.streams.memory import MemoryObjectSendStream
 
-from .plans import UpstreamConfig
-from .protocol import (
-    AppResource,
+from ..contracts import (
+    ReadResourceResult,
     ResourceDescriptor,
     ToolCallResult,
     ToolDescriptor,
+    UpstreamConfig,
     UpstreamIdentity,
 )
 
@@ -33,7 +33,7 @@ class UpstreamClient(Protocol):
 
     async def list_resources(self) -> list[ResourceDescriptor]: ...
 
-    async def read_resource(self, uri: str) -> AppResource: ...
+    async def read_resource(self, uri: str) -> ReadResourceResult: ...
 
     async def close(self) -> None: ...
 
@@ -75,7 +75,7 @@ class UpstreamRuntime:
         self._version = version
         self._upstream_client = upstream_client
         self._tool_cache: dict[str, ToolDescriptor] = {}
-        self._resource_cache: dict[str, AppResource] = {}
+        self._resource_cache: dict[str, ReadResourceResult] = {}
         self._resource_descriptors: dict[str, ResourceDescriptor] = {}
         self._upstream_identity = UpstreamIdentity(server_name=name, server_version=version)
         self._started = False
@@ -120,10 +120,11 @@ class UpstreamRuntime:
 
     async def refresh_resources(self) -> list[ResourceDescriptor]:
         async def refresh() -> list[ResourceDescriptor]:
-            try:
-                resources = await self._upstream_client.list_resources()
-            except Exception:
-                resources = self._synthesized_resources_from_tools()
+            resources = (
+                await self._upstream_client.list_resources()
+                if self._upstream_identity.supports_resources
+                else self._synthesized_resources_from_tools()
+            )
             self._resource_descriptors = {resource.uri: resource for resource in resources}
             return resources
 
@@ -144,12 +145,12 @@ class UpstreamRuntime:
             return
         await self.read_and_cache_resource(tool.ui_resource_uri)
 
-    async def read_and_cache_resource(self, uri: str) -> AppResource:
+    async def read_and_cache_resource(self, uri: str) -> ReadResourceResult:
         cached = self._resource_cache.get(uri)
         if cached is not None:
             return cached
 
-        async def read() -> AppResource:
+        async def read() -> ReadResourceResult:
             resource = await self._upstream_client.read_resource(uri)
             self._resource_cache[uri] = resource
             return resource

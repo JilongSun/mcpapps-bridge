@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any, cast
 
+import mcp_bridge_core.upstream.connectors as upstream_module
+import pytest
 from mcp import ClientSession, types
 from pydantic import AnyHttpUrl, AnyUrl
 
@@ -15,7 +19,35 @@ from mcp_bridge_core import (
     StreamableHttpUpstreamConfig,
     build_upstream_client,
 )
-from mcp_bridge_core.upstream import BaseSessionUpstreamClient
+from mcp_bridge_core.upstream.connectors import BaseSessionUpstreamClient
+
+
+class FakeHttpClient:
+    async def __aenter__(self) -> FakeHttpClient:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        return None
+
+
+class FakeClientSession:
+    def __init__(self, read_stream: object, write_stream: object) -> None:
+        self.read_stream = read_stream
+        self.write_stream = write_stream
+
+    async def __aenter__(self) -> FakeClientSession:
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        return None
+
+    async def initialize(self) -> Any:
+        return SimpleNamespace(
+            capabilities={},
+            serverInfo={"name": "fixture", "version": "1.0.0"},
+            protocolVersion="2025-11-25",
+            instructions=None,
+        )
 
 
 class FixtureSession:
@@ -63,6 +95,7 @@ class FixtureSession:
 
     async def read_resource(self, uri: AnyUrl) -> Any:
         return SimpleNamespace(
+            meta={"requestId": "fixture-read"},
             contents=[
                 SimpleNamespace(
                     uri=uri,
@@ -71,8 +104,13 @@ class FixtureSession:
                     blob=None,
                     meta={"checksum": "test"},
                 ),
-                SimpleNamespace(uri=uri, mimeType="text/plain", text="additional"),
-            ]
+                SimpleNamespace(
+                    uri=AnyUrl("file:///fixture/related.txt"),
+                    mimeType="text/plain",
+                    text="additional",
+                    meta={"related": True},
+                ),
+            ],
         )
 
 
@@ -104,8 +142,14 @@ async def test_upstream_sdk_mapping_preserves_core_protocol_fields() -> None:
     assert result.metadata == {"requestId": "fixture-request"}
     assert resources[0].uri == "file:///fixture/manual.txt"
     assert resources[0].metadata == {"audience": "agent"}
-    assert resource.text == "fixture"
-    assert resource.metadata == {"checksum": "test", "additional_contents": 1}
+    assert resource.metadata == {"requestId": "fixture-read"}
+    assert [content.uri for content in resource.contents] == [
+        "file:///fixture/manual.txt",
+        "file:///fixture/related.txt",
+    ]
+    assert [content.text for content in resource.contents] == ["fixture", "additional"]
+    assert resource.contents[0].metadata == {"checksum": "test"}
+    assert resource.contents[1].metadata == {"related": True}
 
 
 def test_upstream_factory_selects_transport_connector() -> None:
@@ -123,3 +167,35 @@ def test_upstream_factory_selects_transport_connector() -> None:
         ),
         StreamableHttpUpstreamClient,
     )
+
+
+async def test_streamable_http_uses_the_configured_url_without_probing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requested_urls: list[str] = []
+    http_client = FakeHttpClient()
+
+    @asynccontextmanager
+    async def fake_streamable_http_client(
+        url: str,
+        *,
+        http_client: object,
+    ) -> AsyncIterator[tuple[object, object, None]]:
+        requested_urls.append(url)
+        yield object(), object(), None
+
+    monkeypatch.setattr(upstream_module.httpx, "AsyncClient", lambda **_: http_client)
+    monkeypatch.setattr(upstream_module, "streamable_http_client", fake_streamable_http_client)
+    monkeypatch.setattr(upstream_module, "ClientSession", FakeClientSession)
+
+    client = StreamableHttpUpstreamClient()
+    identity = await client.connect(
+        StreamableHttpUpstreamConfig(
+            url=AnyHttpUrl("http://localhost:8760/mcp"),
+            timeout_seconds=5,
+        )
+    )
+    await client.close()
+
+    assert requested_urls == ["http://localhost:8760/mcp"]
+    assert identity.server_name == "fixture"

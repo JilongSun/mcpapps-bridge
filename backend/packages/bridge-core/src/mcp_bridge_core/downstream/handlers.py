@@ -2,35 +2,26 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any
 from uuid import uuid4
 
 from mcp import types
 from mcp.server import Server
-from mcp.server.lowlevel.helper_types import ReadResourceContents
-from pydantic import AnyUrl
 
-from ._mcp_sdk import (
+from ..contracts import (
+    BridgeFailure,
+    BridgeFailureCode,
+    BridgeObserver,
+    McpMethodRouter,
+    ToolCallCompleted,
+    ToolCallStarted,
+)
+from .sdk_v1 import (
     to_mcp_call_tool_result,
+    to_mcp_read_resource_result,
     to_mcp_resource,
     to_mcp_tool,
-    to_read_resource_contents,
 )
-from .observations import BridgeFailure, BridgeFailureCode, ToolCallCompleted, ToolCallStarted
-from .observer import BridgeObserver
-from .protocol import AppResource, ResourceDescriptor, ToolCallResult, ToolDescriptor
-
-
-class McpMethodRouter(Protocol):
-    async def list_tools(self) -> list[ToolDescriptor]: ...
-
-    async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult: ...
-
-    async def preload_tool_resource(self, tool_name: str) -> None: ...
-
-    async def list_resources(self) -> list[ResourceDescriptor]: ...
-
-    async def read_resource(self, uri: str) -> AppResource: ...
 
 
 class ProxyHandlers:
@@ -59,9 +50,11 @@ class ProxyHandlers:
         async def list_resources() -> list[types.Resource]:
             return await self.list_resources()
 
-        @server.read_resource()
-        async def read_resource(uri: AnyUrl) -> list[ReadResourceContents]:
-            return await self.read_resource(str(uri))
+        async def read_resource(request: types.ReadResourceRequest) -> types.ServerResult:
+            result = await self.read_resource(str(request.params.uri))
+            return types.ServerResult(root=result)
+
+        server.request_handlers[types.ReadResourceRequest] = read_resource
 
     async def list_tools(self) -> list[types.Tool]:
         tools = await self._router.list_tools()
@@ -107,6 +100,6 @@ class ProxyHandlers:
         resources = await self._router.list_resources()
         return [to_mcp_resource(resource) for resource in resources]
 
-    async def read_resource(self, uri: str) -> list[ReadResourceContents]:
-        resource = await self._router.read_resource(uri)
-        return [to_read_resource_contents(resource)]
+    async def read_resource(self, uri: str) -> types.ReadResourceResult:
+        result = await self._router.read_resource(uri)
+        return to_mcp_read_resource_result(result)

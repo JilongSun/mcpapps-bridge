@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
-def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ProtocolModel(BaseModel):
@@ -55,10 +50,20 @@ class ResourceDescriptor(ProtocolModel):
     size: int | None = None
 
 
-class AppResource(ProtocolModel):
+class ResourceContent(ProtocolModel):
     uri: str
-    mime_type: str
+    mime_type: str | None = None
     text: str | None = None
     blob: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
-    loaded_at: datetime = Field(default_factory=utc_now)
+
+    @model_validator(mode="after")
+    def validate_payload(self) -> ResourceContent:
+        if (self.text is None) == (self.blob is None):
+            raise ValueError("resource content requires exactly one of text or blob")
+        return self
+
+
+class ReadResourceResult(ProtocolModel):
+    contents: tuple[ResourceContent, ...] = Field(min_length=1)
+    metadata: dict[str, Any] = Field(default_factory=dict)
