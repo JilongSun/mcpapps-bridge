@@ -13,13 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from mcp_gateway_service import (
     EndpointBindingRevision,
     EndpointMode,
-    EndpointSessionPolicy,
     EndpointTopologyRevision,
     SseConnection,
     StdioConnection,
     StreamableHttpConnection,
     UpstreamRevision,
-    UpstreamSessionMode,
 )
 
 from .models import (
@@ -126,11 +124,6 @@ async def _revision_from_row(
         display_name=row.display_name,
         mode=EndpointMode(row.mode),
         bindings=tuple(bindings),
-        session_policy=EndpointSessionPolicy(
-            upstream_session_mode=UpstreamSessionMode(row.upstream_session_mode),
-            lazy_upstream_connections=row.lazy_upstream_connections,
-            idle_timeout_seconds=row.idle_timeout_seconds,
-        ),
         enabled=row.enabled,
         metadata=row.metadata_json,
         created_at=_as_utc(row.created_at),

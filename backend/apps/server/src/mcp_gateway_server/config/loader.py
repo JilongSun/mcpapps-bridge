@@ -37,21 +37,13 @@ class LoadedBridgeConfig:
 
 
 @dataclass(frozen=True)
-class RuntimeSelection:
-    config_path: Path
-    upstream_name: str
-    bridge: BridgeRuntimeConfig
-    upstream: RuntimeUpstreamConfig
-
-
-@dataclass(frozen=True)
 class RuntimeConfiguration:
     config_path: Path
     bridge: BridgeRuntimeConfig
     storage: StorageConfig
     upstreams: dict[str, RuntimeUpstreamConfig]
     endpoints: dict[str, EndpointFileConfig]
-    default_upstream: str | None
+    diagnostic_upstream: str | None
     agent_host: RuntimeAgentHostConfig = field(default_factory=RuntimeAgentHostConfig)
 
 
@@ -72,33 +64,6 @@ def load_bridge_config(path: str | None = None) -> LoadedBridgeConfig:
     return LoadedBridgeConfig(path=config_path, config=config)
 
 
-def resolve_runtime_selection(
-    config_path: str | None,
-    *,
-    upstream_name: str | None,
-    api_host: str | None,
-    api_port: int | None,
-    proxy_name: str | None,
-    httpx_timeout_seconds: float | None = None,
-) -> RuntimeSelection:
-    loaded = load_bridge_config(config_path)
-    selected_upstream_name, upstream = _select_upstream(loaded.config, upstream_name)
-    bridge = _apply_bridge_overrides(
-        loaded.config.bridge,
-        upstream_name=selected_upstream_name,
-        api_host=api_host,
-        api_port=api_port,
-        proxy_name=proxy_name,
-        httpx_timeout_seconds=httpx_timeout_seconds,
-    )
-    return RuntimeSelection(
-        config_path=loaded.path,
-        upstream_name=selected_upstream_name,
-        bridge=bridge,
-        upstream=_to_runtime_upstream_config(upstream, loaded.path.parent, bridge),
-    )
-
-
 def resolve_runtime_configuration(
     config_path: str | None,
     *,
@@ -114,7 +79,7 @@ def resolve_runtime_configuration(
         raise ConfigError(f"Unknown upstream '{upstream_name}'")
     bridge = _apply_bridge_overrides(
         loaded.config.bridge,
-        upstream_name=upstream_name or loaded.config.default_upstream or "mcpapps-gateway",
+        upstream_name=upstream_name or "mabrid-gateway",
         api_host=api_host,
         api_port=api_port,
         proxy_name=proxy_name,
@@ -133,7 +98,7 @@ def resolve_runtime_configuration(
         storage=loaded.config.storage.model_copy(update={"sqlite_path": sqlite_path}),
         upstreams=resolved_upstreams,
         endpoints=loaded.config.endpoints,
-        default_upstream=upstream_name or loaded.config.default_upstream,
+        diagnostic_upstream=upstream_name,
         agent_host=_resolve_agent_host_config(loaded.config.agent_host),
     )
 
@@ -182,29 +147,6 @@ def _project_root() -> Path:
         if (parent / CONFIG_FILE_NAME).is_file():
             return parent
     return Path.cwd()
-
-
-def _select_upstream(
-    config: McpAppsBridgeConfig,
-    requested_name: str | None,
-) -> tuple[str, UpstreamFileConfig]:
-    if requested_name is not None:
-        upstream = config.upstreams.get(requested_name)
-        if upstream is None:
-            raise ConfigError(f"Unknown upstream '{requested_name}'")
-        return requested_name, upstream
-
-    if config.default_upstream is not None:
-        return config.default_upstream, config.upstreams[config.default_upstream]
-
-    if len(config.upstreams) == 1:
-        name, upstream = next(iter(config.upstreams.items()))
-        return name, upstream
-
-    available = ", ".join(sorted(config.upstreams))
-    raise ConfigError(
-        f"Multiple upstreams are configured ({available}). Choose one with --upstream or set defaultUpstream in YAML."
-    )
 
 
 def _apply_bridge_overrides(

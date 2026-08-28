@@ -17,12 +17,10 @@ from mcp_gateway_service import (
     EndpointBinding,
     EndpointDefinition,
     EndpointMode,
-    EndpointSessionPolicy,
     SseConnection,
     StdioConnection,
     StreamableHttpConnection,
     UpstreamServerDefinition,
-    UpstreamSessionMode,
 )
 
 from .models import (
@@ -348,9 +346,6 @@ def _endpoint_to_row(endpoint: EndpointDefinition) -> EndpointRow:
         slug=endpoint.slug,
         display_name=endpoint.display_name,
         mode=endpoint.mode.value,
-        upstream_session_mode=endpoint.session_policy.upstream_session_mode.value,
-        lazy_upstream_connections=endpoint.session_policy.lazy_upstream_connections,
-        idle_timeout_seconds=endpoint.session_policy.idle_timeout_seconds,
         enabled=endpoint.enabled,
         metadata_json=endpoint.metadata,
     )
@@ -367,9 +362,6 @@ def _endpoint_revision_to_row(
         slug=endpoint.slug,
         display_name=endpoint.display_name,
         mode=endpoint.mode.value,
-        upstream_session_mode=endpoint.session_policy.upstream_session_mode.value,
-        lazy_upstream_connections=endpoint.session_policy.lazy_upstream_connections,
-        idle_timeout_seconds=endpoint.session_policy.idle_timeout_seconds,
         enabled=endpoint.enabled,
         metadata_json=endpoint.metadata,
         created_at=datetime.now(timezone.utc),
@@ -413,11 +405,6 @@ async def _endpoint_from_row(
             )
             for binding in bindings
         ],
-        session_policy=EndpointSessionPolicy(
-            upstream_session_mode=UpstreamSessionMode(row.upstream_session_mode),
-            lazy_upstream_connections=row.lazy_upstream_connections,
-            idle_timeout_seconds=row.idle_timeout_seconds,
-        ),
         enabled=row.enabled,
         metadata=row.metadata_json,
     )

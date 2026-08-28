@@ -39,7 +39,6 @@ class BridgeRuntimeConfig(CamelModel):
 class StorageConfig(CamelModel):
     sqlite_path: Path = Path("backend/var/mcpapps-bridge.db")
     auto_migrate: bool = True
-    bootstrap_mode: Literal["seed-if-empty"] = "seed-if-empty"
 
 
 class HermesAgentRuntimeFileConfig(CamelModel):
@@ -120,9 +119,6 @@ class EndpointFileConfig(CamelModel):
     display_name: str | None = None
     mode: Literal["passthrough", "aggregate"] = "passthrough"
     bindings: list[EndpointBindingFileConfig]
-    upstream_session_mode: Literal["isolated", "shared"] = "isolated"
-    lazy_upstream_connections: bool = True
-    idle_timeout_seconds: float = 900.0
     enabled: bool = True
 
 
@@ -130,18 +126,11 @@ class McpAppsBridgeConfig(CamelModel):
     bridge: BridgeRuntimeConfig = Field(default_factory=BridgeRuntimeConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     agent_host: AgentHostFileConfig = Field(default_factory=AgentHostFileConfig)
-    upstreams: dict[str, UpstreamFileConfig] = Field(default_factory=dict)
-    endpoints: dict[str, EndpointFileConfig] = Field(default_factory=dict)
-    default_upstream: str | None = None
+    upstreams: dict[str, UpstreamFileConfig] = Field(min_length=1)
+    endpoints: dict[str, EndpointFileConfig] = Field(min_length=1)
 
     @model_validator(mode="after")
     def validate_upstream_defaults(self) -> McpAppsBridgeConfig:
-        if not self.upstreams:
-            raise ValueError("configuration must define at least one upstream")
-        if self.default_upstream is not None and self.default_upstream not in self.upstreams:
-            raise ValueError(
-                f"defaultUpstream '{self.default_upstream}' is not defined in upstreams"
-            )
         for endpoint_name, endpoint in self.endpoints.items():
             for binding in endpoint.bindings:
                 if binding.upstream not in self.upstreams:

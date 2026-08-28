@@ -5,10 +5,8 @@ from .loader import (
     ConfigError,
     LoadedBridgeConfig,
     RuntimeConfiguration,
-    RuntimeSelection,
     load_bridge_config,
     resolve_runtime_configuration,
-    resolve_runtime_selection,
 )
 from .models import (
     AgentHostFileConfig,
@@ -35,7 +33,6 @@ __all__ = [
     "LoadedBridgeConfig",
     "McpAppsBridgeConfig",
     "RuntimeConfiguration",
-    "RuntimeSelection",
     "RuntimeAgentHostConfig",
     "RuntimeHermesAgentConfig",
     "RuntimeUpstreamConfig",
@@ -43,5 +40,4 @@ __all__ = [
     "UpstreamFileConfig",
     "load_bridge_config",
     "resolve_runtime_configuration",
-    "resolve_runtime_selection",
 ]

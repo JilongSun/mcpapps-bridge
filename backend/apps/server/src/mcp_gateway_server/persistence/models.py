@@ -83,9 +83,6 @@ class EndpointRow(Base):
     slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     mode: Mapped[str] = mapped_column(String(32), nullable=False)
-    upstream_session_mode: Mapped[str] = mapped_column(String(32), nullable=False)
-    lazy_upstream_connections: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    idle_timeout_seconds: Mapped[float] = mapped_column(Float, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     current_revision_id: Mapped[UUID | None] = mapped_column(
@@ -110,9 +107,6 @@ class EndpointRevisionRow(Base):
     slug: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     mode: Mapped[str] = mapped_column(String(32), nullable=False)
-    upstream_session_mode: Mapped[str] = mapped_column(String(32), nullable=False)
-    lazy_upstream_connections: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    idle_timeout_seconds: Mapped[float] = mapped_column(Float, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -194,33 +188,6 @@ class BridgeSessionRow(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    error_message: Mapped[str | None] = mapped_column(Text)
-
-
-class UpstreamSessionRow(Base):
-    __tablename__ = "upstream_sessions"
-    __table_args__ = (
-        UniqueConstraint(
-            "bridge_session_id",
-            "upstream_server_id",
-            name="uq_upstream_sessions_bridge_server",
-        ),
-    )
-
-    upstream_session_id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
-    bridge_session_id: Mapped[UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("bridge_sessions.session_id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    upstream_server_id: Mapped[UUID] = mapped_column(
-        Uuid(as_uuid=True),
-        ForeignKey("upstream_servers.server_id", ondelete="RESTRICT"),
-        nullable=False,
-    )
-    status: Mapped[str] = mapped_column(String(32), nullable=False)
-    connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_message: Mapped[str | None] = mapped_column(Text)
 

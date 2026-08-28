@@ -7,7 +7,8 @@ from uuid import UUID, uuid4
 
 import httpx
 from mcp_bridge_core import (
-    AppResource,
+    ReadResourceResult,
+    ResourceContent,
     ResourceDescriptor,
     ToolCallResult,
     ToolDescriptor,
@@ -59,8 +60,10 @@ class FixtureClient:
     async def list_resources(self) -> list[ResourceDescriptor]:
         return [ResourceDescriptor(name="status", uri="data://status", mime_type="text/plain")]
 
-    async def read_resource(self, uri: str) -> AppResource:
-        return AppResource(uri=uri, mime_type="text/plain", text="ready")
+    async def read_resource(self, uri: str) -> ReadResourceResult:
+        return ReadResourceResult(
+            contents=(ResourceContent(uri=uri, mime_type="text/plain", text="ready"),)
+        )
 
     async def close(self) -> None:
         return None

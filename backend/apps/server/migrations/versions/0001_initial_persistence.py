@@ -36,9 +36,6 @@ def upgrade() -> None:
         sa.Column("slug", sa.String(length=255), nullable=False),
         sa.Column("display_name", sa.String(length=255), nullable=False),
         sa.Column("mode", sa.String(length=32), nullable=False),
-        sa.Column("upstream_session_mode", sa.String(length=32), nullable=False),
-        sa.Column("lazy_upstream_connections", sa.Boolean(), nullable=False),
-        sa.Column("idle_timeout_seconds", sa.Float(), nullable=False),
         sa.Column("enabled", sa.Boolean(), nullable=False),
         sa.Column("metadata_json", sa.JSON(), nullable=False),
         sa.PrimaryKeyConstraint("endpoint_id"),
@@ -85,32 +82,6 @@ def upgrade() -> None:
         ["endpoint_id", "status", "created_at"],
     )
     op.create_table(
-        "upstream_sessions",
-        sa.Column("upstream_session_id", sa.Uuid(), nullable=False),
-        sa.Column("bridge_session_id", sa.Uuid(), nullable=False),
-        sa.Column("upstream_server_id", sa.Uuid(), nullable=False),
-        sa.Column("status", sa.String(length=32), nullable=False),
-        sa.Column("connected_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("closed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("error_message", sa.Text(), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["bridge_session_id"],
-            ["bridge_sessions.session_id"],
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["upstream_server_id"],
-            ["upstream_servers.server_id"],
-            ondelete="RESTRICT",
-        ),
-        sa.PrimaryKeyConstraint("upstream_session_id"),
-        sa.UniqueConstraint(
-            "bridge_session_id",
-            "upstream_server_id",
-            name="uq_upstream_sessions_bridge_server",
-        ),
-    )
-    op.create_table(
         "session_events",
         sa.Column("event_id", sa.Uuid(), nullable=False),
         sa.Column("session_id", sa.Uuid(), nullable=False),
@@ -151,7 +122,6 @@ def downgrade() -> None:
     op.drop_table("session_snapshots")
     op.drop_index("ix_session_events_session_sequence", table_name="session_events")
     op.drop_table("session_events")
-    op.drop_table("upstream_sessions")
     op.drop_index("ix_bridge_sessions_endpoint_status_created", table_name="bridge_sessions")
     op.drop_table("bridge_sessions")
     op.drop_index(

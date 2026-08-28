@@ -13,8 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from mcp_gateway_service import (
-    AppResourceLoadedEvent,
-    AppResource,
+    ResourceReadEvent,
+    ResourceReadRecord,
     BridgeSessionSnapshot,
     BridgeSessionStore,
     ErrorRaisedEvent,
@@ -128,12 +128,12 @@ class SqlAlchemyBridgeSessionStore:
 
         return await self._mutate(mutate)
 
-    async def load_resource(self, resource: AppResource) -> AppResourceLoadedEvent:
-        def mutate(snapshot: BridgeSessionSnapshot) -> AppResourceLoadedEvent:
-            resource_index = {item.uri: item for item in snapshot.loaded_resources}
-            resource_index[resource.uri] = resource
-            snapshot.loaded_resources = list(resource_index.values())
-            return AppResourceLoadedEvent(session_id=str(self._session_id), resource=resource)
+    async def record_resource_read(self, read: ResourceReadRecord) -> ResourceReadEvent:
+        def mutate(snapshot: BridgeSessionSnapshot) -> ResourceReadEvent:
+            read_index = {item.requested_uri: item for item in snapshot.resource_reads}
+            read_index[read.requested_uri] = read
+            snapshot.resource_reads = list(read_index.values())
+            return ResourceReadEvent(session_id=str(self._session_id), read=read)
 
         return await self._mutate(mutate)
 

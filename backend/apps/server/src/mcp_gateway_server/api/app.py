@@ -7,10 +7,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from mcp_bridge_core import create_mcp_asgi_app
 from mcp_gateway_service import GatewaySessionCoordinator
 from mcp_gateway_service.agent_host import AgentHostService
+from mcp_gateway_service.gateway import GatewayMcpSessionBroker
 
-from mcp_gateway_server.api.mcp_transport import create_mcp_transport_app
 from mcp_gateway_server.api.openai_compat import create_openai_compatibility_router
 from mcp_gateway_server.logging import get_logger
 
@@ -40,7 +41,7 @@ def create_app(
     )
     app.state.bridge_manager = manager
 
-    app.mount("/mcp", create_mcp_transport_app(manager))
+    app.mount("/mcp", create_mcp_asgi_app(GatewayMcpSessionBroker(manager)))
     if agent_host is not None:
         app.include_router(create_openai_compatibility_router(agent_host))
 

@@ -13,11 +13,9 @@ from mcp_gateway_service import (
     EndpointBinding,
     EndpointDefinition,
     EndpointMode,
-    EndpointSessionPolicy,
     GatewaySessionCoordinator,
     ManagedAgentRuntime,
     UpstreamServerDefinition,
-    UpstreamSessionMode,
 )
 
 from mcp_gateway_server.agent_runtime import build_agent_runtime
@@ -152,8 +150,20 @@ def _build_topology_seed(
         else:
             logger.debug("  http: url=%s", upstream.url)
 
+    endpoint_configs = configuration.endpoints
+    if configuration.diagnostic_upstream is not None:
+        selected = upstreams[configuration.diagnostic_upstream]
+        endpoints = [
+            EndpointDefinition(
+                slug=selected.slug,
+                display_name=configuration.bridge.proxy_name or selected.display_name,
+                bindings=[EndpointBinding(upstream_server_id=selected.server_id)],
+            )
+        ]
+        return list(upstreams.values()), endpoints
+
     endpoints: list[EndpointDefinition] = []
-    for name, endpoint in configuration.endpoints.items():
+    for name, endpoint in endpoint_configs.items():
         definition = EndpointDefinition(
             slug=_normalize_slug(name),
             display_name=endpoint.display_name or name,
@@ -167,11 +177,6 @@ def _build_topology_seed(
                 )
                 for binding in endpoint.bindings
             ],
-            session_policy=EndpointSessionPolicy(
-                upstream_session_mode=UpstreamSessionMode(endpoint.upstream_session_mode),
-                lazy_upstream_connections=endpoint.lazy_upstream_connections,
-                idle_timeout_seconds=endpoint.idle_timeout_seconds,
-            ),
             enabled=endpoint.enabled,
         )
         logger.info(
@@ -191,22 +196,6 @@ def _build_topology_seed(
                 binding.enabled,
             )
         endpoints.append(definition)
-    if not endpoints:
-        default_name = configuration.default_upstream
-        if default_name is None:
-            if len(upstreams) != 1:
-                raise ValueError(
-                    "Legacy topology with multiple upstreams requires defaultUpstream or endpoints"
-                )
-            default_name = next(iter(upstreams))
-        upstream = upstreams[default_name]
-        endpoints.append(
-            EndpointDefinition(
-                slug=upstream.slug,
-                display_name=configuration.bridge.proxy_name or upstream.display_name,
-                bindings=[EndpointBinding(upstream_server_id=upstream.server_id)],
-            )
-        )
     return list(upstreams.values()), endpoints
 
 

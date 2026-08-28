@@ -8,12 +8,22 @@ from mcp_gateway_service import AgentCapability, AgentRuntimeInterface
 from mcp_gateway_server.bootstrap import bootstrap_gateway
 from mcp_gateway_server.config import (
     BridgeRuntimeConfig,
+    EndpointBindingFileConfig,
+    EndpointFileConfig,
     RuntimeAgentHostConfig,
     RuntimeConfiguration,
     RuntimeHermesAgentConfig,
     RuntimeUpstreamConfig,
     StorageConfig,
 )
+
+
+def _endpoints() -> dict[str, EndpointFileConfig]:
+    return {
+        "fixture": EndpointFileConfig(
+            bindings=[EndpointBindingFileConfig(upstream="fixture")]
+        )
+    }
 
 
 async def test_clean_sqlite_database_migrates_seeds_and_composes_gateway(tmp_path: Path) -> None:
@@ -27,8 +37,8 @@ async def test_clean_sqlite_database_migrates_seeds_and_composes_gateway(tmp_pat
                 command="fixture-server",
             )
         },
-        endpoints={},
-        default_upstream="fixture",
+        endpoints=_endpoints(),
+        diagnostic_upstream=None,
     )
 
     result = await bootstrap_gateway(configuration)
@@ -52,8 +62,8 @@ async def test_enabled_agent_host_composes_hermes_http_adapter(tmp_path: Path) -
                 command="fixture-server",
             )
         },
-        endpoints={},
-        default_upstream="fixture",
+        endpoints=_endpoints(),
+        diagnostic_upstream=None,
         agent_host=RuntimeAgentHostConfig(
             enabled=True,
             target_id="fixture-target",
@@ -96,8 +106,8 @@ async def test_agent_target_requires_a_published_enabled_endpoint(tmp_path: Path
                 command="fixture-server",
             )
         },
-        endpoints={},
-        default_upstream="fixture",
+        endpoints=_endpoints(),
+        diagnostic_upstream=None,
         agent_host=RuntimeAgentHostConfig(
             enabled=True,
             target_id="fixture-target",
@@ -116,3 +126,33 @@ async def test_agent_target_requires_a_published_enabled_endpoint(tmp_path: Path
         assert "not published and enabled" in str(exc)
     else:
         raise AssertionError("bootstrap accepted an unpublished Agent Target endpoint")
+
+
+async def test_diagnostic_upstream_explicitly_overrides_configured_endpoints(
+    tmp_path: Path,
+) -> None:
+    configuration = RuntimeConfiguration(
+        config_path=tmp_path / "fixture.yaml",
+        bridge=BridgeRuntimeConfig(proxy_name="Diagnostic Fixture"),
+        storage=StorageConfig(sqlite_path=tmp_path / "gateway.db", auto_migrate=True),
+        upstreams={
+            "fixture": RuntimeUpstreamConfig(
+                transport="stdio",
+                command="fixture-server",
+            )
+        },
+        endpoints={
+            "configured-endpoint": EndpointFileConfig(
+                bindings=[EndpointBindingFileConfig(upstream="fixture")]
+            )
+        },
+        diagnostic_upstream="fixture",
+    )
+
+    result = await bootstrap_gateway(configuration)
+    try:
+        [published] = result.manager.published_endpoints
+        assert published.revision.slug == "fixture"
+        assert published.revision.display_name == "Diagnostic Fixture"
+    finally:
+        await result.storage.close()

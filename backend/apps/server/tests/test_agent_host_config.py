@@ -19,7 +19,10 @@ agentHost:
         interface: openai-chat-completions
         baseUrl: http://hermes.test:8642/v1
         apiKeyEnv: FIXTURE_HERMES_KEY
-defaultUpstream: fixture
+endpoints:
+    fixture:
+        bindings:
+            - upstream: fixture
 upstreams:
     fixture:
         transport: stdio
@@ -81,7 +84,9 @@ def test_agent_host_uses_hermes_api_server_key_by_default(
     config_path.write_text(
         """
 agentHost: {enabled: true, targetId: fixture-target, endpointSlug: fixture}
-defaultUpstream: fixture
+endpoints:
+    fixture:
+        bindings: [{upstream: fixture}]
 upstreams:
   fixture:
     transport: stdio
@@ -111,7 +116,9 @@ def test_agent_host_loads_api_key_from_dotenv_next_to_config(
     config_path.write_text(
         """
 agentHost: {enabled: true, targetId: fixture-target, endpointSlug: fixture}
-defaultUpstream: fixture
+endpoints:
+    fixture:
+        bindings: [{upstream: fixture}]
 upstreams:
   fixture:
     transport: stdio
@@ -142,7 +149,9 @@ def test_process_environment_takes_precedence_over_dotenv(
     config_path.write_text(
         """
 agentHost: {enabled: true, targetId: fixture-target, endpointSlug: fixture}
-defaultUpstream: fixture
+endpoints:
+    fixture:
+        bindings: [{upstream: fixture}]
 upstreams:
   fixture:
     transport: stdio
@@ -174,8 +183,10 @@ agentHost:
   targetId: fixture-target
   endpointSlug: fixture
   runtime:
-    integration: unknown
-defaultUpstream: fixture
+        integration: unknown
+endpoints:
+    fixture:
+        bindings: [{upstream: fixture}]
 upstreams:
   fixture:
     transport: stdio
@@ -185,6 +196,28 @@ upstreams:
     )
 
     with pytest.raises(ConfigError, match="integration"):
+        resolve_runtime_configuration(
+            str(config_path),
+            upstream_name=None,
+            api_host=None,
+            api_port=None,
+            proxy_name=None,
+        )
+
+
+def test_configuration_requires_explicit_endpoints(tmp_path: Path) -> None:
+    config_path = tmp_path / "fixture.yaml"
+    config_path.write_text(
+        """
+upstreams:
+  fixture:
+    transport: stdio
+    command: fixture-server
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="endpoints"):
         resolve_runtime_configuration(
             str(config_path),
             upstream_name=None,
