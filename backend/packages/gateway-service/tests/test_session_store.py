@@ -9,6 +9,9 @@ from mcp_bridge_core import (
     BindingAvailabilityChanged,
     BridgeFailure,
     BridgeFailureCode,
+    ReadResourceResult,
+    ResourceContent,
+    ResourceRead,
     ToolCallCompleted,
     ToolCallStarted,
     ToolDescriptor,
@@ -80,11 +83,34 @@ async def test_journal_adapter_preserves_operation_and_binding_revision_keys() -
             failure=failure,
         )
     )
+    await observer.observe(
+        ResourceRead(
+            session_key="session-1",
+            binding_key=str(binding.binding_revision_id),
+            requested_uri="docs+file:///manual.txt",
+            result=ReadResourceResult(
+                contents=(
+                    ResourceContent(
+                        uri="docs+file:///manual.txt",
+                        mime_type="text/plain",
+                        text="manual",
+                    ),
+                    ResourceContent(
+                        uri="docs+file:///related.txt",
+                        mime_type="text/plain",
+                        text="related",
+                    ),
+                ),
+                metadata={"requestId": "fixture-read"},
+            ),
+        )
+    )
 
     register_tools = cast(AsyncMock, store.register_tools)
     start_tool_call = cast(AsyncMock, store.start_tool_call)
     complete_tool_call = cast(AsyncMock, store.complete_tool_call)
     set_upstream_availability = cast(AsyncMock, store.set_upstream_availability)
+    record_resource_read = cast(AsyncMock, store.record_resource_read)
     register_tools.assert_awaited_once()
     start_tool_call.assert_awaited_once_with(
         "fixture__inspect",
@@ -102,3 +128,12 @@ async def test_journal_adapter_preserves_operation_and_binding_revision_keys() -
     assert availability.binding_revision_id == str(binding.binding_revision_id)
     assert availability.upstream_revision_id == str(upstream.revision_id)
     assert availability.error_message == "upstream unavailable"
+    resource_read_call = record_resource_read.await_args
+    assert resource_read_call is not None
+    resource_read = resource_read_call.args[0]
+    assert resource_read.requested_uri == "docs+file:///manual.txt"
+    assert [content.uri for content in resource_read.contents] == [
+        "docs+file:///manual.txt",
+        "docs+file:///related.txt",
+    ]
+    assert resource_read.metadata == {"requestId": "fixture-read"}

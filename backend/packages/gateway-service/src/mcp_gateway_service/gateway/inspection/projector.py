@@ -9,8 +9,9 @@ from mcp_bridge_core import (
     UpstreamIdentity,
 )
 
-from .inspection import (
-    AppResource,
+from .models import (
+    ResourceContent,
+    ResourceReadRecord,
     ToolCallResult,
     ToolDescriptor,
     UpstreamAvailability,
@@ -20,7 +21,7 @@ from .inspection import (
 from .journal import (
     BindingAvailabilityJournalEvent,
     ErrorRaisedJournalEvent,
-    ResourceLoadedJournalEvent,
+    ResourceReadJournalEvent,
     SessionJournalEvent,
     SessionStartedJournalEvent,
     ToolCallCompletedJournalEvent,
@@ -28,7 +29,7 @@ from .journal import (
     ToolsPublishedJournalEvent,
 )
 from .ports import BridgeSessionStore
-from .revisions import EndpointTopologyRevision
+from ..topology.revisions import EndpointTopologyRevision
 
 
 class BridgeSessionStoreJournal:
@@ -81,8 +82,24 @@ class BridgeSessionStoreJournal:
                 failed=event.failure is not None or result.is_error,
             )
             return
-        if isinstance(event, ResourceLoadedJournalEvent):
-            await self._store.load_resource(AppResource.model_validate(event.resource.model_dump()))
+        if isinstance(event, ResourceReadJournalEvent):
+            await self._store.record_resource_read(
+                ResourceReadRecord(
+                    requested_uri=event.requested_uri,
+                    contents=[
+                        ResourceContent(
+                            uri=content.uri,
+                            mime_type=content.mime_type,
+                            text=content.text,
+                            blob=content.blob,
+                            metadata=content.metadata,
+                        )
+                        for content in event.result.contents
+                    ],
+                    metadata=event.result.metadata,
+                    loaded_at=event.occurred_at,
+                )
+            )
             return
         if isinstance(event, ErrorRaisedJournalEvent):
             await self._store.record_error(

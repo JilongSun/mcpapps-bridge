@@ -8,16 +8,10 @@ from uuid import UUID, uuid4
 
 from mcp_bridge_core import EndpointMode
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, PositiveFloat, model_validator
-from enum import StrEnum
 
 
 class ServiceModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-
-class UpstreamSessionMode(StrEnum):
-    ISOLATED = "isolated"
-    SHARED = "shared"
 
 
 class StreamableHttpConnection(ServiceModel):
@@ -56,12 +50,6 @@ class UpstreamServerDefinition(ServiceModel):
     metadata: dict[str, object] = Field(default_factory=dict)
 
 
-class EndpointSessionPolicy(ServiceModel):
-    upstream_session_mode: UpstreamSessionMode = UpstreamSessionMode.ISOLATED
-    lazy_upstream_connections: bool = True
-    idle_timeout_seconds: PositiveFloat = 900.0
-
-
 class EndpointBinding(ServiceModel):
     binding_id: UUID = Field(default_factory=uuid4)
     upstream_server_id: UUID
@@ -76,7 +64,6 @@ class EndpointDefinition(ServiceModel):
     display_name: str = Field(min_length=1)
     mode: EndpointMode = EndpointMode.PASSTHROUGH
     bindings: list[EndpointBinding]
-    session_policy: EndpointSessionPolicy = Field(default_factory=EndpointSessionPolicy)
     enabled: bool = True
     metadata: dict[str, object] = Field(default_factory=dict)
 

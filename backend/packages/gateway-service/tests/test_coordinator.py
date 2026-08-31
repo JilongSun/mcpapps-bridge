@@ -5,7 +5,8 @@ from uuid import UUID, uuid4
 
 import pytest
 from mcp_bridge_core import (
-    AppResource,
+    ReadResourceResult,
+    ResourceContent,
     ResourceDescriptor,
     ToolCallResult,
     ToolDescriptor,
@@ -40,8 +41,10 @@ class FailingClient:
     async def list_resources(self) -> list[ResourceDescriptor]:
         return []
 
-    async def read_resource(self, uri: str) -> AppResource:
-        return AppResource(uri=uri, mime_type="text/plain", text="")
+    async def read_resource(self, uri: str) -> ReadResourceResult:
+        return ReadResourceResult(
+            contents=(ResourceContent(uri=uri, mime_type="text/plain", text=""),)
+        )
 
     async def close(self) -> None:
         return None

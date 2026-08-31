@@ -8,8 +8,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from .inspection import (
-    AppResource,
+from .models import (
+    ResourceReadRecord,
     ToolCallRecord,
     ToolDescriptor,
     UpstreamAvailability,
@@ -51,9 +51,9 @@ class ToolCallCompletedEvent(BaseSessionEvent):
     call: ToolCallRecord
 
 
-class AppResourceLoadedEvent(BaseSessionEvent):
-    kind: Literal["app.resource.loaded"] = "app.resource.loaded"
-    resource: AppResource
+class ResourceReadEvent(BaseSessionEvent):
+    kind: Literal["resource.read"] = "resource.read"
+    read: ResourceReadRecord
 
 
 class ErrorRaisedEvent(BaseSessionEvent):
@@ -72,7 +72,7 @@ SessionEvent: TypeAlias = (
     | ToolDiscoveredEvent
     | ToolCallStartedEvent
     | ToolCallCompletedEvent
-    | AppResourceLoadedEvent
+    | ResourceReadEvent
     | UpstreamAvailabilityChangedEvent
     | ErrorRaisedEvent
 )

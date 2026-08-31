@@ -71,11 +71,17 @@ class ToolCallRecord(BaseModel):
     completed_at: datetime | None = None
 
 
-class AppResource(BaseModel):
+class ResourceContent(BaseModel):
     uri: str
-    mime_type: str
+    mime_type: str | None = None
     text: str | None = None
     blob: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ResourceReadRecord(BaseModel):
+    requested_uri: str
+    contents: list[ResourceContent]
     metadata: dict[str, Any] = Field(default_factory=dict)
     loaded_at: datetime = Field(default_factory=utc_now)
 
@@ -110,7 +116,7 @@ class BridgeSessionSnapshot(BaseModel):
     upstream_availability: list[UpstreamAvailability] = Field(default_factory=list)
     discovered_tools: list[ToolDescriptor] = Field(default_factory=list)
     active_tool_calls: list[ToolCallRecord] = Field(default_factory=list)
-    loaded_resources: list[AppResource] = Field(default_factory=list)
+    resource_reads: list[ResourceReadRecord] = Field(default_factory=list)
     last_error: str | None = None
     event_count: int = 0
     updated_at: datetime = Field(default_factory=utc_now)

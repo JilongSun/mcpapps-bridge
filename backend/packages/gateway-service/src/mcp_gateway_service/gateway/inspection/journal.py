@@ -6,7 +6,6 @@ from datetime import datetime
 from typing import Annotated, Literal, Protocol
 
 from mcp_bridge_core import (
-    AppResource,
     BindingAvailabilityStatus,
     BindingAvailabilityChanged,
     BridgeErrorRaised,
@@ -14,7 +13,8 @@ from mcp_bridge_core import (
     BridgeObservation,
     BridgeObserver,
     BridgeSessionStarted,
-    ResourceLoaded,
+    ReadResourceResult,
+    ResourceRead,
     ToolCallCompleted,
     ToolCallResult,
     ToolCallStarted,
@@ -66,10 +66,11 @@ class ToolCallCompletedJournalEvent(JournalEventBase):
     failure: BridgeFailure | None = None
 
 
-class ResourceLoadedJournalEvent(JournalEventBase):
-    kind: Literal["resource.loaded"] = "resource.loaded"
+class ResourceReadJournalEvent(JournalEventBase):
+    kind: Literal["resource.read"] = "resource.read"
     binding_key: str | None = None
-    resource: AppResource
+    requested_uri: str
+    result: ReadResourceResult
 
 
 class ErrorRaisedJournalEvent(JournalEventBase):
@@ -84,7 +85,7 @@ SessionJournalEvent = Annotated[
     | ToolsPublishedJournalEvent
     | ToolCallStartedJournalEvent
     | ToolCallCompletedJournalEvent
-    | ResourceLoadedJournalEvent
+    | ResourceReadJournalEvent
     | ErrorRaisedJournalEvent,
     Field(discriminator="kind"),
 ]
@@ -137,11 +138,12 @@ def _to_journal_event(event: BridgeObservation) -> SessionJournalEvent:
             result=event.result,
             failure=event.failure,
         )
-    if isinstance(event, ResourceLoaded):
-        return ResourceLoadedJournalEvent(
+    if isinstance(event, ResourceRead):
+        return ResourceReadJournalEvent(
             **common,
             binding_key=event.binding_key,
-            resource=event.resource,
+            requested_uri=event.requested_uri,
+            result=event.result,
         )
     if isinstance(event, BridgeErrorRaised):
         return ErrorRaisedJournalEvent(

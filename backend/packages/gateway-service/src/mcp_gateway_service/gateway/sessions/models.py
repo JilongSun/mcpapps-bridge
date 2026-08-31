@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 from pydantic import Field
 
-from .management import ServiceModel
+from ..topology.models import ServiceModel
 
 
 def utc_now() -> datetime:
@@ -23,13 +23,6 @@ class BridgeSessionStatus(StrEnum):
     FAILED = "failed"
 
 
-class UpstreamSessionStatus(StrEnum):
-    CONNECTING = "connecting"
-    ACTIVE = "active"
-    CLOSED = "closed"
-    FAILED = "failed"
-
-
 class BridgeSessionRecord(ServiceModel):
     session_id: UUID = Field(default_factory=uuid4)
     endpoint_id: UUID
@@ -38,15 +31,5 @@ class BridgeSessionRecord(ServiceModel):
     status: BridgeSessionStatus = BridgeSessionStatus.STARTING
     created_at: datetime = Field(default_factory=utc_now)
     last_activity_at: datetime = Field(default_factory=utc_now)
-    closed_at: datetime | None = None
-    error_message: str | None = None
-
-
-class UpstreamSessionRecord(ServiceModel):
-    upstream_session_id: UUID = Field(default_factory=uuid4)
-    bridge_session_id: UUID
-    upstream_server_id: UUID
-    status: UpstreamSessionStatus = UpstreamSessionStatus.CONNECTING
-    connected_at: datetime | None = None
     closed_at: datetime | None = None
     error_message: str | None = None

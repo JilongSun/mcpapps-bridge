@@ -5,20 +5,19 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from mcp_bridge_core import EndpointMode, EndpointPlan
+from mcp_bridge_core import (
+    BindingPlan,
+    BridgeCapabilities,
+    EndpointMode,
+    EndpointPlan,
+    SseUpstreamConfig,
+    StdioUpstreamConfig,
+    StreamableHttpUpstreamConfig,
+    UpstreamConfig,
+)
 from pydantic import ConfigDict, Field, PositiveInt, model_validator
 
-from .management import EndpointSessionPolicy, ServiceModel, UpstreamConnection
-from .topology import (
-    ResolvedBindingRevision,
-    ResolvedEndpointRevision,
-    ResolvedSseConnection,
-    ResolvedStdioConnection,
-    ResolvedStreamableHttpConnection,
-    ResolvedUpstreamConnection,
-    ResolvedUpstreamRevision,
-    build_endpoint_plan,
-)
+from .models import ServiceModel, UpstreamConnection
 
 
 def utc_now() -> datetime:
@@ -60,7 +59,6 @@ class EndpointTopologyRevision(ServiceModel):
     display_name: str = Field(min_length=1)
     mode: EndpointMode = EndpointMode.PASSTHROUGH
     bindings: tuple[EndpointBindingRevision, ...]
-    session_policy: EndpointSessionPolicy = Field(default_factory=EndpointSessionPolicy)
     enabled: bool = True
     metadata: dict[str, object] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=utc_now)
@@ -87,43 +85,49 @@ class EndpointTopologyRevision(ServiceModel):
 
 def build_endpoint_plan_from_revision(revision: EndpointTopologyRevision) -> EndpointPlan:
     """Convert one persisted topology revision into the core runtime contract."""
-    resolved_bindings = tuple(
-        ResolvedBindingRevision(
-            binding_revision_key=str(binding.binding_revision_id),
-            namespace=binding.namespace,
-            priority=binding.priority,
-            enabled=binding.enabled,
-            upstream=ResolvedUpstreamRevision(
-                upstream_revision_key=str(binding.upstream.revision_id),
-                display_name=binding.upstream.display_name,
-                enabled=binding.upstream.enabled,
-                connection=_resolved_connection(binding.upstream.connection),
-            ),
+    if not revision.enabled:
+        raise ValueError(f"cannot build a plan for disabled endpoint: {revision.display_name}")
+
+    bindings: list[BindingPlan] = []
+    for binding in revision.bindings:
+        if not binding.enabled:
+            continue
+        upstream = binding.upstream
+        if not upstream.enabled:
+            raise ValueError(
+                f"enabled binding references disabled upstream: {binding.binding_revision_id}"
+            )
+        bindings.append(
+            BindingPlan(
+                binding_key=str(binding.binding_revision_id),
+                upstream_key=str(upstream.revision_id),
+                upstream_name=upstream.display_name,
+                namespace=binding.namespace,
+                priority=binding.priority,
+                upstream=_to_upstream_config(upstream.connection),
+            )
         )
-        for binding in revision.bindings
-    )
-    return build_endpoint_plan(
-        ResolvedEndpointRevision(
-            endpoint_revision_key=str(revision.revision_id),
-            display_name=revision.display_name,
-            mode=revision.mode,
-            bindings=resolved_bindings,
-            enabled=revision.enabled,
-        )
+
+    return EndpointPlan(
+        endpoint_key=str(revision.revision_id),
+        display_name=revision.display_name,
+        mode=revision.mode,
+        bindings=tuple(bindings),
+        capabilities=BridgeCapabilities(tools=True, resources=True),
     )
 
 
-def _resolved_connection(connection: UpstreamConnection) -> ResolvedUpstreamConnection:
+def _to_upstream_config(connection: UpstreamConnection) -> UpstreamConfig:
     if connection.transport == "stdio":
-        return ResolvedStdioConnection(
+        return StdioUpstreamConfig(
             command=connection.command,
             args=tuple(connection.args),
             cwd=connection.cwd,
             env=connection.env,
         )
     if connection.transport == "sse":
-        return ResolvedSseConnection(url=connection.url, headers=connection.headers)
-    return ResolvedStreamableHttpConnection(
+        return SseUpstreamConfig(url=connection.url, headers=connection.headers)
+    return StreamableHttpUpstreamConfig(
         url=connection.url,
         headers=connection.headers,
         timeout_seconds=connection.timeout_seconds,

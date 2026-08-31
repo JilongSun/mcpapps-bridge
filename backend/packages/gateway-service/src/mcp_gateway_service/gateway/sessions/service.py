@@ -12,27 +12,20 @@ from uuid import UUID
 import anyio
 from anyio.abc import TaskGroup, TaskStatus
 from mcp_bridge_core import (
-    BridgeDownstreamServer,
     BridgeEngine,
     BridgeSession,
     EndpointPlan,
     UpstreamClientFactory,
 )
-from mcp_bridge_core.handlers import ProxyHandlers
 
-from .journal import JournalBridgeObserver
-from .management import EndpointDefinition, UpstreamServerDefinition
-from .ports import (
-    BridgeSessionRepository,
-    BridgeSessionStore,
-    BridgeSessionStoreFactory,
-    EndpointRepository,
-    TopologyReader,
-    UpstreamServerRepository,
-)
-from .revisions import EndpointTopologyRevision, build_endpoint_plan_from_revision
-from .session_store import BridgeSessionStoreJournal
-from .sessions import BridgeSessionRecord, BridgeSessionStatus
+from ..inspection.journal import JournalBridgeObserver
+from ..inspection.ports import BridgeSessionStore, BridgeSessionStoreFactory
+from ..inspection.projector import BridgeSessionStoreJournal
+from ..topology.models import EndpointDefinition, UpstreamServerDefinition
+from ..topology.ports import EndpointRepository, TopologyReader, UpstreamServerRepository
+from ..topology.revisions import EndpointTopologyRevision, build_endpoint_plan_from_revision
+from .models import BridgeSessionRecord, BridgeSessionStatus
+from .ports import BridgeSessionRepository
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +49,6 @@ class BridgeSessionRuntime:
     session_id: UUID
     endpoint_id: UUID
     bridge_session: BridgeSession
-    downstream: BridgeDownstreamServer
     stop_event: anyio.Event
     closed_event: anyio.Event
 
@@ -180,18 +172,10 @@ class GatewaySessionCoordinator:
             downstream_identity.supports_resources,
             downstream_identity.protocol_version,
         )
-        handlers = ProxyHandlers(bridge_session, observer, session_key)
-        downstream = BridgeDownstreamServer(
-            handlers,
-            identity_provider=lambda: bridge_session.identity,
-            name=endpoint.revision.display_name,
-            version=self._version,
-        )
         active = BridgeSessionRuntime(
             session_id=session.session_id,
             endpoint_id=endpoint.revision.endpoint_id,
             bridge_session=bridge_session,
-            downstream=downstream,
             stop_event=anyio.Event(),
             closed_event=anyio.Event(),
         )
@@ -342,7 +326,7 @@ class GatewaySessionCoordinator:
         ready = False
         failed = False
         try:
-            async with active.downstream.run_http_transports():
+            async with active.bridge_session.transport_lifecycle():
                 self._active_sessions[active.session_id] = active
                 await self._set_session_status(active.session_id, BridgeSessionStatus.ACTIVE)
                 ready = True
