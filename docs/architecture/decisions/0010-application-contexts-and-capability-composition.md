@@ -1,6 +1,6 @@
 # ADR 0010: Application Contexts and Capability Composition
 
-- Status: Accepted; amended by ADR 0011 and ADR 0012
+- Status: Accepted; amended by ADR 0011, ADR 0012, and ADR 0013
 - Date: 2026-08-21
 - Amends: ADR 0003 and ADR 0006
 
@@ -9,6 +9,8 @@ moves reusable outbound Agent Runtime integrations from the deployment server in
 area of the service distribution.
 ADR 0012 separates runtime integration, API interface, and effective capabilities while retaining
 one configured Agent Target and one runtime instance.
+ADR 0013 implements the context-oriented `mabrid.application` structure and removes the redundant
+Gateway journal DTO layer while preserving the bounded contexts accepted here.
 
 ## Context
 
@@ -187,8 +189,8 @@ because the names overlap.
   compose them without adapter-specific coupling.
 - Optional operational features can be omitted from a personal deployment without creating a
   second Gateway implementation.
-- Some current coordination and journal code crosses these conceptual boundaries and should be
-  separated incrementally as related features are implemented.
+- Context facades add a small amount of import structure but keep ownership explicit inside one
+  application distribution.
 
 ## Explicitly Deferred
 
@@ -201,17 +203,16 @@ because the names overlap.
 
 ## Implementation Status
 
-As of 2026-08-21:
+As of 2026-09-01:
 
-- **Implemented:** bridge-core observations, immutable topology and session identities, Gateway
-  runtime coordination, detailed session events/snapshots, and optional server-owned composition
-  of an independently deployed Hermes HTTP adapter.
+- **Implemented:** `mabrid.application` separates Gateway topology, sessions, inspection, and Agent
+  Host contracts; core observations project directly into detailed session events/snapshots; the
+  server composes an independently deployed Hermes HTTP adapter.
 - **Partial:** MCP Apps resources are preserved and rendered, but the application resource
-  lifecycle and host-owned actions are incomplete; current coordinator composition couples runtime
-  sessions directly to the detailed inspection journal.
+  lifecycle and host-owned actions are incomplete.
 - **Partial:** the Agent Host context has provider-neutral text run commands, ordered application
   events, model discovery, failure normalization, an adapter port, and non-streaming production
   composition. Tool activity, Gateway endpoint and MCP Apps correlation, session continuity,
   streaming, and persistence remain pending.
-- **Pending:** topology administration commands, dedicated usage facts and queries, effective
-  capability reporting, and the remaining context-oriented service modules.
+- **Pending:** topology administration commands, dedicated usage facts and queries, and effective
+  capability reporting.

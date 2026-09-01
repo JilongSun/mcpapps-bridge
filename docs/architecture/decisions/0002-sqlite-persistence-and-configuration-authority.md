@@ -1,8 +1,12 @@
 # ADR 0002: SQLite Persistence and Configuration Authority
 
-- Status: Accepted; amended by ADR 0008
+- Status: Accepted; amended by ADR 0008 and ADR 0013
 - Date: 2026-07-14
 - Amended: 2026-07-20
+
+ADR 0013 resets the pre-v0.1 schema to one Mabrid baseline, changes the default database to
+`backend/var/mabrid.db`, and removes unimplemented session-policy fields, upstream-session rows,
+and persisted MCP transport correlation. The SQLite authority and transaction decisions remain.
 
 ## Context
 
@@ -140,23 +144,24 @@ Session events are retained indefinitely at first. A future retention and prunin
 
 ## Implementation Status
 
-As of 2026-08-21:
+As of 2026-09-01:
 
 ### Implemented
 
 - SQLite-only normal and debug runtime storage.
-- Async SQLAlchemy repositories, event/snapshot storage, Alembic migrations, and packaged
+- Async SQLAlchemy session history, event/snapshot storage, Alembic migrations, and packaged
   migration resources.
 - Seed-if-empty topology bootstrap, database-authoritative endpoint loading, immutable revisions,
   and interrupted-session cleanup.
 - One-process deployment semantics for live MCP session ownership.
+- A squashed pre-v0.1 schema containing only implemented topology, revision, session-history, and
+  inspection tables.
+- A schema contract test that compares clean migration output with SQLAlchemy metadata.
 
 ### Partial
 
-- Repository contracts provide the reads and initial publication required by the gateway, but do
-  not yet expose complete administrative mutations.
-- Session history is durable, while upstream connection audit rows are defined but not populated
-  by the runtime.
+- Immutable topology reads and initial publication are implemented; administrative mutation use
+  cases and their transaction ports remain pending.
 
 ### Pending
 

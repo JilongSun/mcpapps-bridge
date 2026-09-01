@@ -97,9 +97,9 @@ depends on an application-facing session broker protocol rather than on reposito
 topology models.
 
 Mabrid application implements that broker. It resolves published endpoints, creates and persists
-domain session records, binds transport correlation values, and closes application/core session
-lifecycles. The deployable server only mounts the composed ASGI application and owns process
-lifespan, CORS, health, and non-MCP HTTP APIs.
+domain session records, keeps live transport correlation in process memory, and closes
+application/core session lifecycles. The deployable server only mounts the composed ASGI
+application and owns process lifespan, CORS, health, and non-MCP HTTP APIs.
 
 Bridge engine/session construction encapsulates downstream handlers and MCP SDK server creation.
 Application code must not assemble core internals such as `ProxyHandlers` directly.
@@ -195,3 +195,22 @@ mechanical file moves.
 - Removing speculative fields and tables may invalidate local pre-v0.1 databases; this is accepted.
 - Legacy SSE remains a deliberate compatibility cost with an explicit owner and tests.
 - The refactor is larger than a directory rename, but each phase has a narrow executable gate.
+
+## Implementation Status
+
+As of 2026-09-01, this decision is implemented:
+
+- Python namespaces and distributions are `mabrid.bridge`, `mabrid.application`, and
+  `mabrid.server`, with no compatibility aliases.
+- Bridge, application, and server modules use responsibility-oriented packages and narrow root
+  facades.
+- MCP ASGI and legacy SSE mechanics live in bridge core behind the application session broker.
+- Complete resource-read values cross the core contract without content truncation.
+- Gateway topology, session lifecycle, and inspection projection are separate contexts; the
+  intermediate journal DTO layer is removed.
+- Streamable HTTP uses explicit URLs and provisional shared-session/network-discovery behavior is
+  removed.
+- SQLite adapters are organized by topology, sessions, and schema, and migrations are reset to one
+  implemented pre-v0.1 baseline.
+- Product-owned CLI, Web, configuration default, database default, and package identities use
+  Mabrid. Repository and Git remote migration remain owner-controlled after v0.1 scope completion.

@@ -1,6 +1,6 @@
 # ADR 0006: Core, Service, and Server Packages
 
-- Status: Accepted; application contexts amended by ADR 0010 and adapter ownership amended by ADR 0011
+- Status: Accepted; amended by ADR 0010, ADR 0011, and ADR 0013
 - Date: 2026-08-16
 - Accepted: 2026-08-17
 
@@ -9,6 +9,8 @@ package. The three-package dependency direction in this decision remains unchang
 ADR 0011 moves reusable outbound Agent Runtime integrations into an isolated area of the service
 distribution while leaving inbound APIs, configuration, secrets, and deployment composition in
 the server. The dependency direction remains unchanged.
+ADR 0013 renames the distributions and Python namespaces to Mabrid and reorganizes their internal
+modules without changing the three-layer dependency direction accepted here.
 
 ## Context
 

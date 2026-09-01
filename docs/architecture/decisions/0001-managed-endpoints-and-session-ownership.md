@@ -1,7 +1,11 @@
 # ADR 0001: Managed Endpoints and Session Ownership
 
-- Status: Accepted; amended by ADR 0003 and ADR 0008
+- Status: Accepted; amended by ADR 0003, ADR 0008, and ADR 0013
 - Date: 2026-07-13
+
+ADR 0013 removes the provisional shared-session policy, upstream-session persistence records, and
+persisted transport-session correlation until those behaviors have complete contracts. Isolated
+session ownership remains the implemented rule.
 
 ## Context
 
@@ -113,7 +117,7 @@ SQLite with `aiosqlite` is the first supported database. The persistence API rem
 
 ## Implementation Status
 
-As of 2026-08-21:
+As of 2026-09-01:
 
 ### Implemented
 
@@ -121,16 +125,15 @@ As of 2026-08-21:
 - One ASGI listener with stable path-addressed MCP endpoint dispatch.
 - Per-downstream-session MCP server, router, store, and isolated upstream runtimes.
 - Passthrough and aggregate endpoint modes with immutable endpoint revision capture.
-- SQLite repository adapters and database-backed endpoint publication.
+- Core-owned ASGI dispatch with process-local MCP transport correlation behind an application
+  broker.
+- SQLite-backed topology publication and application session history.
 
-### Partial
+### Removed From The Provisional Contract
 
-- Upstream and endpoint repositories support add/get/list operations, but not restart-applied
-  revise and disable mutations.
-- `UpstreamSessionRecord` and its SQL row exist, but runtime connection lifecycle is not persisted
-  through that model.
-- The `shared` session policy is accepted by configuration and domain models, but runtime behavior
-  remains isolated; shared upstream sessions are not implemented.
+- Shared upstream sessions and persisted upstream-session lifecycle rows.
+- Persisted `mcp-session-id` correlation, because the associated SDK state cannot survive restart.
+- Mutable topology repository APIs without corresponding management use cases.
 
 ### Pending
 

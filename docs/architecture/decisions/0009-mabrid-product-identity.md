@@ -4,9 +4,9 @@
 - Date: 2026-08-21
 - Supersedes: the Cembrid brand decision in ADR 0007
 
-ADR 0013 starts the coordinated Python and deployment-code identity migration during the backend
-semantic refactor. Repository directory and Git remote migration remain deferred until the owner
-completes the v0.1 scope. The product identity decision in this ADR is unchanged.
+ADR 0013 completed the coordinated Python and deployment-code identity migration during the
+backend semantic refactor. Repository directory and Git remote migration remain deferred until the
+owner completes the v0.1 scope. The product identity decision in this ADR is unchanged.
 
 ## Context
 
@@ -46,9 +46,10 @@ or the public DNS namespace.
 
 ## Implementation Status
 
-As of 2026-08-26:
+As of 2026-09-01:
 
 - **Decision complete:** Mabrid replaces Cembrid as the intended future brand.
-- **In progress under ADR 0013:** coordinated Python package and deployment-code migration.
+- **Implemented under ADR 0013:** Python namespaces, distributions, executable, Web title,
+  configuration default, database default, and backend development commands use Mabrid.
 - **Deferred:** repository directory, GitHub repository, Git remote, and frontend identity
   migration.
