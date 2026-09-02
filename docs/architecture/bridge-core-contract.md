@@ -26,8 +26,8 @@ notifications, protocol conversion, and MCP Python SDK v2 are later contract add
 
 ## Runtime Plans
 
-Gateway service resolves database-backed topology into core-owned frozen Pydantic models before a
-session opens.
+Mabrid application resolves database-backed topology into core-owned frozen Pydantic models before
+a session opens.
 
 ### `EndpointPlan`
 
@@ -99,9 +99,10 @@ SDK classes and core models.
 
 ### Downstream adapters
 
-A core-owned MCP server adapter maps MCP 2025-11-25 requests to `BridgeSession` operations. A raw
-ASGI transport adapter may host streamable HTTP and SSE compatibility without importing FastAPI.
-The server package selects routes, correlates transport session IDs, and controls process lifespan.
+A core-owned MCP server adapter maps MCP 2025-11-25 requests to `BridgeSession` operations. The raw
+ASGI adapter hosts Streamable HTTP and SSE compatibility without importing FastAPI. It owns MCP
+path, method, header, and transport-session mechanics behind an application broker port. The server
+only mounts that adapter and controls process lifespan.
 
 ## Observer Boundary
 
@@ -121,12 +122,12 @@ class BridgeObserver(Protocol):
 | `ToolsPublished` | session key and complete public tool descriptors |
 | `ToolCallStarted` | session key, operation key, public tool name, and arguments |
 | `ToolCallCompleted` | session key, operation key, public result or typed failure |
-| `ResourceLoaded` | session key, optional binding key, and public resource |
+| `ResourceRead` | session key, optional binding key, requested URI, and complete read result |
 | `BridgeErrorRaised` | session key, operation context, and typed failure |
 
-Core generates an opaque operation key for tool-call correlation. Service wraps observations in
-its durable event envelope, assigns persistence ordering, and updates snapshots. Core does not
-import application event envelopes or `BridgeSessionStore`.
+Core generates an opaque operation key for tool-call correlation. The application inspection
+projector maps observations directly into durable events and snapshots. Core does not import
+application event envelopes or `BridgeSessionStore`.
 
 Observation delivery is awaited in operation order for one bridge session. Core does not retry,
 buffer durably, or silently swallow observer failures. Server composition injects either a strict
@@ -179,15 +180,9 @@ Each extraction step must preserve these checks:
 6. A real MCP 2025-11-25 streamable HTTP test passes initialize, tool/resource discovery, calls,
    reads, and clean shutdown.
 
-The workspace package skeleton, core-owned plan/event models, managed-revision adapter, durable
-journal adapter, MCP SDK v1 adapter, downstream method handlers, owner-task runtime, and
-passthrough/aggregate routers now exist. Core also owns stdio, SSE compatibility, and streamable
-HTTP upstream connectors that map SDK responses directly to core models. Aggregate protocol
-characterization, SDK mapping, and owner-task tests run inside the core package without server or
-persistence imports. Core also owns the downstream MCP `Server` and raw ASGI/SSE/stdio transport
-adapter. The core `BridgeEngine` and `BridgeSession` facade now owns worker task groups, router
-composition, and session-scoped upstream lifecycle. Gateway service owns managed topology,
-session records, persistence ports, journals, and `GatewaySessionCoordinator`. Server code owns
-FastAPI route selection, SQLite adapters, configuration, and process composition. A composed
-server contract test exercises MCP 2025-11-25 initialization, tools, resources, transport deletion,
-and clean shutdown; a clean-database test verifies packaged Alembic migrations and SQLite assembly.
+The contract is implemented under `mabrid.bridge`. Core owns complete resource-read values, SDK v1
+mapping, downstream MCP and ASGI transports, routing, owner-task runtimes, and transport-specific
+upstream clients. Mabrid application owns immutable topology revisions, session lifecycle,
+process-local transport correlation, and direct inspection projection. Mabrid server owns FastAPI
+mounting, SQLite adapters, configuration, and composition. Protocol, owner-task, composed-server,
+and clean-schema tests protect these boundaries.

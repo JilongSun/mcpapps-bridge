@@ -13,8 +13,8 @@ Implementation states:
 
 | ADR | Decision status | Implementation state | Summary |
 | --- | --- | --- | --- |
-| [0001](decisions/0001-managed-endpoints-and-session-ownership.md) | Accepted; amended by 0003 and 0008 | Partial | Managed topology, stable endpoint dispatch, and isolated sessions exist; restart-applied management and shared sessions do not |
-| [0002](decisions/0002-sqlite-persistence-and-configuration-authority.md) | Accepted; amended by 0008 | Partial | SQLite, migrations, revisions, events, and bootstrap exist; restart-applied management APIs do not |
+| [0001](decisions/0001-managed-endpoints-and-session-ownership.md) | Accepted; amended by 0003, 0008, and 0013 | Partial | Managed topology, core-owned endpoint dispatch, and isolated sessions exist; restart-applied management remains pending |
+| [0002](decisions/0002-sqlite-persistence-and-configuration-authority.md) | Accepted; amended by 0008 and 0013 | Partial | SQLite, reset migrations, revisions, events, and bootstrap exist; restart-applied management APIs do not |
 | [0003](decisions/0003-mcp-apps-gateway-and-optional-agent-host.md) | Accepted; amended by 0008, 0010, and 0011 | Partial | Gateway data plane and the first provider-neutral text-run/OpenAI slice exist; management, MCP Apps host workflows, and complete Agent Host behavior remain incomplete |
 | [0004](decisions/0004-first-release-scope-and-distribution.md) | Accepted; amended by 0008 | Partial | The gateway foundation is implemented; static management UI/API, Agent Host, and OCI delivery remain release blockers |
 | [0005](decisions/0005-upstream-transport-task-ownership.md) | Accepted | Implemented | Upstream SDK contexts run and close in persistent owner tasks |
@@ -25,7 +25,7 @@ Implementation states:
 | [0010](decisions/0010-application-contexts-and-capability-composition.md) | Accepted; amended by 0011 and 0012 | Partial | Organize the application layer into Gateway, MCP Apps, and Agent Host contexts within one service package |
 | [0011](decisions/0011-single-agent-target-and-endpoint-assignment.md) | Accepted; amended by 0012 | Partial | Single Target identity, canonical OpenAI model list, endpoint validation, and reusable Hermes runtime are implemented; management exposure and runtime correlation remain deferred |
 | [0012](decisions/0012-agent-runtime-profiles-and-integration-composition.md) | Accepted | Partial | Runtime profiles, typed Hermes capability discovery, nested runtime configuration, and single-instance integration composition are implemented |
-| [0013](decisions/0013-backend-semantic-boundaries-and-mabrid-code-identity.md) | Accepted | Pending | Reorganize backend contexts, centralize MCP transport in core, prune provisional contracts, and adopt Mabrid code namespaces |
+| [0013](decisions/0013-backend-semantic-boundaries-and-mabrid-code-identity.md) | Accepted | Implemented | Backend contexts are modularized, MCP transport is core-owned, provisional contracts are removed, and Mabrid code identity is adopted |
 
 ## Current v0.1 Position
 
