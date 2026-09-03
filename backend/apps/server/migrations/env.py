@@ -10,7 +10,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from mcp_gateway_server.persistence.models import Base
+from mabrid.server.persistence.schema import Base
 
 config = context.config
 
