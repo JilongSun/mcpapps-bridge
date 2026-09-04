@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from mabrid.application.agent_host import AgentCapability, AgentRuntimeInterface
 from pydantic import SecretStr
-from mcp_gateway_service import AgentCapability, AgentRuntimeInterface
+from sqlalchemy import inspect
 
-from mcp_gateway_server.bootstrap import bootstrap_gateway
-from mcp_gateway_server.config import (
+from mabrid.server.composition import bootstrap_server
+from mabrid.server.config import (
     BridgeRuntimeConfig,
     EndpointBindingFileConfig,
     EndpointFileConfig,
@@ -16,14 +17,11 @@ from mcp_gateway_server.config import (
     RuntimeUpstreamConfig,
     StorageConfig,
 )
+from mabrid.server.persistence import Base, SqliteDatabase
 
 
 def _endpoints() -> dict[str, EndpointFileConfig]:
-    return {
-        "fixture": EndpointFileConfig(
-            bindings=[EndpointBindingFileConfig(upstream="fixture")]
-        )
-    }
+    return {"fixture": EndpointFileConfig(bindings=[EndpointBindingFileConfig(upstream="fixture")])}
 
 
 async def test_clean_sqlite_database_migrates_seeds_and_composes_gateway(tmp_path: Path) -> None:
@@ -41,14 +39,44 @@ async def test_clean_sqlite_database_migrates_seeds_and_composes_gateway(tmp_pat
         diagnostic_upstream=None,
     )
 
-    result = await bootstrap_gateway(configuration)
+    result = await bootstrap_server(configuration)
     try:
-        assert [endpoint.revision.slug for endpoint in result.manager.published_endpoints] == [
+        assert [endpoint.revision.slug for endpoint in result.gateway.published_endpoints] == [
             "fixture"
         ]
         assert configuration.storage.sqlite_path.is_file()
     finally:
-        await result.storage.close()
+        await result.database.close()
+
+
+async def test_initial_migration_matches_the_current_sqlite_schema(tmp_path: Path) -> None:
+    database = SqliteDatabase(tmp_path / "schema.db")
+    try:
+        await database.migrate()
+        async with database.engine.connect() as connection:
+            tables = await connection.run_sync(
+                lambda sync_connection: set(inspect(sync_connection).get_table_names())
+            )
+            endpoint_columns = await connection.run_sync(
+                lambda sync_connection: {
+                    column["name"] for column in inspect(sync_connection).get_columns("endpoints")
+                }
+            )
+            session_columns = await connection.run_sync(
+                lambda sync_connection: {
+                    column["name"]
+                    for column in inspect(sync_connection).get_columns("bridge_sessions")
+                }
+            )
+    finally:
+        await database.close()
+
+    assert tables == {*Base.metadata.tables, "alembic_version"}
+    assert "upstream_sessions" not in tables
+    assert "upstream_session_mode" not in endpoint_columns
+    assert "lazy_upstream_connections" not in endpoint_columns
+    assert "idle_timeout_seconds" not in endpoint_columns
+    assert "downstream_transport_session_id" not in session_columns
 
 
 async def test_enabled_agent_host_composes_hermes_http_adapter(tmp_path: Path) -> None:
@@ -75,7 +103,7 @@ async def test_enabled_agent_host_composes_hermes_http_adapter(tmp_path: Path) -
         ),
     )
 
-    result = await bootstrap_gateway(configuration)
+    result = await bootstrap_server(configuration)
     try:
         assert result.agent_host is not None
         assert result.agent_host.service.target.target_id == "fixture-target"
@@ -92,7 +120,7 @@ async def test_enabled_agent_host_composes_hermes_http_adapter(tmp_path: Path) -
     finally:
         if result.agent_host is not None:
             await result.agent_host.runtime.close()
-        await result.storage.close()
+        await result.database.close()
 
 
 async def test_agent_target_requires_a_published_enabled_endpoint(tmp_path: Path) -> None:
@@ -120,7 +148,7 @@ async def test_agent_target_requires_a_published_enabled_endpoint(tmp_path: Path
     )
 
     try:
-        await bootstrap_gateway(configuration)
+        await bootstrap_server(configuration)
     except ValueError as exc:
         assert "missing-endpoint" in str(exc)
         assert "not published and enabled" in str(exc)
@@ -149,10 +177,10 @@ async def test_diagnostic_upstream_explicitly_overrides_configured_endpoints(
         diagnostic_upstream="fixture",
     )
 
-    result = await bootstrap_gateway(configuration)
+    result = await bootstrap_server(configuration)
     try:
-        [published] = result.manager.published_endpoints
+        [published] = result.gateway.published_endpoints
         assert published.revision.slug == "fixture"
         assert published.revision.display_name == "Diagnostic Fixture"
     finally:
-        await result.storage.close()
+        await result.database.close()

@@ -5,8 +5,7 @@ from typing import cast
 
 import httpx
 import pytest
-from mcp_gateway_service import GatewaySessionCoordinator
-from mcp_gateway_service.agent_host import (
+from mabrid.application.agent_host import (
     AgentAdapterCompleted,
     AgentAdapterEvent,
     AgentAdapterTextDelta,
@@ -20,10 +19,11 @@ from mcp_gateway_service.agent_host import (
     StartRunCommand,
     TokenUsage,
 )
+from mabrid.application.gateway.sessions import GatewaySessionCoordinator
 from openai import AsyncOpenAI
 from openai import APIStatusError
 
-from mcp_gateway_server.api import create_app
+from mabrid.server.api import create_app
 
 PROFILE = AgentRuntimeProfile(
     integration_kind="fixture",
@@ -83,6 +83,7 @@ def _agent_host(runtime: AgentRuntime | None = None) -> AgentHostService:
 def test_chat_completions_openapi_describes_the_official_sdk_request_body() -> None:
     app = create_app(cast(GatewaySessionCoordinator, object()), agent_host=_agent_host())
 
+    assert app.title == "Mabrid"
     operation = app.openapi()["paths"]["/v1/chat/completions"]["post"]
     request_body = operation["requestBody"]
     json_body = request_body["content"]["application/json"]

@@ -4,7 +4,17 @@ from pathlib import Path
 
 import pytest
 
-from mcp_gateway_server.config import ConfigError, resolve_runtime_configuration
+from mabrid.server.config import (
+    CONFIG_FILE_NAME,
+    ConfigError,
+    StorageConfig,
+    resolve_runtime_configuration,
+)
+
+
+def test_mabrid_owns_default_deployment_identifiers() -> None:
+    assert CONFIG_FILE_NAME == "mabrid.yaml"
+    assert StorageConfig().sqlite_path == Path("backend/var/mabrid.db")
 
 
 def _write_config(path: Path) -> None:

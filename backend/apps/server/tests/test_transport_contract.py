@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import httpx
-from mcp_bridge_core import (
+from mabrid.bridge import (
     ReadResourceResult,
     ResourceContent,
     ResourceDescriptor,
@@ -15,21 +15,20 @@ from mcp_bridge_core import (
     UpstreamConfig,
     UpstreamIdentity,
 )
-from mcp_gateway_service import (
+from mabrid.application.gateway.inspection import BridgeSessionStore, BridgeSessionStoreFactory
+from mabrid.application.gateway.sessions import (
     BridgeSessionRecord,
     BridgeSessionStatus,
-    BridgeSessionStore,
-    BridgeSessionStoreFactory,
-    EndpointBindingRevision,
-    EndpointRepository,
-    EndpointTopologyRevision,
     GatewaySessionCoordinator,
+)
+from mabrid.application.gateway.topology import (
+    EndpointBindingRevision,
+    EndpointTopologyRevision,
     StdioConnection,
     UpstreamRevision,
-    UpstreamServerRepository,
 )
 
-from mcp_gateway_server.api import create_app
+from mabrid.server.api import create_app
 
 
 class FixtureClient:
@@ -101,18 +100,6 @@ class MemorySessionRepository:
     async def get(self, session_id: UUID) -> BridgeSessionRecord | None:
         return self.records.get(session_id)
 
-    async def get_by_transport_session_id(
-        self, transport_session_id: str
-    ) -> BridgeSessionRecord | None:
-        return next(
-            (
-                record
-                for record in self.records.values()
-                if record.downstream_transport_session_id == transport_session_id
-            ),
-            None,
-        )
-
     async def list(self, endpoint_id: UUID | None = None) -> list[BridgeSessionRecord]:
         return [
             record
@@ -174,8 +161,6 @@ async def test_composed_server_supports_mcp_2025_streamable_http_contract() -> N
     )
     sessions = MemorySessionRepository()
     coordinator = GatewaySessionCoordinator(
-        cast(UpstreamServerRepository, object()),
-        cast(EndpointRepository, object()),
         SingleTopologyReader(revision),
         sessions,
         cast(BridgeSessionStoreFactory, MemoryStoreFactory()),

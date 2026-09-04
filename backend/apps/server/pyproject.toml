@@ -1,5 +1,5 @@
 [project]
-name = "mcp-gateway-server"
+name = "mabrid-server"
 version = "0.1.0"
 description = "Internal deployable MCP gateway server composition."
 requires-python = ">=3.12"
@@ -9,8 +9,8 @@ dependencies = [
   "anyio>=4.4.0",
   "fastapi>=0.115.0",
   "greenlet>=3.5.3",
-  "mcp-bridge-core",
-  "mcp-gateway-service",
+  "mabrid-bridge",
+  "mabrid-application",
   "openai>=2.24,<3",
   "pydantic>=2.8.0",
   "python-dotenv>=1.2.2",
@@ -21,18 +21,18 @@ dependencies = [
 ]
 
 [project.scripts]
-mcp-gateway-server = "mcp_gateway_server.main:main"
+mabrid = "mabrid.server.main:main"
 
 [tool.uv.sources]
-mcp-bridge-core = { workspace = true }
-mcp-gateway-service = { workspace = true }
+mabrid-bridge = { workspace = true }
+mabrid-application = { workspace = true }
 
 [build-system]
 requires = ["hatchling>=1.25.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/mcp_gateway_server"]
+packages = ["src/mabrid"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"migrations" = "mcp_gateway_server/persistence/migrations"
+"migrations" = "mabrid/server/persistence/migrations"
