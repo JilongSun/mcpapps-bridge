@@ -1,11 +1,25 @@
-"""Application journal adapter for the session inspection store."""
+"""Project bridge-core observations into durable Gateway inspection state.
+
+The projector is the application boundary between protocol facts and inspection records. It
+performs explicit field mapping and does not introduce an intermediate journal event vocabulary.
+"""
 
 from __future__ import annotations
 
-from mcp_bridge_core import (
+from mabrid.bridge import (
     BindingAvailabilityStatus,
+    BindingAvailabilityChanged,
+    BridgeErrorRaised,
     BridgeFailure,
+    BridgeObservation,
+    BridgeObserver,
+    BridgeSessionStarted,
+    ResourceRead,
+    ToolCallCompleted,
     ToolCallResult as CoreToolCallResult,
+    ToolCallStarted,
+    ToolDescriptor as CoreToolDescriptor,
+    ToolsPublished,
     UpstreamIdentity,
 )
 
@@ -18,22 +32,12 @@ from .models import (
     UpstreamAvailabilityStatus,
     UpstreamInitialization,
 )
-from .journal import (
-    BindingAvailabilityJournalEvent,
-    ErrorRaisedJournalEvent,
-    ResourceReadJournalEvent,
-    SessionJournalEvent,
-    SessionStartedJournalEvent,
-    ToolCallCompletedJournalEvent,
-    ToolCallStartedJournalEvent,
-    ToolsPublishedJournalEvent,
-)
 from .ports import BridgeSessionStore
 from ..topology.revisions import EndpointTopologyRevision
 
 
-class BridgeSessionStoreJournal:
-    """Write application journal events through the session inspection store port."""
+class SessionInspectionProjector(BridgeObserver):
+    """Apply observations for one bridge session to its inspection store."""
 
     def __init__(
         self,
@@ -50,31 +54,29 @@ class BridgeSessionStoreJournal:
         }
         self._availability: dict[str, UpstreamAvailability] = {}
 
-    async def append(self, event: SessionJournalEvent) -> None:
+    async def observe(self, event: BridgeObservation) -> None:
         if event.session_key != self._session_key:
             raise ValueError(
-                f"journal session mismatch: {event.session_key} != {self._session_key}"
+                f"observation session mismatch: {event.session_key} != {self._session_key}"
             )
 
-        if isinstance(event, SessionStartedJournalEvent):
+        if isinstance(event, BridgeSessionStarted):
             await self._store.start(_identity(event.identity))
             return
-        if isinstance(event, BindingAvailabilityJournalEvent):
+        if isinstance(event, BindingAvailabilityChanged):
             await self._record_availability(event)
             return
-        if isinstance(event, ToolsPublishedJournalEvent):
-            await self._store.register_tools(
-                [ToolDescriptor.model_validate(tool.model_dump()) for tool in event.tools]
-            )
+        if isinstance(event, ToolsPublished):
+            await self._store.register_tools([_tool_descriptor(tool) for tool in event.tools])
             return
-        if isinstance(event, ToolCallStartedJournalEvent):
+        if isinstance(event, ToolCallStarted):
             await self._store.start_tool_call(
                 event.tool_name,
                 event.arguments,
                 call_id=event.operation_key,
             )
             return
-        if isinstance(event, ToolCallCompletedJournalEvent):
+        if isinstance(event, ToolCallCompleted):
             result = _tool_result(event.result, event.failure)
             await self._store.complete_tool_call(
                 event.operation_key,
@@ -82,7 +84,7 @@ class BridgeSessionStoreJournal:
                 failed=event.failure is not None or result.is_error,
             )
             return
-        if isinstance(event, ResourceReadJournalEvent):
+        if isinstance(event, ResourceRead):
             await self._store.record_resource_read(
                 ResourceReadRecord(
                     requested_uri=event.requested_uri,
@@ -97,11 +99,11 @@ class BridgeSessionStoreJournal:
                         for content in event.result.contents
                     ],
                     metadata=event.result.metadata,
-                    loaded_at=event.occurred_at,
+                    loaded_at=event.observed_at,
                 )
             )
             return
-        if isinstance(event, ErrorRaisedJournalEvent):
+        if isinstance(event, BridgeErrorRaised):
             await self._store.record_error(
                 event.failure.message,
                 details={
@@ -112,9 +114,9 @@ class BridgeSessionStoreJournal:
                 },
             )
             return
-        raise TypeError(f"Unsupported session journal event: {type(event).__name__}")
+        raise TypeError(f"Unsupported bridge observation: {type(event).__name__}")
 
-    async def _record_availability(self, event: BindingAvailabilityJournalEvent) -> None:
+    async def _record_availability(self, event: BindingAvailabilityChanged) -> None:
         binding = self._bindings.get(event.binding_key)
         if binding is None:
             raise KeyError(f"Unknown binding revision: {event.binding_key}")
@@ -136,13 +138,34 @@ class BridgeSessionStoreJournal:
             identity=_identity(event.identity) if event.identity is not None else None,
             failure_kind=failure.code.value if failure is not None else None,
             error_message=failure.message if failure is not None else None,
-            updated_at=event.occurred_at,
+            updated_at=event.observed_at,
         )
         await self._store.set_upstream_availability(list(self._availability.values()))
 
 
 def _identity(identity: UpstreamIdentity) -> UpstreamInitialization:
-    return UpstreamInitialization.model_validate(identity.model_dump())
+    return UpstreamInitialization(
+        server_name=identity.server_name,
+        server_version=identity.server_version,
+        protocol_version=identity.protocol_version,
+        instructions=identity.instructions,
+        supports_tools=identity.supports_tools,
+        supports_resources=identity.supports_resources,
+        raw_capabilities=dict(identity.raw_capabilities),
+    )
+
+
+def _tool_descriptor(tool: CoreToolDescriptor) -> ToolDescriptor:
+    return ToolDescriptor(
+        name=tool.name,
+        title=tool.title,
+        description=tool.description,
+        input_schema=dict(tool.input_schema),
+        output_schema=dict(tool.output_schema) if tool.output_schema is not None else None,
+        annotations=dict(tool.annotations),
+        ui_resource_uri=tool.ui_resource_uri,
+        metadata=dict(tool.metadata),
+    )
 
 
 def _tool_result(
@@ -150,7 +173,14 @@ def _tool_result(
     failure: BridgeFailure | None,
 ) -> ToolCallResult:
     if result is not None:
-        return ToolCallResult.model_validate(result.model_dump())
+        return ToolCallResult(
+            content=[dict(item) for item in result.content],
+            structured_content=(
+                dict(result.structured_content) if result.structured_content is not None else None
+            ),
+            is_error=result.is_error,
+            metadata=dict(result.metadata),
+        )
     if failure is None:
         raise ValueError("completed tool call requires a result or failure")
     return ToolCallResult(

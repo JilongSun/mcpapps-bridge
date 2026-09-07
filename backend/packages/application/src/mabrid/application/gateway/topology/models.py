@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
-from mcp_bridge_core import EndpointMode
+from mabrid.bridge import EndpointMode
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, PositiveFloat, model_validator
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 import httpx
-from mcp_gateway_service import (
+from mabrid.application.agent_host import (
     AgentAdapterCompleted,
     AgentAdapterTextDelta,
     AgentCapability,
@@ -11,7 +11,7 @@ from mcp_gateway_service import (
     AgentRuntimeInterface,
     StartRunCommand,
 )
-from mcp_gateway_service.agent_host.integrations.hermes import (
+from mabrid.application.agent_host.integrations.hermes import (
     HermesCapabilityDocument,
     HermesChatCompletionsAdapter,
 )

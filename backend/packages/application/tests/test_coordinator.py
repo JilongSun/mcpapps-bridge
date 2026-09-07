@@ -4,7 +4,7 @@ from typing import Any, cast
 from uuid import UUID, uuid4
 
 import pytest
-from mcp_bridge_core import (
+from mabrid.bridge import (
     ReadResourceResult,
     ResourceContent,
     ResourceDescriptor,
@@ -13,18 +13,17 @@ from mcp_bridge_core import (
     UpstreamConfig,
     UpstreamIdentity,
 )
-from mcp_gateway_service import (
+from mabrid.application.gateway.inspection import BridgeSessionStore, BridgeSessionStoreFactory
+from mabrid.application.gateway.sessions import (
     BridgeSessionRecord,
     BridgeSessionStatus,
-    BridgeSessionStore,
-    BridgeSessionStoreFactory,
-    EndpointBindingRevision,
-    EndpointRepository,
-    EndpointTopologyRevision,
     GatewaySessionCoordinator,
+)
+from mabrid.application.gateway.topology import (
+    EndpointBindingRevision,
+    EndpointTopologyRevision,
     StdioConnection,
     UpstreamRevision,
-    UpstreamServerRepository,
 )
 
 
@@ -82,18 +81,6 @@ class MemorySessionRepository:
     async def get(self, session_id: UUID) -> BridgeSessionRecord | None:
         return self.records.get(session_id)
 
-    async def get_by_transport_session_id(
-        self, transport_session_id: str
-    ) -> BridgeSessionRecord | None:
-        return next(
-            (
-                record
-                for record in self.records.values()
-                if record.downstream_transport_session_id == transport_session_id
-            ),
-            None,
-        )
-
     async def list(self, endpoint_id: UUID | None = None) -> list[BridgeSessionRecord]:
         return [
             record
@@ -128,8 +115,6 @@ async def test_coordinator_marks_session_failed_when_core_session_cannot_start()
     )
     sessions = MemorySessionRepository()
     coordinator = GatewaySessionCoordinator(
-        cast(UpstreamServerRepository, object()),
-        cast(EndpointRepository, object()),
         SingleTopologyReader(revision),
         sessions,
         cast(BridgeSessionStoreFactory, MemoryStoreFactory()),

@@ -4,7 +4,8 @@ from typing import cast
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from mcp_bridge_core import (
+import pytest
+from mabrid.bridge import (
     BindingAvailabilityStatus,
     BindingAvailabilityChanged,
     BridgeFailure,
@@ -12,24 +13,25 @@ from mcp_bridge_core import (
     ReadResourceResult,
     ResourceContent,
     ResourceRead,
+    EndpointMode,
     ToolCallCompleted,
     ToolCallStarted,
     ToolDescriptor,
     ToolsPublished,
 )
-from mcp_gateway_service import (
+from mabrid.application.gateway.inspection import (
     BridgeSessionStore,
-    BridgeSessionStoreJournal,
+    SessionInspectionProjector,
+)
+from mabrid.application.gateway.topology import (
     EndpointBindingRevision,
-    EndpointMode,
     EndpointTopologyRevision,
-    JournalBridgeObserver,
     StdioConnection,
     UpstreamRevision,
 )
 
 
-async def test_journal_adapter_preserves_operation_and_binding_revision_keys() -> None:
+async def test_inspection_projector_preserves_operation_and_binding_revision_keys() -> None:
     upstream = UpstreamRevision(
         server_id=uuid4(),
         slug="fixture",
@@ -45,8 +47,7 @@ async def test_journal_adapter_preserves_operation_and_binding_revision_keys() -
         bindings=(binding,),
     )
     store = cast(BridgeSessionStore, AsyncMock(spec=BridgeSessionStore))
-    journal = BridgeSessionStoreJournal("session-1", revision, store)
-    observer = JournalBridgeObserver("session-1", journal)
+    observer = SessionInspectionProjector("session-1", revision, store)
 
     await observer.observe(
         ToolsPublished(
@@ -137,3 +138,32 @@ async def test_journal_adapter_preserves_operation_and_binding_revision_keys() -
         "docs+file:///related.txt",
     ]
     assert resource_read.metadata == {"requestId": "fixture-read"}
+
+
+async def test_inspection_projector_rejects_cross_session_observations() -> None:
+    revision = EndpointTopologyRevision(
+        endpoint_id=uuid4(),
+        slug="fixture",
+        display_name="Fixture",
+        bindings=(
+            EndpointBindingRevision(
+                upstream=UpstreamRevision(
+                    server_id=uuid4(),
+                    slug="fixture",
+                    display_name="Fixture",
+                    connection=StdioConnection(command="fixture-server"),
+                )
+            ),
+        ),
+    )
+    store = cast(BridgeSessionStore, AsyncMock(spec=BridgeSessionStore))
+    projector = SessionInspectionProjector("session-1", revision, store)
+
+    with pytest.raises(ValueError, match="observation session mismatch"):
+        await projector.observe(
+            ToolCallStarted(
+                session_key="session-2",
+                operation_key="operation-1",
+                tool_name="inspect",
+            )
+        )

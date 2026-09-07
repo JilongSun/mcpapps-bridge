@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from mcp_bridge_core import (
+from mabrid.bridge import (
     BindingPlan,
     BridgeCapabilities,
     EndpointMode,

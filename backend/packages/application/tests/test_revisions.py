@@ -4,11 +4,11 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from mabrid.bridge import EndpointMode, StdioUpstreamConfig, StreamableHttpUpstreamConfig
 from pydantic import AnyHttpUrl
 
-from mcp_gateway_service import (
+from mabrid.application.gateway.topology import (
     EndpointBindingRevision,
-    EndpointMode,
     EndpointTopologyRevision,
     SseConnection,
     StdioConnection,
@@ -96,8 +96,12 @@ def test_revision_plan_preserves_transports_and_skips_disabled_bindings() -> Non
         "sse",
         "streamable-http",
     ]
-    assert plan.bindings[0].upstream.cwd == Path("fixtures")
-    assert plan.bindings[2].upstream.timeout_seconds == 18
+    stdio_config = plan.bindings[0].upstream
+    http_config = plan.bindings[2].upstream
+    assert isinstance(stdio_config, StdioUpstreamConfig)
+    assert isinstance(http_config, StreamableHttpUpstreamConfig)
+    assert stdio_config.cwd == Path("fixtures")
+    assert http_config.timeout_seconds == 18
 
 
 def test_revision_plan_rejects_disabled_publication() -> None:
@@ -122,9 +126,7 @@ def test_revision_plan_rejects_disabled_publication() -> None:
         update={
             "enabled": True,
             "bindings": (
-                EndpointBindingRevision(
-                    upstream=upstream.model_copy(update={"enabled": False})
-                ),
+                EndpointBindingRevision(upstream=upstream.model_copy(update={"enabled": False})),
             ),
         }
     )

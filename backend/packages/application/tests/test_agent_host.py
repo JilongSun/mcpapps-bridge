@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 import pytest
-from mcp_gateway_service.agent_host import (
+from mabrid.application.agent_host import (
     AgentAdapterCompleted,
     AgentAdapterEvent,
     AgentAdapterTextDelta,

@@ -15,18 +15,6 @@ from .events import (
     ToolDiscoveredEvent,
     UpstreamAvailabilityChangedEvent,
 )
-from .journal import (
-    BindingAvailabilityJournalEvent,
-    ErrorRaisedJournalEvent,
-    JournalBridgeObserver,
-    ResourceReadJournalEvent,
-    SessionJournal,
-    SessionJournalEvent,
-    SessionStartedJournalEvent,
-    ToolCallCompletedJournalEvent,
-    ToolCallStartedJournalEvent,
-    ToolsPublishedJournalEvent,
-)
 from .models import (
     BridgeSessionSnapshot,
     ResourceContent,
@@ -42,38 +30,28 @@ from .models import (
     UpstreamInitialization,
 )
 from .ports import BridgeSessionStore, BridgeSessionStoreFactory
-from .projector import BridgeSessionStoreJournal
+from .projector import SessionInspectionProjector
 
 __all__ = [
-    "BindingAvailabilityJournalEvent",
     "BridgeSessionSnapshot",
     "BridgeSessionStore",
     "BridgeSessionStoreFactory",
-    "BridgeSessionStoreJournal",
     "ErrorRaisedEvent",
-    "ErrorRaisedJournalEvent",
-    "JournalBridgeObserver",
     "ResourceContent",
     "ResourceDescriptor",
     "ResourceReadEvent",
-    "ResourceReadJournalEvent",
     "ResourceReadRecord",
     "SessionEvent",
-    "SessionJournal",
-    "SessionJournalEvent",
     "SessionStartedEvent",
-    "SessionStartedJournalEvent",
+    "SessionInspectionProjector",
     "SessionStatus",
     "ToolCallCompletedEvent",
-    "ToolCallCompletedJournalEvent",
     "ToolCallRecord",
     "ToolCallResult",
     "ToolCallStartedEvent",
-    "ToolCallStartedJournalEvent",
     "ToolCallStatus",
     "ToolDescriptor",
     "ToolDiscoveredEvent",
-    "ToolsPublishedJournalEvent",
     "UpstreamAvailability",
     "UpstreamAvailabilityChangedEvent",
     "UpstreamAvailabilityStatus",

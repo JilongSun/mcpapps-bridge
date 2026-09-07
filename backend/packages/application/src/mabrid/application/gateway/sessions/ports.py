@@ -15,9 +15,4 @@ class BridgeSessionRepository(Protocol):
 
     async def get(self, session_id: UUID) -> BridgeSessionRecord | None: ...
 
-    async def get_by_transport_session_id(
-        self,
-        transport_session_id: str,
-    ) -> BridgeSessionRecord | None: ...
-
     async def list(self, endpoint_id: UUID | None = None) -> list[BridgeSessionRecord]: ...

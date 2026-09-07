@@ -7,7 +7,8 @@ transport. It depends on topology and inspection contracts, never on persistence
 
 from .models import BridgeSessionRecord, BridgeSessionStatus
 from .ports import BridgeSessionRepository
-from .service import BridgeSessionRuntime, GatewaySessionCoordinator, PublishedEndpoint
+from .publication import PublishedEndpoint
+from .service import BridgeSessionRuntime, GatewaySessionCoordinator
 from .transport import GatewayMcpSessionBroker
 
 __all__ = [

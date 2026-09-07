@@ -7,7 +7,7 @@ dispatcher; transport parsing therefore never reaches topology or persistence po
 
 from __future__ import annotations
 
-from mcp_bridge_core import McpTransportSession
+from mabrid.bridge import McpTransportSession
 
 from .service import BridgeSessionRuntime, GatewaySessionCoordinator
 

@@ -15,7 +15,7 @@ from .models import (
     UpstreamConnection,
     UpstreamServerDefinition,
 )
-from .ports import EndpointRepository, TopologyReader, UpstreamServerRepository
+from .ports import TopologyReader
 from .revisions import (
     EndpointBindingRevision,
     EndpointTopologyRevision,
@@ -27,7 +27,6 @@ __all__ = [
     "EndpointBinding",
     "EndpointBindingRevision",
     "EndpointDefinition",
-    "EndpointRepository",
     "EndpointTopologyRevision",
     "ServiceModel",
     "SseConnection",
@@ -37,6 +36,5 @@ __all__ = [
     "UpstreamConnection",
     "UpstreamRevision",
     "UpstreamServerDefinition",
-    "UpstreamServerRepository",
     "build_endpoint_plan_from_revision",
 ]
