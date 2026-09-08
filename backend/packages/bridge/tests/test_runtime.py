@@ -5,7 +5,7 @@ from typing import Any
 import anyio
 import pytest
 
-from mcp_bridge_core import (
+from mabrid.bridge import (
     ReadResourceResult,
     ResourceContent,
     ResourceDescriptor,
@@ -14,8 +14,8 @@ from mcp_bridge_core import (
     ToolDescriptor,
     UpstreamConfig,
     UpstreamIdentity,
-    UpstreamRuntime,
 )
+from mabrid.bridge.upstream import UpstreamRuntime
 
 
 class TaskRecordingUpstreamClient:

@@ -3,14 +3,14 @@ from __future__ import annotations
 from base64 import b64encode
 
 from mcp import types
-from mcp_bridge_core import (
+from mabrid.bridge import (
     ReadResourceResult,
     ResourceContent,
     ResourceDescriptor,
     ToolCallResult,
     ToolDescriptor,
 )
-from mcp_bridge_core.downstream.sdk_v1 import (
+from mabrid.bridge.downstream.sdk_v1 import (
     to_mcp_call_tool_result,
     to_mcp_read_resource_result,
     to_mcp_resource,

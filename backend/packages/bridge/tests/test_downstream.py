@@ -5,8 +5,7 @@ from typing import Any, cast
 import pytest
 from starlette.types import Message, Receive, Scope, Send
 
-from mcp_bridge_core import (
-    BridgeDownstreamServer,
+from mabrid.bridge import (
     NoOpBridgeObserver,
     ReadResourceResult,
     ResourceContent,
@@ -15,7 +14,8 @@ from mcp_bridge_core import (
     ToolDescriptor,
     UpstreamIdentity,
 )
-from mcp_bridge_core.downstream.handlers import ProxyHandlers
+from mabrid.bridge.downstream import BridgeDownstreamServer
+from mabrid.bridge.downstream.handlers import ProxyHandlers
 
 
 class EmptyRouter:

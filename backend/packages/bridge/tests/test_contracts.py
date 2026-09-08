@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from mcp_bridge_core import (
+from mabrid.bridge import (
     BindingPlan,
     BridgeCapabilities,
     BridgeObservation,

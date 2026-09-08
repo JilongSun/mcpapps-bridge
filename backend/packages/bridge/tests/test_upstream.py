@@ -5,21 +5,23 @@ from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any, cast
 
-import mcp_bridge_core.upstream.connectors as upstream_module
+import mabrid.bridge.upstream.streamable_http as upstream_module
 import pytest
 from mcp import ClientSession, types
 from pydantic import AnyHttpUrl, AnyUrl
 
-from mcp_bridge_core import (
-    SseUpstreamClient,
+from mabrid.bridge import (
     SseUpstreamConfig,
-    StdioUpstreamClient,
     StdioUpstreamConfig,
-    StreamableHttpUpstreamClient,
     StreamableHttpUpstreamConfig,
+)
+from mabrid.bridge.upstream.base import BaseSessionUpstreamClient
+from mabrid.bridge.upstream import (
+    SseUpstreamClient,
+    StdioUpstreamClient,
+    StreamableHttpUpstreamClient,
     build_upstream_client,
 )
-from mcp_bridge_core.upstream.connectors import BaseSessionUpstreamClient
 
 
 class FakeHttpClient:

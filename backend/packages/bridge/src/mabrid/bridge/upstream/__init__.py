@@ -5,15 +5,15 @@ stateful upstream session through a persistent owner task so SDK cancel scopes a
 and exited by the same task.
 """
 
-from .connectors import (
+from .factory import (
     DefaultUpstreamClientFactory,
-    SseUpstreamClient,
-    StdioUpstreamClient,
-    StreamableHttpUpstreamClient,
     UpstreamClientFactory,
     build_upstream_client,
 )
 from .runtime import UpstreamClient, UpstreamRuntime
+from .sse import SseUpstreamClient
+from .stdio import StdioUpstreamClient
+from .streamable_http import StreamableHttpUpstreamClient
 
 __all__ = [
     "DefaultUpstreamClientFactory",

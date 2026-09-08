@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 import httpx
-from mcp_bridge_core import create_mcp_asgi_app
+from mabrid.bridge import create_mcp_asgi_app
 from starlette.types import Receive, Scope, Send
 
 SESSION_ID = "12345678-1234-1234-1234-123456789abc"
@@ -47,9 +47,7 @@ class RecordingSession:
         await send(
             {
                 "type": "http.response.body",
-                "body": (
-                    f"event: endpoint\ndata: /messages?session_id={SESSION_ID}\n\n".encode()
-                ),
+                "body": (f"event: endpoint\ndata: /messages?session_id={SESSION_ID}\n\n".encode()),
             }
         )
 

@@ -1,7 +1,10 @@
-"""Framework- and persistence-independent MCP bridge contracts."""
+"""Stable embedding facade for the framework- and persistence-independent MCP bridge.
+
+The root exposes protocol contracts, engine lifecycle, the raw ASGI entry point, and injection
+ports. Concrete routers, SDK hosts, runtimes, and transport clients remain in owning subpackages.
+"""
 
 from .downstream import (
-    BridgeDownstreamServer,
     McpSessionBroker,
     McpTransportSession,
     create_mcp_asgi_app,
@@ -36,25 +39,16 @@ from .contracts import (
     UpstreamConfig,
     UpstreamIdentity,
 )
-from .routing import AggregateRouter, McpSessionRouter, PassthroughRouter
 from .upstream import (
-    DefaultUpstreamClientFactory,
-    SseUpstreamClient,
-    StdioUpstreamClient,
-    StreamableHttpUpstreamClient,
     UpstreamClient,
     UpstreamClientFactory,
-    UpstreamRuntime,
-    build_upstream_client,
 )
 
 __all__ = [
-    "AggregateRouter",
     "BindingAvailabilityChanged",
     "BindingAvailabilityStatus",
     "BindingPlan",
     "BridgeCapabilities",
-    "BridgeDownstreamServer",
     "BridgeEngine",
     "BridgeErrorRaised",
     "BridgeFailure",
@@ -63,24 +57,18 @@ __all__ = [
     "BridgeObserver",
     "BridgeSessionStarted",
     "BridgeSession",
-    "DefaultUpstreamClientFactory",
     "EndpointMode",
     "EndpointPlan",
     "NoOpBridgeObserver",
-    "McpSessionRouter",
     "McpSessionBroker",
     "McpTransportSession",
-    "PassthroughRouter",
     "ReadResourceResult",
     "ResourceContent",
     "ResourceDescriptor",
     "ResourceRead",
     "SseUpstreamConfig",
-    "SseUpstreamClient",
     "StdioUpstreamConfig",
-    "StdioUpstreamClient",
     "StreamableHttpUpstreamConfig",
-    "StreamableHttpUpstreamClient",
     "ToolCallCompleted",
     "ToolCallResult",
     "ToolCallStarted",
@@ -90,7 +78,5 @@ __all__ = [
     "UpstreamClient",
     "UpstreamClientFactory",
     "UpstreamIdentity",
-    "UpstreamRuntime",
-    "build_upstream_client",
     "create_mcp_asgi_app",
 ]

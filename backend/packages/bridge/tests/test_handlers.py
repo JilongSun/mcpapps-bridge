@@ -7,7 +7,7 @@ from mcp import types
 from mcp.server import Server
 from pydantic import AnyUrl
 
-from mcp_bridge_core import (
+from mabrid.bridge import (
     BridgeFailureCode,
     BridgeObservation,
     ReadResourceResult,
@@ -18,7 +18,7 @@ from mcp_bridge_core import (
     ToolCallStarted,
     ToolDescriptor,
 )
-from mcp_bridge_core.downstream.handlers import ProxyHandlers
+from mabrid.bridge.downstream.handlers import ProxyHandlers
 
 
 class RecordingObserver:

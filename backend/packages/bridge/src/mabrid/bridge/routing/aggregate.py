@@ -379,6 +379,7 @@ class AggregateRouter:
             )
             self._published_availability[binding_key] = deepcopy(availability)
 
+
 def _all_bindings_failed_message(operation: str, failures: dict[str, Exception]) -> str:
     details = ", ".join(f"{namespace}: {error}" for namespace, error in sorted(failures.items()))
     return f"All aggregate bindings failed during {operation}: {details}"

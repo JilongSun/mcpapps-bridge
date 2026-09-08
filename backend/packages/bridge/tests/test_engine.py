@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from mcp_bridge_core import (
+from mabrid.bridge import (
     BindingPlan,
     BridgeCapabilities,
     BridgeEngine,
@@ -28,7 +28,11 @@ class FixtureClient:
         self.closed = closed
 
     async def connect(self, config: UpstreamConfig) -> UpstreamIdentity:
-        return UpstreamIdentity(server_name=self.name, server_version="1.0.0")
+        return UpstreamIdentity(
+            server_name=self.name,
+            server_version="1.0.0",
+            supports_resources=True,
+        )
 
     async def list_tools(self) -> list[ToolDescriptor]:
         return [ToolDescriptor(name="echo")]

@@ -5,8 +5,7 @@ from typing import Any
 import anyio
 import pytest
 
-from mcp_bridge_core import (
-    AggregateRouter,
+from mabrid.bridge import (
     BindingAvailabilityChanged,
     BindingAvailabilityStatus,
     BindingPlan,
@@ -22,8 +21,9 @@ from mcp_bridge_core import (
     ToolDescriptor,
     UpstreamConfig,
     UpstreamIdentity,
-    UpstreamRuntime,
 )
+from mabrid.bridge.routing import AggregateRouter
+from mabrid.bridge.upstream import UpstreamRuntime
 
 TOOL_UI_URI = "ui://widgets/inspector"
 RESULT_UI_URI = "ui://widgets/result"
