@@ -1,7 +1,7 @@
 [project]
-name = "mcpapps-bridge-workspace"
+name = "mabrid-workspace"
 version = "0.0.0"
-description = "Development workspace for the MCP Apps Gateway backend."
+description = "Development workspace for the Mabrid backend."
 requires-python = ">=3.12"
 dependencies = []
 
@@ -18,8 +18,8 @@ package = false
 
 [tool.uv.workspace]
 members = [
-  "packages/bridge-core",
-  "packages/gateway-service",
+  "packages/bridge",
+  "packages/application",
   "apps/server",
 ]
 
