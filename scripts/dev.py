@@ -13,7 +13,7 @@ def main() -> int:
     backend_dir = root / "backend"
     frontend_dir = root / "frontend"
 
-    backend_cmd = [sys.executable, "-m", "mcp_gateway_server.main"]
+    backend_cmd = [sys.executable, "-m", "mabrid.server.main"]
     frontend_cmd = ["pnpm", "dev"]
 
     backend_process = subprocess.Popen(backend_cmd, cwd=backend_dir)

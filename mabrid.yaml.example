@@ -5,7 +5,7 @@ bridge:
   # httpxTimeoutSeconds: 30  # HTTP request timeout in seconds (default: 30)
 
 storage:
-  sqlitePath: ./backend/var/mcpapps-bridge.db
+  sqlitePath: ./backend/var/mabrid.db
   autoMigrate: true
 
 endpoints:
