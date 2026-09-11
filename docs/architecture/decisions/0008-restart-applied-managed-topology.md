@@ -1,8 +1,12 @@
 # ADR 0008: Restart-Applied Managed Topology
 
-- Status: Accepted
+- Status: Accepted; v0.1 scope amended by ADR 0014
 - Date: 2026-08-21
 - Amends: ADR 0001, ADR 0002, ADR 0003, and ADR 0004
+
+ADR 0014 moves this write-management design beyond v0.1. The v0.1 topology is seeded once and
+exposed through read-only management and inspection APIs; the mutation model below remains the
+basis for a later writable management milestone.
 
 ## Context
 

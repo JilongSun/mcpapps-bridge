@@ -1,12 +1,16 @@
 # ADR 0011: Single Agent Target and Gateway Endpoint Assignment
 
-- Status: Accepted; amended by ADR 0012
+- Status: Accepted; amended by ADR 0012 and ADR 0014
 - Date: 2026-08-25
 - Amends: ADR 0003, ADR 0006, and ADR 0010
 
 ADR 0012 refines the Target's runtime selection into an immutable runtime profile with separate
 integration, interface, and conservative capability contracts. The single-Target decision remains
 unchanged.
+
+ADR 0014 limits v0.1 management exposure to the Target's assigned stable Gateway endpoint path.
+Constructing an absolute URL is deferred because the process cannot infer an externally reachable
+address across reverse proxies and container networks.
 
 ## Context
 

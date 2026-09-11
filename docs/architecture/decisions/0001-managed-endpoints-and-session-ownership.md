@@ -1,11 +1,14 @@
 # ADR 0001: Managed Endpoints and Session Ownership
 
-- Status: Accepted; amended by ADR 0003, ADR 0008, and ADR 0013
+- Status: Accepted; amended by ADR 0003, ADR 0008, ADR 0013, and ADR 0014
 - Date: 2026-07-13
 
 ADR 0013 removes the provisional shared-session policy, upstream-session persistence records, and
 persisted transport-session correlation until those behaviors have complete contracts. Isolated
 session ownership remains the implemented rule.
+
+ADR 0014 moves topology mutation and restart-required reporting beyond v0.1. The v0.1 management
+plane is read-only and the topology seeded into a database remains frozen for that database.
 
 ## Context
 

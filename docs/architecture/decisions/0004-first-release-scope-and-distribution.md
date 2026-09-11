@@ -1,7 +1,11 @@
 # ADR 0004: First Release Scope and Distribution
 
-- Status: Accepted; management publication amended by ADR 0008
+- Status: Accepted; management scope amended by ADR 0008 and ADR 0014
 - Date: 2026-07-16
+
+ADR 0014 replaces writable topology management in the v0.1 release scope with a read-only
+topology, status, readiness, and session-inspection plane. Its release gates supersede the
+management mutation and writable frontend requirements below.
 
 ## Context
 

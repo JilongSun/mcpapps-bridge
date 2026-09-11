@@ -1,12 +1,15 @@
 # ADR 0002: SQLite Persistence and Configuration Authority
 
-- Status: Accepted; amended by ADR 0008 and ADR 0013
+- Status: Accepted; amended by ADR 0008, ADR 0013, and ADR 0014
 - Date: 2026-07-14
 - Amended: 2026-07-20
 
 ADR 0013 resets the pre-v0.1 schema to one Mabrid baseline, changes the default database to
 `backend/var/mabrid.db`, and removes unimplemented session-policy fields, upstream-session rows,
 and persisted MCP transport correlation. The SQLite authority and transaction decisions remain.
+
+ADR 0014 keeps seed-if-empty as the only v0.1 topology input and moves all later topology
+mutation, import, and re-seed contracts beyond v0.1.
 
 ## Context
 

@@ -1,6 +1,6 @@
 # ADR 0010: Application Contexts and Capability Composition
 
-- Status: Accepted; amended by ADR 0011, ADR 0012, and ADR 0013
+- Status: Accepted; amended by ADR 0011, ADR 0012, ADR 0013, and ADR 0014
 - Date: 2026-08-21
 - Amends: ADR 0003 and ADR 0006
 
@@ -11,6 +11,8 @@ ADR 0012 separates runtime integration, API interface, and effective capabilitie
 one configured Agent Target and one runtime instance.
 ADR 0013 implements the context-oriented `mabrid.application` structure and removes the redundant
 Gateway journal DTO layer while preserving the bounded contexts accepted here.
+ADR 0014 retains topology administration as a Gateway application responsibility but limits v0.1
+to read-only topology and operational inspection APIs.
 
 ## Context
 
