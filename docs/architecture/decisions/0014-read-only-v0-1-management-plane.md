@@ -31,17 +31,20 @@ The v0.1 management plane is read-only. It exposes:
 - current managed upstreams and their current revision metadata;
 - current managed endpoints, bindings, and their current revision metadata;
 - local process status and readiness;
-- the optional Agent Target and its assigned stable Gateway endpoint path;
+- the optional Agent Target and its declared Gateway endpoint assignment;
 - bridge session history, current inspection snapshots, and paginated event history.
 
-The HTTP control-plane prefix is `/api/v1/gateway`. MCP data-plane routes remain under `/mcp`, and
-OpenAI-compatible Agent Host routes remain under `/v1`.
+Gateway management routes use `/api/v1/gateway`. Agent Host management routes use
+`/api/v1/agent-host`. MCP data-plane routes remain under `/mcp`, and OpenAI-compatible Agent Host
+routes remain under `/v1`.
 
 Read responses expose only the current revision metadata (`revision_id`, `revision_number`, and
-`created_at`). Revision-history listing is not part of v0.1. The trusted developer-preview profile
-does not introduce field-level redaction in this read-only slice; configured connection values are
-returned as persisted. Authentication, RBAC, secret references, and redaction must be designed
-together before a topology write API is added.
+`created_at`). Revision-history listing is not part of v0.1. Ordinary connection fields are
+returned, but HTTP header and stdio environment values are never returned by the management API.
+Those maps are represented as key names with `configured: true`; this avoids expanding the exposure
+of values that are temporarily stored in plaintext without introducing encryption or a secret
+provider. Authentication, RBAC, durable secret references, and write-time redaction semantics must
+be designed before a topology write API is added.
 
 Session events use cursor-style reads based on their existing monotonically increasing sequence:
 clients provide an `after` sequence and a bounded `limit`. A management SSE subscription is not
@@ -58,17 +61,25 @@ The v0.1 read-only routes are:
 | --- | --- | --- |
 | `GET` | `/health` | Process liveness |
 | `GET` | `/ready` | Local service readiness |
-| `GET` | `/api/v1/gateway/status` | Gateway process, publication, and optional Agent Target status |
+| `GET` | `/api/v1/gateway/status` | Gateway process and publication status |
 | `GET` | `/api/v1/gateway/topology` | One internally consistent current topology snapshot |
 | `GET` | `/api/v1/gateway/sessions` | Filtered bridge session history with opaque keyset pagination |
 | `GET` | `/api/v1/gateway/sessions/{session_id}` | One bridge session lifecycle record |
 | `GET` | `/api/v1/gateway/sessions/{session_id}/snapshot` | Current detailed inspection snapshot |
 | `GET` | `/api/v1/gateway/sessions/{session_id}/events` | Ordered event history after a sequence cursor |
+| `GET` | `/api/v1/agent-host/target` | Configured Agent Target and Gateway endpoint assignment |
 
 `/topology` returns upstreams and endpoints together rather than introducing separate CRUD-shaped
 resource routes. Each endpoint contains its bindings, and current upstream and endpoint revisions
 include `revision_id`, `revision_number`, and `created_at`. The snapshot includes enabled and
-disabled managed heads, not only the enabled endpoints loaded into the running coordinator.
+disabled managed heads, not only the enabled endpoints loaded into the running coordinator. It also
+returns the configured `advertised_base_url`, and each endpoint includes its stable `endpoint_path`
+and derived `advertised_url` when the base URL is configured.
+
+`/status` is a concise operational summary rather than another topology representation. It returns
+the service version, process lifecycle state, frozen-seeded topology mode, advertised base URL, and
+the count and slugs of process-lifetime published endpoints. Full managed definitions and revision
+metadata remain exclusive to `/topology`.
 
 The topology response is therefore served by a dedicated application-owned management read port.
 It must not reuse the runtime `TopologyReader.list_current_revisions()` behavior, which intentionally
@@ -116,16 +127,29 @@ is outside the v0.1 decision.
 ### Readiness and Agent Target assignment
 
 `/health` remains process liveness. `/ready` reports whether local bootstrap, topology publication,
-and configured application composition completed and whether the HTTP application is accepting
-work. A process with no enabled published endpoint returns `503` because the Gateway data plane has
-no serviceable route. The response does not require the independently deployed Hermes runtime or
-every configured upstream to be reachable. Those remote checks need explicit timeout, degradation,
-and capability semantics.
+and configured application composition completed, whether the HTTP application is accepting work,
+and whether SQLite answers a lightweight query. A process with no enabled published endpoint or an
+unavailable database returns `503` because the Gateway data plane or its required persistence is not
+serviceable. The response does not require the independently deployed Hermes runtime or every
+configured upstream to be reachable. Those remote checks need explicit timeout, degradation, and
+capability semantics.
 
-When Agent Host is enabled, management status exposes the configured Target identity and the stable
-assigned `endpoint_path`, for example `/mcp/agent-tools`. The backend does not construct an absolute
-MCP URL in v0.1 because listener configuration cannot reliably determine the address reachable by
-Hermes across reverse proxies or container networks.
+`bridge.advertisedBaseUrl` is the deployment owner's declaration of the HTTP(S) origin reachable by
+external MCP clients. It is distinct from the listener bind host and port. Personal deployments may
+use `http://127.0.0.1:8765`; container deployments may use a service DNS name; shared deployments
+should normally use a stable internal DNS or reverse-proxy origin. The value must not contain a
+path, query, or fragment. It is required when Agent Host is enabled and optional otherwise. Mabrid
+does not infer it from `apiHost` or `apiPort`.
+
+When Agent Host is enabled, `/api/v1/agent-host/target` exposes the Target identity and its declared
+Gateway endpoint assignment. The assignment uses the stable endpoint slug and includes the resolved
+endpoint ID, fixed `streamable-http` transport, `endpoint_path`, and `advertised_url`. The advertised
+URL is the exact value the operator should configure in Hermes. Legacy SSE remains a Gateway
+compatibility transport but is not offered as an Agent Target assignment choice. This remains
+non-invasive: Mabrid validates that the assigned endpoint exists and is enabled, but it does not
+modify Hermes configuration or claim that the external Hermes process currently uses that URL.
+When Agent Host is disabled, the route returns an RFC 9457 `404` with code
+`agent_host_disabled`.
 
 ### Deferred write model
 
@@ -161,10 +185,169 @@ coordinator.
 - All topology mutation HTTP APIs and application commands.
 - A topology writer, unit of work, and optimistic concurrency contract.
 - Revision-history APIs.
-- Secret references, encryption, and field-level response redaction.
+- Secret references, encryption, and write-time credential semantics.
 - Hermes capability probing and effective-capability calculation.
-- Absolute public MCP URL construction.
 - Management event streaming.
+
+## Implementation Plan
+
+### Configuration and advertised URLs
+
+`BridgeRuntimeConfig` gains `advertised_base_url`. File syntax remains camel case as
+`advertisedBaseUrl`. Validation accepts only an HTTP(S) origin with no path other than `/`, no
+query, and no fragment. The normalized runtime value has no trailing slash. Agent Host
+configuration validation requires this value when `agentHost.enabled` is true.
+
+Endpoint URLs are joined structurally from the validated origin and `/mcp/{endpoint_slug}`; they
+are never assembled from `apiHost`, `apiPort`, forwarded headers, or unchecked string
+concatenation. Startup logging uses the advertised URL when configured and otherwise logs only the
+listener-local path. The current logging that presents the listener bind address as an MCP endpoint
+URL is replaced.
+
+### Application read contracts
+
+The Gateway application owns two new read-only query boundaries:
+
+- `TopologySnapshotReader` under `mabrid.application.gateway.topology` returns all current upstream
+  and endpoint heads, current revision metadata, and nested binding revision references in one
+  `TopologySnapshot`.
+- `SessionInspectionReader` under `mabrid.application.gateway.inspection` returns filtered session
+  pages, individual lifecycle records, snapshots, and sequenced event pages.
+
+These are separate from runtime ports. `TopologyReader` continues to serve process-lifetime
+publication and therefore continues to return only enabled publishable endpoint revisions.
+`BridgeSessionRepository` continues to serve lifecycle commands and point lookups used by the
+coordinator. Pagination and diagnostic HTTP queries are not added to either runtime port.
+
+The application query contracts use typed values rather than HTTP strings:
+
+```text
+SessionPageRequest
+  endpoint_id: UUID | None
+  status: BridgeSessionStatus | None
+  before: SessionKeyset | None
+  limit: int
+
+SessionKeyset
+  created_at: datetime
+  session_id: UUID
+
+SessionPage
+  items: list[BridgeSessionRecord]
+  next_keyset: SessionKeyset | None
+
+SessionEventPage
+  items: list[SequencedSessionEvent]
+  next_after: int | None
+```
+
+`SequencedSessionEvent` contains the persistence sequence and the existing typed `SessionEvent`.
+The existing event contracts do not gain storage-specific fields.
+
+Topology connection read models preserve ordinary connection details but represent `headers` and
+stdio `env` as lists of `{name, configured}` entries. Secret values therefore do not cross the
+application management-read boundary. The runtime topology revision contracts remain unchanged and
+continue to contain the resolved values required to open upstream connections.
+
+### Persistence adapters
+
+`SqlAlchemyTopologySnapshotReader` lives with the existing topology persistence adapters. It loads
+all upstream heads, upstream current revisions, endpoint heads, endpoint current revisions, current
+bindings, and endpoint binding revisions in one read transaction. Missing head revisions or
+incoherent binding references are treated as persisted-topology corruption rather than silently
+omitted data.
+
+`SqlAlchemySessionInspectionReader` lives with session persistence. Session pagination orders by
+`created_at DESC, session_id DESC`, applies a strict tuple keyset predicate, fetches `limit + 1`,
+and emits a next keyset only when another page exists. Event pagination orders by sequence, fetches
+`limit + 1`, and validates every persisted payload through the existing `SessionEvent` type
+adapter. Snapshot absence for a known session is represented as the default application snapshot;
+an unknown session remains a `404`.
+
+The existing lifecycle repository is not widened with HTTP-oriented filtering or pagination.
+Database readiness uses a separate lightweight server persistence check (`SELECT 1`) rather than a
+topology or session query.
+
+### Server composition
+
+Gateway composition creates one lifecycle repository, one runtime topology reader, one topology
+snapshot reader, one session inspection reader, and one inspection store factory from the shared
+SQLite session factory. A frozen `GatewayManagementComposition` carries only the read services and
+deployment metadata needed by the HTTP layer.
+
+Agent Host composition retains the resolved published endpoint used during startup validation.
+Its frozen management view combines:
+
+- the application-owned `AgentTarget`;
+- the resolved endpoint ID, slug, and path;
+- fixed MCP transport `streamable-http`; and
+- the URL derived from `bridge.advertisedBaseUrl`.
+
+This composition view is an inbound presentation dependency, not a new field on the
+provider-neutral `AgentTarget`. The application Target continues to declare only the stable
+endpoint slug.
+
+`BootstrapResult` returns Gateway and optional Agent Host management compositions alongside the
+existing runtime owners. `MabridServerRuntime` passes those read-only dependencies into
+`create_app()`. API routers never access `AsyncSession`, ORM rows, YAML models, or mutable global
+state.
+
+### HTTP adapters
+
+Server-owned Pydantic response DTOs live under `mabrid.server.api.management`. They serialize with
+the agreed `snake_case` field names and explicitly map application read models; ORM and runtime
+models are never returned directly.
+
+The router split is:
+
+```text
+mabrid.server.api.management.gateway
+  /api/v1/gateway/status
+  /api/v1/gateway/topology
+  /api/v1/gateway/sessions...
+
+mabrid.server.api.management.agent_host
+  /api/v1/agent-host/target
+
+mabrid.server.api.readiness
+  /health
+  /ready
+```
+
+The session cursor is versioned opaque base64url JSON containing the typed keyset. The decoder
+rejects unknown versions, malformed payloads, missing fields, and invalid timestamps or UUIDs. It
+is signed by neither a secret nor a database token because it conveys no authority; strict
+validation and bounded queries are sufficient.
+
+Problem Details use stable Mabrid URNs such as `urn:mabrid:problem:session-not-found` and include a
+machine-readable `code`. The first implementation defines at least:
+
+- `invalid_request` (`422`);
+- `invalid_cursor` (`400`);
+- `session_not_found` (`404`);
+- `agent_host_disabled` (`404`);
+- `not_ready` (`503`); and
+- `persistence_unavailable` (`503`).
+
+FastAPI request-validation errors are converted to this same response family. Unexpected
+persistence corruption remains a logged `500` Problem Details response and does not expose row or
+credential content.
+
+### Focused validation
+
+Application tests cover query value validation and sequenced event page contracts without
+FastAPI or SQLAlchemy. Server persistence tests cover complete topology snapshots, disabled heads,
+credential-key projection, deterministic keyset pagination, filters, event pagination, default
+snapshots, and corrupt-reference failures.
+
+HTTP contract tests cover every route and response model, opaque cursor continuation, Problem
+Details, disabled Agent Host behavior, fixed Target transport, advertised URL construction, and
+absence of header/env values. Readiness tests cover no published endpoint, SQLite failure, and a
+healthy locally composed process without contacting Hermes or upstream servers.
+
+Composition tests prove that an enabled Agent Host requires `advertisedBaseUrl`, rejects a missing
+or disabled assigned endpoint, and exposes the exact declared assignment while leaving the
+application `AgentTarget` provider-neutral.
 
 ## Implementation Status
 

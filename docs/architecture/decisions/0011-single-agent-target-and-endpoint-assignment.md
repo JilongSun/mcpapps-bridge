@@ -8,9 +8,10 @@ ADR 0012 refines the Target's runtime selection into an immutable runtime profil
 integration, interface, and conservative capability contracts. The single-Target decision remains
 unchanged.
 
-ADR 0014 limits v0.1 management exposure to the Target's assigned stable Gateway endpoint path.
-Constructing an absolute URL is deferred because the process cannot infer an externally reachable
-address across reverse proxies and container networks.
+ADR 0014 exposes the Target's declared Gateway endpoint assignment through a read-only Agent Host
+management route. An explicit deployment-owned advertised base URL is combined with the stable
+endpoint path so the operator can configure Hermes without Mabrid inferring an address from its
+listener bind settings.
 
 ## Context
 
