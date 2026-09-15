@@ -15,7 +15,19 @@ from .models import (
     UpstreamConnection,
     UpstreamServerDefinition,
 )
-from .ports import TopologyReader
+from .management import (
+    ConfiguredKey,
+    ManagedEndpoint,
+    ManagedEndpointBinding,
+    ManagedSseConnection,
+    ManagedStdioConnection,
+    ManagedStreamableHttpConnection,
+    ManagedUpstream,
+    ManagedUpstreamConnection,
+    RevisionMetadata,
+    TopologySnapshot,
+)
+from .ports import TopologyReader, TopologySnapshotReader
 from .revisions import (
     EndpointBindingRevision,
     EndpointTopologyRevision,
@@ -28,11 +40,22 @@ __all__ = [
     "EndpointBindingRevision",
     "EndpointDefinition",
     "EndpointTopologyRevision",
+    "ConfiguredKey",
+    "ManagedEndpoint",
+    "ManagedEndpointBinding",
+    "ManagedSseConnection",
+    "ManagedStdioConnection",
+    "ManagedStreamableHttpConnection",
+    "ManagedUpstream",
+    "ManagedUpstreamConnection",
+    "RevisionMetadata",
     "ServiceModel",
     "SseConnection",
     "StdioConnection",
     "StreamableHttpConnection",
     "TopologyReader",
+    "TopologySnapshot",
+    "TopologySnapshotReader",
     "UpstreamConnection",
     "UpstreamRevision",
     "UpstreamServerDefinition",

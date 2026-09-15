@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
+from .management import TopologySnapshot
 from .revisions import EndpointTopologyRevision
 
 
@@ -17,3 +18,7 @@ class TopologyReader(Protocol):
     ) -> EndpointTopologyRevision | None: ...
 
     async def get_revision(self, revision_id: UUID) -> EndpointTopologyRevision | None: ...
+
+
+class TopologySnapshotReader(Protocol):
+    async def read_snapshot(self) -> TopologySnapshot: ...

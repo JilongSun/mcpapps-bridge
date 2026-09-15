@@ -206,13 +206,15 @@ URL is replaced.
 
 ### Application read contracts
 
-The Gateway application owns two new read-only query boundaries:
+The Gateway application owns three new read-only query boundaries:
 
 - `TopologySnapshotReader` under `mabrid.application.gateway.topology` returns all current upstream
   and endpoint heads, current revision metadata, and nested binding revision references in one
   `TopologySnapshot`.
-- `SessionInspectionReader` under `mabrid.application.gateway.inspection` returns filtered session
-  pages, individual lifecycle records, snapshots, and sequenced event pages.
+- `SessionHistoryReader` under `mabrid.application.gateway.sessions` returns filtered session pages
+  and individual lifecycle records.
+- `SessionInspectionReader` under `mabrid.application.gateway.inspection` returns snapshots and
+  sequenced event pages.
 
 These are separate from runtime ports. `TopologyReader` continues to serve process-lifetime
 publication and therefore continues to return only enabled publishable endpoint revisions.
@@ -257,12 +259,12 @@ bindings, and endpoint binding revisions in one read transaction. Missing head r
 incoherent binding references are treated as persisted-topology corruption rather than silently
 omitted data.
 
-`SqlAlchemySessionInspectionReader` lives with session persistence. Session pagination orders by
-`created_at DESC, session_id DESC`, applies a strict tuple keyset predicate, fetches `limit + 1`,
-and emits a next keyset only when another page exists. Event pagination orders by sequence, fetches
-`limit + 1`, and validates every persisted payload through the existing `SessionEvent` type
-adapter. Snapshot absence for a known session is represented as the default application snapshot;
-an unknown session remains a `404`.
+`SqlAlchemySessionHistoryReader` and `SqlAlchemySessionInspectionReader` live with session
+persistence. Session pagination orders by `created_at DESC, session_id DESC`, applies a strict tuple
+keyset predicate, fetches `limit + 1`, and emits a next keyset only when another page exists. Event
+pagination orders by sequence, fetches `limit + 1`, and validates every persisted payload through
+the existing `SessionEvent` type adapter. Snapshot absence for a known session is represented as the
+default application snapshot; an unknown session remains a `404`.
 
 The existing lifecycle repository is not widened with HTTP-oriented filtering or pagination.
 Database readiness uses a separate lightweight server persistence check (`SELECT 1`) rather than a
@@ -271,9 +273,9 @@ topology or session query.
 ### Server composition
 
 Gateway composition creates one lifecycle repository, one runtime topology reader, one topology
-snapshot reader, one session inspection reader, and one inspection store factory from the shared
-SQLite session factory. A frozen `GatewayManagementComposition` carries only the read services and
-deployment metadata needed by the HTTP layer.
+snapshot reader, one session history reader, one session inspection reader, and one inspection
+store factory from the shared SQLite session factory. A frozen `GatewayManagementComposition`
+carries only the read services and deployment metadata needed by the HTTP layer.
 
 Agent Host composition retains the resolved published endpoint used during startup validation.
 Its frozen management view combines:

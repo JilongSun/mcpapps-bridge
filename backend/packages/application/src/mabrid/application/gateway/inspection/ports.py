@@ -23,6 +23,7 @@ from .models import (
     UpstreamAvailability,
     UpstreamInitialization,
 )
+from .queries import SessionEventPage, SessionEventPageRequest
 
 
 class BridgeSessionStore(Protocol):
@@ -75,3 +76,9 @@ class BridgeSessionStoreFactory(Protocol):
     async def get(self, session_id: UUID) -> BridgeSessionStore | None: ...
 
     async def remove(self, session_id: UUID) -> None: ...
+
+
+class SessionInspectionReader(Protocol):
+    async def get_snapshot(self, session_id: UUID) -> BridgeSessionSnapshot | None: ...
+
+    async def list_events(self, request: SessionEventPageRequest) -> SessionEventPage | None: ...

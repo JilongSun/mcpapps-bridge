@@ -29,8 +29,13 @@ from .models import (
     UpstreamAvailabilityStatus,
     UpstreamInitialization,
 )
-from .ports import BridgeSessionStore, BridgeSessionStoreFactory
+from .ports import BridgeSessionStore, BridgeSessionStoreFactory, SessionInspectionReader
 from .projector import SessionInspectionProjector
+from .queries import (
+    SequencedSessionEvent,
+    SessionEventPage,
+    SessionEventPageRequest,
+)
 
 __all__ = [
     "BridgeSessionSnapshot",
@@ -42,9 +47,13 @@ __all__ = [
     "ResourceReadEvent",
     "ResourceReadRecord",
     "SessionEvent",
+    "SessionEventPage",
+    "SessionEventPageRequest",
+    "SessionInspectionReader",
     "SessionStartedEvent",
     "SessionInspectionProjector",
     "SessionStatus",
+    "SequencedSessionEvent",
     "ToolCallCompletedEvent",
     "ToolCallRecord",
     "ToolCallResult",
