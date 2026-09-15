@@ -8,7 +8,11 @@ from collections.abc import Sequence
 import anyio
 
 from mabrid.server.composition import bootstrap_server
-from mabrid.server.config import ConfigError, resolve_runtime_configuration
+from mabrid.server.config import (
+    ConfigError,
+    build_advertised_mcp_url,
+    resolve_runtime_configuration,
+)
 from mabrid.server.logging import LogMode, configure_logging, get_logger
 from mabrid.server.runtime import MabridServerRuntime
 
@@ -48,17 +52,18 @@ async def serve_runtime(args: argparse.Namespace) -> None:
 
     result = await bootstrap_server(configuration)
 
-    api_host = configuration.bridge.api_host
-    api_port = configuration.bridge.api_port
+    advertised_base_url = configuration.bridge.advertised_base_url
     for published in result.gateway.published_endpoints:
         slug = published.revision.slug
-        streamable_url = f"http://{api_host}:{api_port}/mcp/{slug}"
-        sse_url = f"http://{api_host}:{api_port}/mcp/{slug}/sse"
-        logger.info(
-            "MCP endpoint URL: %s (streamable-http, recommended) | %s (SSE)",
-            streamable_url,
-            sse_url,
-        )
+        if advertised_base_url is None:
+            logger.info("MCP endpoint path: %s", published.path)
+        else:
+            streamable_url = build_advertised_mcp_url(advertised_base_url, slug)
+            logger.info(
+                "Advertised MCP endpoint URL: %s (streamable-http, recommended) | %s/sse (SSE)",
+                streamable_url,
+                streamable_url,
+            )
 
     runtime = MabridServerRuntime(
         result.gateway,

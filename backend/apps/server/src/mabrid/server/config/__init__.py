@@ -23,6 +23,7 @@ from .runtime import (
     RuntimeHermesAgentConfig,
     RuntimeUpstreamConfig,
 )
+from .urls import build_advertised_mcp_url
 
 __all__ = [
     "CONFIG_FILE_NAME",
@@ -40,6 +41,7 @@ __all__ = [
     "RuntimeUpstreamConfig",
     "StorageConfig",
     "UpstreamFileConfig",
+    "build_advertised_mcp_url",
     "load_bridge_config",
     "resolve_runtime_configuration",
 ]

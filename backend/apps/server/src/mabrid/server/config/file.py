@@ -9,7 +9,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, PositiveFloat, model_validator
+from pydantic import (
+    AnyHttpUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    PositiveFloat,
+    field_validator,
+    model_validator,
+)
+
+from .urls import normalize_advertised_base_url
 
 
 def to_camel(value: str) -> str:
@@ -28,8 +38,14 @@ class CamelModel(BaseModel):
 class BridgeRuntimeConfig(CamelModel):
     api_host: str = "127.0.0.1"
     api_port: int = 8765
+    advertised_base_url: str | None = None
     proxy_name: str | None = None
     httpx_timeout_seconds: float | None = None
+
+    @field_validator("advertised_base_url")
+    @classmethod
+    def validate_advertised_base_url(cls, value: str | None) -> str | None:
+        return normalize_advertised_base_url(value) if value is not None else None
 
 
 class StorageConfig(CamelModel):
@@ -101,6 +117,8 @@ class MabridConfig(CamelModel):
 
     @model_validator(mode="after")
     def validate_upstream_defaults(self) -> MabridConfig:
+        if self.agent_host.enabled and self.bridge.advertised_base_url is None:
+            raise ValueError("enabled Agent Host requires 'bridge.advertisedBaseUrl'")
         for endpoint_name, endpoint in self.endpoints.items():
             for binding in endpoint.bindings:
                 if binding.upstream not in self.upstreams:

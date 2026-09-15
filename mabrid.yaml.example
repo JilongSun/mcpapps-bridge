@@ -1,6 +1,9 @@
 bridge:
   apiHost: 127.0.0.1
   apiPort: 8765
+  # Required when Agent Host is enabled. Use the origin reachable by Hermes, such as
+  # http://127.0.0.1:8765, http://mabrid:8765, or https://mabrid.internal.example.com.
+  # advertisedBaseUrl: http://127.0.0.1:8765
   # proxyName: enterprise-ops-hub  # uncomment to set a fixed downstream name
   # httpxTimeoutSeconds: 30  # HTTP request timeout in seconds (default: 30)
 
