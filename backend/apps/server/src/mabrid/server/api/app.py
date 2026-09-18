@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +16,9 @@ from mabrid.application.gateway import GatewayMcpSessionBroker
 from mabrid.server.api.openai_compat import create_openai_compatibility_router
 from mabrid.server.logging import get_logger
 
+if TYPE_CHECKING:
+    from mabrid.server.composition import AgentHostManagementView, GatewayManagementComposition
+
 logger = get_logger(__name__)
 
 
@@ -22,6 +26,8 @@ def create_app(
     manager: GatewaySessionCoordinator,
     *,
     agent_host: AgentHostService | None = None,
+    gateway_management: GatewayManagementComposition | None = None,
+    agent_host_management: AgentHostManagementView | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -40,6 +46,8 @@ def create_app(
         expose_headers=["mcp-session-id"],
     )
     app.state.gateway = manager
+    app.state.gateway_management = gateway_management
+    app.state.agent_host_management = agent_host_management
 
     app.mount("/mcp", create_mcp_asgi_app(GatewayMcpSessionBroker(manager)))
     if agent_host is not None:

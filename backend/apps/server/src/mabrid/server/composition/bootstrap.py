@@ -15,7 +15,7 @@ from mabrid.server.logging import get_logger
 from mabrid.server.persistence import SqliteDatabase
 
 from .agent_host import AgentHostComposition, compose_agent_host
-from .gateway import compose_gateway
+from .gateway import GatewayManagementComposition, compose_gateway
 
 logger = get_logger(__name__)
 
@@ -23,6 +23,7 @@ logger = get_logger(__name__)
 @dataclass(frozen=True)
 class BootstrapResult:
     gateway: GatewaySessionCoordinator
+    gateway_management: GatewayManagementComposition
     database: SqliteDatabase
     agent_host: AgentHostComposition | None
 
@@ -36,11 +37,16 @@ async def bootstrap_server(configuration: RuntimeConfiguration) -> BootstrapResu
             logger.info("Running database migrations")
             await database.migrate()
         gateway = await compose_gateway(configuration, database)
-        agent_host = await compose_agent_host(configuration, gateway)
+        agent_host = await compose_agent_host(configuration, gateway.runtime)
     except BaseException:
         logger.exception("Bootstrap failed - closing composed resources")
         if agent_host is not None:
             await agent_host.runtime.close()
         await database.close()
         raise
-    return BootstrapResult(gateway=gateway, database=database, agent_host=agent_host)
+    return BootstrapResult(
+        gateway=gateway.runtime,
+        gateway_management=gateway.management,
+        database=database,
+        agent_host=agent_host,
+    )

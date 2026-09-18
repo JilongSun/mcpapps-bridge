@@ -1,6 +1,7 @@
 """Persistent storage adapters for the MCP Apps Gateway."""
 
 from .database import SqliteDatabase
+from .readiness import SqliteReadinessProbe
 from .schema import Base
 from .sessions import (
     SqlAlchemyBridgeSessionRepository,
@@ -18,6 +19,7 @@ __all__ = [
     "SqlAlchemyBridgeSessionStoreFactory",
     "SqlAlchemyTopologyReader",
     "SqliteDatabase",
+    "SqliteReadinessProbe",
     "mark_interrupted_sessions_failed",
     "seed_topology_if_empty",
 ]

@@ -7,15 +7,21 @@ seed contracts and injects infrastructure ports. Runtime behavior remains in low
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 from mabrid.bridge import EndpointMode
-from mabrid.application.gateway.sessions import GatewaySessionCoordinator
+from mabrid.application.gateway.inspection import SessionInspectionReader
+from mabrid.application.gateway.sessions import (
+    GatewaySessionCoordinator,
+    SessionHistoryReader,
+)
 from mabrid.application.gateway.topology import (
     EndpointBinding,
     EndpointDefinition,
     SseConnection,
     StdioConnection,
     StreamableHttpConnection,
+    TopologySnapshotReader,
     UpstreamConnection,
     UpstreamServerDefinition,
 )
@@ -23,14 +29,17 @@ from pydantic import AnyHttpUrl, TypeAdapter
 
 from mabrid.server.config import RuntimeConfiguration, RuntimeUpstreamConfig
 from mabrid.server.logging import get_logger
-from mabrid.server.persistence import SqliteDatabase
+from mabrid.server.persistence import SqliteDatabase, SqliteReadinessProbe
 from mabrid.server.persistence.sessions import (
     SqlAlchemyBridgeSessionRepository,
     SqlAlchemyBridgeSessionStoreFactory,
+    SqlAlchemySessionHistoryReader,
+    SqlAlchemySessionInspectionReader,
     mark_interrupted_sessions_failed,
 )
 from mabrid.server.persistence.topology import (
     SqlAlchemyTopologyReader,
+    SqlAlchemyTopologySnapshotReader,
     seed_topology_if_empty,
 )
 
@@ -38,10 +47,29 @@ logger = get_logger(__name__)
 HTTP_URL_ADAPTER = TypeAdapter(AnyHttpUrl)
 
 
+@dataclass(frozen=True)
+class GatewayManagementComposition:
+    topology_reader: TopologySnapshotReader
+    session_history_reader: SessionHistoryReader
+    session_inspection_reader: SessionInspectionReader
+    readiness_probe: SqliteReadinessProbe
+    advertised_base_url: str | None
+    published_endpoint_slugs: tuple[str, ...]
+
+    async def is_ready(self) -> bool:
+        return bool(self.published_endpoint_slugs) and await self.readiness_probe.is_ready()
+
+
+@dataclass(frozen=True)
+class GatewayComposition:
+    runtime: GatewaySessionCoordinator
+    management: GatewayManagementComposition
+
+
 async def compose_gateway(
     configuration: RuntimeConfiguration,
     database: SqliteDatabase,
-) -> GatewaySessionCoordinator:
+) -> GatewayComposition:
     upstreams, endpoints = _build_topology_seed(configuration)
     logger.info(
         "Composing Gateway: %d upstream(s), %d endpoint(s)",
@@ -50,13 +78,28 @@ async def compose_gateway(
     )
     await seed_topology_if_empty(database.session_factory, upstreams, endpoints)
     await mark_interrupted_sessions_failed(database.session_factory)
+    topology_reader = SqlAlchemyTopologyReader(database.session_factory)
+    session_repository = SqlAlchemyBridgeSessionRepository(database.session_factory)
+    session_store_factory = SqlAlchemyBridgeSessionStoreFactory(database.session_factory)
     coordinator = GatewaySessionCoordinator(
-        SqlAlchemyTopologyReader(database.session_factory),
-        SqlAlchemyBridgeSessionRepository(database.session_factory),
-        SqlAlchemyBridgeSessionStoreFactory(database.session_factory),
+        topology_reader,
+        session_repository,
+        session_store_factory,
     )
     await coordinator.load_published_endpoints()
-    return coordinator
+    return GatewayComposition(
+        runtime=coordinator,
+        management=GatewayManagementComposition(
+            topology_reader=SqlAlchemyTopologySnapshotReader(database.session_factory),
+            session_history_reader=SqlAlchemySessionHistoryReader(database.session_factory),
+            session_inspection_reader=SqlAlchemySessionInspectionReader(database.session_factory),
+            readiness_probe=SqliteReadinessProbe(database.session_factory),
+            advertised_base_url=configuration.bridge.advertised_base_url,
+            published_endpoint_slugs=tuple(
+                endpoint.revision.slug for endpoint in coordinator.published_endpoints
+            ),
+        ),
+    )
 
 
 def _build_topology_seed(

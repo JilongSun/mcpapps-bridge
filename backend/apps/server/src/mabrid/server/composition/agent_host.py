@@ -7,6 +7,8 @@ application receives only its provider-neutral Target and runtime port.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
+from uuid import UUID
 
 from mabrid.application.agent_host import (
     AgentEndpointAssignment,
@@ -17,16 +19,31 @@ from mabrid.application.agent_host import (
 from mabrid.application.agent_host.integrations.hermes import HermesChatCompletionsAdapter
 from mabrid.application.gateway.sessions import GatewaySessionCoordinator
 
-from mabrid.server.config import RuntimeConfiguration, RuntimeHermesAgentConfig
+from mabrid.server.config import (
+    RuntimeConfiguration,
+    RuntimeHermesAgentConfig,
+    build_advertised_mcp_url,
+)
 from mabrid.server.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
+class AgentHostManagementView:
+    target: AgentTarget
+    endpoint_id: UUID
+    endpoint_slug: str
+    endpoint_path: str
+    transport: Literal["streamable-http"]
+    advertised_url: str
+
+
+@dataclass(frozen=True)
 class AgentHostComposition:
     service: AgentHostService
     runtime: ManagedAgentRuntime
+    management: AgentHostManagementView
 
 
 async def compose_agent_host(
@@ -46,6 +63,9 @@ async def compose_agent_host(
             f"Agent Target '{config.target_id}' references endpoint "
             f"'{config.endpoint_slug}', which is not published and enabled"
         )
+    advertised_base_url = configuration.bridge.advertised_base_url
+    if advertised_base_url is None:
+        raise ValueError("Enabled Agent Host configuration has no advertised base URL")
     runtime = _build_agent_runtime(config.runtime)
     try:
         target = AgentTarget(
@@ -56,6 +76,17 @@ async def compose_agent_host(
         composition = AgentHostComposition(
             service=AgentHostService(target, runtime),
             runtime=runtime,
+            management=AgentHostManagementView(
+                target=target,
+                endpoint_id=endpoint.revision.endpoint_id,
+                endpoint_slug=endpoint.revision.slug,
+                endpoint_path=endpoint.path,
+                transport="streamable-http",
+                advertised_url=build_advertised_mcp_url(
+                    advertised_base_url,
+                    endpoint.revision.slug,
+                ),
+            ),
         )
     except BaseException:
         await runtime.close()

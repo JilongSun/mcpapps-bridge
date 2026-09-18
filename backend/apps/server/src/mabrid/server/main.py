@@ -52,11 +52,10 @@ async def serve_runtime(args: argparse.Namespace) -> None:
 
     result = await bootstrap_server(configuration)
 
-    advertised_base_url = configuration.bridge.advertised_base_url
-    for published in result.gateway.published_endpoints:
-        slug = published.revision.slug
+    advertised_base_url = result.gateway_management.advertised_base_url
+    for slug in result.gateway_management.published_endpoint_slugs:
         if advertised_base_url is None:
-            logger.info("MCP endpoint path: %s", published.path)
+            logger.info("MCP endpoint path: /mcp/%s", slug)
         else:
             streamable_url = build_advertised_mcp_url(advertised_base_url, slug)
             logger.info(
@@ -68,6 +67,10 @@ async def serve_runtime(args: argparse.Namespace) -> None:
     runtime = MabridServerRuntime(
         result.gateway,
         agent_host=result.agent_host.service if result.agent_host is not None else None,
+        gateway_management=result.gateway_management,
+        agent_host_management=(
+            result.agent_host.management if result.agent_host is not None else None
+        ),
         api_host=configuration.bridge.api_host,
         api_port=configuration.bridge.api_port,
     )
