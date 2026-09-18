@@ -6,14 +6,24 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from mabrid.bridge import create_mcp_asgi_app
 from mabrid.application.agent_host import AgentHostService
 from mabrid.application.gateway.sessions import GatewaySessionCoordinator
 from mabrid.application.gateway import GatewayMcpSessionBroker
 
+from mabrid.server.api.management.agent_host import create_agent_host_management_router
+from mabrid.server.api.management.errors import (
+    ManagementProblem,
+    problem,
+    problem_response,
+)
+from mabrid.server.api.management.gateway import create_gateway_management_router
 from mabrid.server.api.openai_compat import create_openai_compatibility_router
+from mabrid.server.api.readiness import create_readiness_router
 from mabrid.server.logging import get_logger
 
 if TYPE_CHECKING:
@@ -49,12 +59,47 @@ def create_app(
     app.state.gateway_management = gateway_management
     app.state.agent_host_management = agent_host_management
 
+    @app.exception_handler(ManagementProblem)
+    async def handle_management_problem(
+        _request: Request,
+        exc: ManagementProblem,
+    ):
+        return problem_response(exc.problem)
+
+    @app.exception_handler(RequestValidationError)
+    async def handle_request_validation(
+        request: Request,
+        exc: RequestValidationError,
+    ):
+        if _uses_management_problem_details(request.url.path):
+            return problem_response(
+                problem(
+                    code="invalid_request",
+                    title="Invalid request",
+                    status=422,
+                    detail="The request parameters are invalid.",
+                )
+            )
+        return await request_validation_exception_handler(request, exc)
+
     app.mount("/mcp", create_mcp_asgi_app(GatewayMcpSessionBroker(manager)))
     if agent_host is not None:
         app.include_router(create_openai_compatibility_router(agent_host))
+    if gateway_management is not None:
+        app.include_router(create_gateway_management_router(gateway_management))
+        app.include_router(create_agent_host_management_router(agent_host_management))
+        app.include_router(create_readiness_router(gateway_management))
 
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
     return app
+
+
+def _uses_management_problem_details(path: str) -> bool:
+    return (
+        path == "/ready"
+        or path.startswith("/api/v1/gateway")
+        or path.startswith("/api/v1/agent-host")
+    )
