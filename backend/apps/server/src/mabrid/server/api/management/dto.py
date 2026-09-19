@@ -14,9 +14,6 @@ from mabrid.application.gateway.inspection import (
 from mabrid.application.gateway.sessions import BridgeSessionRecord
 from mabrid.application.gateway.topology import (
     ManagedEndpoint,
-    ManagedSseConnection,
-    ManagedStdioConnection,
-    ManagedStreamableHttpConnection,
     ManagedUpstream,
     RevisionMetadata,
     TopologySnapshot,
@@ -62,6 +59,7 @@ UpstreamConnectionResponse = Annotated[
     StreamableHttpConnectionResponse | SseConnectionResponse | StdioConnectionResponse,
     Field(discriminator="transport"),
 ]
+UPSTREAM_CONNECTION_RESPONSE_ADAPTER = TypeAdapter(UpstreamConnectionResponse)
 
 
 class RevisionMetadataResponse(ManagementResponse):
@@ -85,24 +83,13 @@ class ManagedUpstreamResponse(ManagementResponse):
 
     @classmethod
     def from_model(cls, value: ManagedUpstream) -> ManagedUpstreamResponse:
-        connection: UpstreamConnectionResponse
-        if isinstance(value.connection, ManagedStreamableHttpConnection):
-            connection = StreamableHttpConnectionResponse.model_validate(
-                value.connection.model_dump(mode="json")
-            )
-        elif isinstance(value.connection, ManagedSseConnection):
-            connection = SseConnectionResponse.model_validate(
-                value.connection.model_dump(mode="json")
-            )
-        elif isinstance(value.connection, ManagedStdioConnection):
-            connection = StdioConnectionResponse.model_validate(
-                value.connection.model_dump(mode="json")
-            )
         return cls(
             server_id=value.server_id,
             slug=value.slug,
             display_name=value.display_name,
-            connection=connection,
+            connection=UPSTREAM_CONNECTION_RESPONSE_ADAPTER.validate_python(
+                value.connection.model_dump(mode="json")
+            ),
             enabled=value.enabled,
             metadata=value.metadata,
             current_revision=RevisionMetadataResponse.from_model(value.current_revision),
