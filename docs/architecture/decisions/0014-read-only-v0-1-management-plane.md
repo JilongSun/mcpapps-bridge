@@ -353,12 +353,20 @@ application `AgentTarget` provider-neutral.
 
 ## Implementation Status
 
-As of 2026-09-11:
+As of 2026-09-20, the backend decision is **Implemented**.
 
-- **Implemented foundations:** SQLite-authoritative seed-if-empty topology, immutable revisions,
-  startup publication, Agent Target endpoint assignment validation, bridge session history, events,
-  snapshots, and liveness.
-- **Pending:** read-only topology DTOs and routes, status and readiness contracts, Agent Target
-  assignment exposure, paginated session/event queries, RFC 9457 error mapping, and the first-party
-  read-only management UI.
-- **Deferred beyond v0.1:** topology mutations and all restart-required write behavior.
+Implemented behavior includes:
+
+- validated advertised MCP origins and structurally derived endpoint URLs;
+- application-owned topology snapshot, session history, and session inspection read ports;
+- transactional SQLite topology snapshots, deterministic session keyset pagination, and sequenced
+  event pagination;
+- explicit Gateway and Agent Host management compositions with a local SQLite readiness probe;
+- all read-only Gateway and Agent Host routes listed in this ADR, plus `/health` and `/ready`;
+- server-owned `snake_case` DTOs, opaque versioned cursors, and RFC 9457 Problem Details; and
+- focused contract, persistence, composition, readiness, architecture, and regression coverage.
+
+The implementation does not add a migration, topology mutation path, restart latch, Hermes
+reachability or capability probing, secret encryption, or management event streaming. The
+first-party frontend workflows remain separate product work and do not change the completed backend
+contract recorded here.
