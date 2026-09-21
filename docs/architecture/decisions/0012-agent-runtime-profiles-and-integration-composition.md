@@ -1,8 +1,12 @@
 # ADR 0012: Agent Runtime Profiles and Integration Composition
 
-- Status: Accepted
+- Status: Accepted; amended by ADR 0015
 - Date: 2026-08-25
 - Amends: ADR 0010 and ADR 0011
+
+ADR 0015 keeps the narrow runtime port and selected Chat Completions interface while defining
+MCP Apps correlation from Mabrid-owned endpoint and Run state. Provider tool-progress events and
+agent-framework contracts are not required for that workflow.
 
 ## Context
 

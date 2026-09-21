@@ -1,6 +1,6 @@
 # ADR 0011: Single Agent Target and Gateway Endpoint Assignment
 
-- Status: Accepted; amended by ADR 0012 and ADR 0014
+- Status: Accepted; amended by ADR 0012, ADR 0014, and ADR 0015
 - Date: 2026-08-25
 - Amends: ADR 0003, ADR 0006, and ADR 0010
 
@@ -12,6 +12,11 @@ ADR 0014 exposes the Target's declared Gateway endpoint assignment through a rea
 management route. An explicit deployment-owned advertised base URL is combined with the stable
 endpoint path so the operator can configure Hermes without Mabrid inferring an address from its
 listener bind settings.
+
+ADR 0015 makes that endpoint assignment logically exclusive for Agent Host composition and combines
+it with one active Run per Target to correlate Gateway tool activity with MCP Apps Host workflows.
+It supersedes this decision's allowance for unrelated clients to share an assigned endpoint and its
+deferral of all run-to-Gateway correlation.
 
 ## Context
 
