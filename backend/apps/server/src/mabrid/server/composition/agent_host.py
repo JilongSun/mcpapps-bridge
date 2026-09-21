@@ -13,6 +13,7 @@ from uuid import UUID
 from mabrid.application.agent_host import (
     AgentEndpointAssignment,
     AgentHostService,
+    AgentRunCoordinator,
     AgentTarget,
     ManagedAgentRuntime,
 )
@@ -73,8 +74,9 @@ async def compose_agent_host(
             runtime_profile=runtime.profile,
             endpoint_assignment=AgentEndpointAssignment(endpoint_slug=config.endpoint_slug),
         )
+        coordinator = AgentRunCoordinator((target,))
         composition = AgentHostComposition(
-            service=AgentHostService(target, runtime),
+            service=AgentHostService(target, runtime, coordinator),
             runtime=runtime,
             management=AgentHostManagementView(
                 target=target,

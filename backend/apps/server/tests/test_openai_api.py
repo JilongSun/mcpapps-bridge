@@ -12,6 +12,7 @@ from mabrid.application.agent_host import (
     AgentCapability,
     AgentEndpointAssignment,
     AgentHostService,
+    AgentRunCoordinator,
     AgentRuntime,
     AgentRuntimeInterface,
     AgentRuntimeProfile,
@@ -77,7 +78,11 @@ def _openai_client(agent_host: AgentHostService) -> AsyncOpenAI:
 
 
 def _agent_host(runtime: AgentRuntime | None = None) -> AgentHostService:
-    return AgentHostService(TARGET, runtime or FixtureAgentAdapter())
+    return AgentHostService(
+        TARGET,
+        runtime or FixtureAgentAdapter(),
+        AgentRunCoordinator((TARGET,)),
+    )
 
 
 def test_chat_completions_openapi_describes_the_official_sdk_request_body() -> None:

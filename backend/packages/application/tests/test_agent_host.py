@@ -11,11 +11,14 @@ from mabrid.application.agent_host import (
     AgentEndpointAssignment,
     AgentHostService,
     AgentMessage,
+    AgentRunConflictError,
+    AgentRunCoordinator,
     AgentRunError,
     AgentRuntime,
     AgentRuntimeInterface,
     AgentRuntimeProfile,
     AgentTarget,
+    AgentTargetConflictError,
     StartRunCommand,
     TokenUsage,
 )
@@ -70,8 +73,12 @@ def _command() -> StartRunCommand:
     )
 
 
+def _service(runtime: AgentRuntime) -> AgentHostService:
+    return AgentHostService(TARGET, runtime, AgentRunCoordinator((TARGET,)))
+
+
 async def test_agent_host_emits_provider_neutral_ordered_events() -> None:
-    service = AgentHostService(TARGET, SuccessfulAdapter())
+    service = _service(SuccessfulAdapter())
 
     events = [event async for event in service.run_events(_command())]
 
@@ -91,28 +98,30 @@ async def test_agent_host_emits_provider_neutral_ordered_events() -> None:
 
 
 async def test_agent_host_complete_returns_the_terminal_result() -> None:
-    service = AgentHostService(TARGET, SuccessfulAdapter())
+    service = _service(SuccessfulAdapter())
 
     result = await service.complete(_command())
 
     assert result.output_text == "Hello world"
     assert result.finish_reason == "stop"
+    assert await service.coordinator.active_run_id(TARGET.target_id) is None
 
 
 async def test_agent_host_normalizes_adapter_failure() -> None:
     adapter: AgentRuntime = FailingAdapter()
-    service = AgentHostService(TARGET, adapter)
+    service = _service(adapter)
 
     events = [event async for event in service.run_events(_command())]
 
     assert [event.kind for event in events] == ["run.started", "run.failed"]
     assert events[-1].sequence == 2
+    assert await service.coordinator.active_run_id(TARGET.target_id) is None
     with pytest.raises(AgentRunError, match="Provider unavailable for fixture-target"):
         await service.complete(_command())
 
 
 async def test_agent_host_advertises_only_its_canonical_target() -> None:
-    service = AgentHostService(TARGET, SuccessfulAdapter())
+    service = _service(SuccessfulAdapter())
 
     models = await service.list_models()
 
@@ -130,4 +139,27 @@ def test_agent_host_rejects_a_runtime_that_does_not_match_the_target() -> None:
             return mismatched_profile
 
     with pytest.raises(ValueError, match="does not match Agent Target"):
-        AgentHostService(TARGET, MismatchedRuntime())
+        _service(MismatchedRuntime())
+
+
+def test_run_coordinator_rejects_shared_endpoint_assignment() -> None:
+    conflicting_target = TARGET.model_copy(update={"target_id": "other-target"})
+
+    with pytest.raises(AgentTargetConflictError, match="assigned to both Agent Targets"):
+        AgentRunCoordinator((TARGET, conflicting_target))
+
+
+async def test_agent_host_rejects_a_second_active_run() -> None:
+    service = _service(SuccessfulAdapter())
+    first_run = service.run_events(_command())
+    started = await anext(first_run)
+
+    assert started.kind == "run.started"
+    assert await service.coordinator.active_run_id(TARGET.target_id) == started.run_id
+    with pytest.raises(AgentRunConflictError, match="already has active Run"):
+        await anext(service.run_events(_command()))
+
+    await first_run.aclose()
+    assert await service.coordinator.active_run_id(TARGET.target_id) is None
+    events = [event async for event in service.run_events(_command())]
+    assert events[-1].kind == "run.completed"

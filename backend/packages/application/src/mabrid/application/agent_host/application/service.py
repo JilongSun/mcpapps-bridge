@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 from ..contracts import (
     AgentAdapterCompleted,
@@ -19,6 +19,7 @@ from ..contracts import (
     AssistantTextDelta,
     StartRunCommand,
 )
+from .coordination import AgentRunCoordinator
 from .ports import AgentRuntime
 
 
@@ -27,7 +28,12 @@ class AgentRunError(RuntimeError):
 
 
 class AgentHostService:
-    def __init__(self, target: AgentTarget, runtime: AgentRuntime) -> None:
+    def __init__(
+        self,
+        target: AgentTarget,
+        runtime: AgentRuntime,
+        coordinator: AgentRunCoordinator,
+    ) -> None:
         if target.runtime_profile != runtime.profile:
             raise ValueError(
                 f"Runtime profile {runtime.profile.interface!s} does not match Agent Target "
@@ -35,6 +41,14 @@ class AgentHostService:
             )
         self._target = target
         self._runtime = runtime
+        self._coordinator = coordinator
+        if (
+            self._coordinator.target_for_endpoint(target.endpoint_assignment.endpoint_slug)
+            != target
+        ):
+            raise ValueError(
+                f"Agent Target {target.target_id!r} is not registered with its Run coordinator"
+            )
 
     @property
     def target(self) -> AgentTarget:
@@ -44,6 +58,10 @@ class AgentHostService:
     def runtime_profile(self) -> AgentRuntimeProfile:
         return self._target.runtime_profile
 
+    @property
+    def coordinator(self) -> AgentRunCoordinator:
+        return self._coordinator
+
     async def list_models(self) -> list[AgentModel]:
         return [
             AgentModel(
@@ -52,16 +70,18 @@ class AgentHostService:
             )
         ]
 
-    async def run_events(self, command: StartRunCommand) -> AsyncIterator[AgentRunEvent]:
+    async def run_events(self, command: StartRunCommand) -> AsyncGenerator[AgentRunEvent, None]:
         command = command.model_copy(update={"model": self._target.target_id})
+        await self._coordinator.start_run(self._target.target_id, command.run_id)
+        run_active = True
         sequence = 1
-        yield AgentRunStarted(
-            run_id=command.run_id,
-            sequence=sequence,
-            model=command.model,
-        )
-        text_parts: list[str] = []
         try:
+            yield AgentRunStarted(
+                run_id=command.run_id,
+                sequence=sequence,
+                model=command.model,
+            )
+            text_parts: list[str] = []
             async for event in self._runtime.run(command):
                 sequence += 1
                 if isinstance(event, AgentAdapterTextDelta):
@@ -80,6 +100,8 @@ class AgentHostService:
                         text=text,
                     )
                     sequence += 1
+                    await self._coordinator.finish_run(self._target.target_id, command.run_id)
+                    run_active = False
                     yield AgentRunCompleted(
                         run_id=command.run_id,
                         sequence=sequence,
@@ -95,11 +117,17 @@ class AgentHostService:
             raise AgentRunError("Agent runtime ended without a completion event")
         except Exception as exc:
             sequence += 1
+            if run_active:
+                await self._coordinator.finish_run(self._target.target_id, command.run_id)
+                run_active = False
             yield AgentRunFailed(
                 run_id=command.run_id,
                 sequence=sequence,
                 error_message=str(exc),
             )
+        finally:
+            if run_active:
+                await self._coordinator.finish_run(self._target.target_id, command.run_id)
 
     async def complete(self, command: StartRunCommand) -> AgentRunResult:
         failure: AgentRunFailed | None = None

@@ -236,10 +236,14 @@ the Hermes HTTP client. Its types remain outside application contracts.
 
 ## Implementation Status
 
-As of 2026-09-21, this decision is **Pending**.
+As of 2026-09-21, this decision is **Partial**.
 
-Existing foundations include the single configured Target and endpoint assignment, provider-neutral
-Run identity and ordered text events, typed Gateway tool and resource observations, preserved MCP
-Apps metadata, and automatic UI resource preloading. Exclusive assignment, active-Run attribution,
-uncached attributable resource loading, the MCP Apps application context, and the composed Host
-event stream remain to be implemented.
+Implemented foundations include the single configured Target and endpoint assignment,
+provider-neutral Run identity and ordered text events, typed Gateway tool and resource
+observations, preserved MCP Apps metadata, and automatic UI resource preloading. An application
+coordinator now rejects duplicate Target identities and endpoint ownership, admits at most one
+active Run per Target, and releases active ownership on terminal completion, failure, or event
+stream cancellation.
+
+Operation-to-Run attribution, uncached attributable resource loading, the MCP Apps application
+context, and the composed Host event stream remain to be implemented.

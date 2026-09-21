@@ -1,6 +1,14 @@
 """Public facade for the provider-neutral Agent Host application."""
 
-from .application import AgentHostService, AgentRunError, AgentRuntime, ManagedAgentRuntime
+from .application import (
+    AgentHostService,
+    AgentRunConflictError,
+    AgentRunCoordinator,
+    AgentRunError,
+    AgentRuntime,
+    AgentTargetConflictError,
+    ManagedAgentRuntime,
+)
 from .contracts import (
     AgentAdapterCompleted,
     AgentAdapterEvent,
@@ -36,6 +44,8 @@ __all__ = [
     "AgentMessage",
     "AgentModel",
     "AgentRunCompleted",
+    "AgentRunConflictError",
+    "AgentRunCoordinator",
     "AgentRunError",
     "AgentRunEvent",
     "AgentRunFailed",
@@ -45,6 +55,7 @@ __all__ = [
     "AgentRuntimeInterface",
     "AgentRuntimeProfile",
     "AgentTarget",
+    "AgentTargetConflictError",
     "AssistantTextCompleted",
     "AssistantTextDelta",
     "GenerationOptions",
