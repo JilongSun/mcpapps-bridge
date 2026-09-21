@@ -13,8 +13,10 @@ from uuid import UUID
 from mabrid.application.agent_host import (
     AgentEndpointAssignment,
     AgentHostService,
+    AgentOperationAttributionObserverFactory,
     AgentRunCoordinator,
     AgentTarget,
+    InMemoryOperationRunAttributionRegistry,
     ManagedAgentRuntime,
 )
 from mabrid.application.agent_host.integrations.hermes import HermesChatCompletionsAdapter
@@ -45,6 +47,8 @@ class AgentHostComposition:
     service: AgentHostService
     runtime: ManagedAgentRuntime
     management: AgentHostManagementView
+    operation_attributions: InMemoryOperationRunAttributionRegistry
+    bridge_observer_factory: AgentOperationAttributionObserverFactory
 
 
 async def compose_agent_host(
@@ -75,6 +79,7 @@ async def compose_agent_host(
             endpoint_assignment=AgentEndpointAssignment(endpoint_slug=config.endpoint_slug),
         )
         coordinator = AgentRunCoordinator((target,))
+        operation_attributions = InMemoryOperationRunAttributionRegistry()
         composition = AgentHostComposition(
             service=AgentHostService(target, runtime, coordinator),
             runtime=runtime,
@@ -88,6 +93,11 @@ async def compose_agent_host(
                     advertised_base_url,
                     endpoint.revision.slug,
                 ),
+            ),
+            operation_attributions=operation_attributions,
+            bridge_observer_factory=AgentOperationAttributionObserverFactory(
+                coordinator,
+                operation_attributions,
             ),
         )
     except BaseException:

@@ -180,6 +180,12 @@ async def test_enabled_agent_host_composes_hermes_http_adapter(tmp_path: Path) -
         assert result.agent_host.management.target.endpoint_assignment.model_dump() == {
             "endpoint_slug": "fixture"
         }
+        observer = result.agent_host.bridge_observer_factory.create(
+            "session-1",
+            "fixture",
+        )
+        assert observer is not None
+        assert result.agent_host.operation_attributions is not None
         app = create_app(
             result.gateway,
             agent_host=result.agent_host.service,

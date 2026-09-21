@@ -1,6 +1,7 @@
 """Provider-neutral contracts owned by the Agent Host application."""
 
 from .adapter_events import AgentAdapterCompleted, AgentAdapterEvent, AgentAdapterTextDelta
+from .attribution import OperationRunAttribution
 from .base import AgentHostModel
 from .profile import AgentCapability, AgentRuntimeInterface, AgentRuntimeProfile
 from .run import (
@@ -42,6 +43,7 @@ __all__ = [
     "AssistantTextCompleted",
     "AssistantTextDelta",
     "GenerationOptions",
+    "OperationRunAttribution",
     "StartRunCommand",
     "TokenUsage",
 ]

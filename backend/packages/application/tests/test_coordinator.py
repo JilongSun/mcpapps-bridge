@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, cast
+from unittest.mock import Mock
 from uuid import UUID, uuid4
 
 import pytest
@@ -15,6 +16,7 @@ from mabrid.bridge import (
 )
 from mabrid.application.gateway.inspection import BridgeSessionStore, BridgeSessionStoreFactory
 from mabrid.application.gateway.sessions import (
+    BridgeSessionObserverFactory,
     BridgeSessionRecord,
     BridgeSessionStatus,
     GatewaySessionCoordinator,
@@ -130,3 +132,65 @@ async def test_coordinator_marks_session_failed_when_core_session_cannot_start()
     assert record.status is BridgeSessionStatus.FAILED
     assert record.error_message is not None
     assert record.error_message.startswith("Failed to connect to upstream MCP server")
+
+
+async def test_coordinator_resolves_an_additional_observer_for_the_opened_endpoint() -> None:
+    upstream = UpstreamRevision(
+        server_id=uuid4(),
+        slug="fixture",
+        display_name="Fixture",
+        connection=StdioConnection(command="fixture-server"),
+    )
+    revision = EndpointTopologyRevision(
+        endpoint_id=uuid4(),
+        slug="fixture",
+        display_name="Fixture",
+        bindings=(EndpointBindingRevision(upstream=upstream),),
+    )
+    sessions = MemorySessionRepository()
+    observer_factory = Mock(spec=BridgeSessionObserverFactory)
+    observer_factory.create.return_value = None
+    coordinator = GatewaySessionCoordinator(
+        SingleTopologyReader(revision),
+        sessions,
+        cast(BridgeSessionStoreFactory, MemoryStoreFactory()),
+        upstream_client_factory=FailingClientFactory(),
+    )
+    coordinator.configure_session_observer_factory(observer_factory)
+    await coordinator.load_published_endpoints()
+
+    async with coordinator.lifecycle():
+        with pytest.raises(RuntimeError, match="Failed to connect to upstream MCP server"):
+            await coordinator.open_session("fixture")
+
+    [record] = await sessions.list()
+    observer_factory.create.assert_called_once_with(str(record.session_id), "fixture")
+
+
+async def test_coordinator_rejects_observer_configuration_after_start() -> None:
+    revision = EndpointTopologyRevision(
+        endpoint_id=uuid4(),
+        slug="fixture",
+        display_name="Fixture",
+        bindings=(
+            EndpointBindingRevision(
+                upstream=UpstreamRevision(
+                    server_id=uuid4(),
+                    slug="fixture",
+                    display_name="Fixture",
+                    connection=StdioConnection(command="fixture-server"),
+                )
+            ),
+        ),
+    )
+    coordinator = GatewaySessionCoordinator(
+        SingleTopologyReader(revision),
+        MemorySessionRepository(),
+        cast(BridgeSessionStoreFactory, MemoryStoreFactory()),
+        upstream_client_factory=FailingClientFactory(),
+    )
+    observer_factory = Mock(spec=BridgeSessionObserverFactory)
+
+    async with coordinator.lifecycle():
+        with pytest.raises(RuntimeError, match="before Gateway start"):
+            coordinator.configure_session_observer_factory(observer_factory)

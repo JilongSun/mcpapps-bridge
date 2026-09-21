@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 import pytest
+from mabrid.bridge import ToolCallStarted
 from mabrid.application.agent_host import (
     AgentAdapterCompleted,
     AgentAdapterEvent,
@@ -10,6 +11,7 @@ from mabrid.application.agent_host import (
     AgentCapability,
     AgentEndpointAssignment,
     AgentHostService,
+    AgentOperationAttributionObserverFactory,
     AgentMessage,
     AgentRunConflictError,
     AgentRunCoordinator,
@@ -19,6 +21,7 @@ from mabrid.application.agent_host import (
     AgentRuntimeProfile,
     AgentTarget,
     AgentTargetConflictError,
+    InMemoryOperationRunAttributionRegistry,
     StartRunCommand,
     TokenUsage,
 )
@@ -163,3 +166,78 @@ async def test_agent_host_rejects_a_second_active_run() -> None:
     assert await service.coordinator.active_run_id(TARGET.target_id) is None
     events = [event async for event in service.run_events(_command())]
     assert events[-1].kind == "run.completed"
+
+
+async def test_tool_operation_captures_the_active_run_at_start() -> None:
+    coordinator = AgentRunCoordinator((TARGET,))
+    registry = InMemoryOperationRunAttributionRegistry()
+    observer = AgentOperationAttributionObserverFactory(coordinator, registry).create(
+        "session-1",
+        "fixture-endpoint",
+    )
+    assert observer is not None
+    run_id = _command().run_id
+    await coordinator.start_run(TARGET.target_id, run_id)
+
+    await observer.observe(
+        ToolCallStarted(
+            session_key="session-1",
+            operation_key="operation-1",
+            tool_name="inspect",
+        )
+    )
+    await coordinator.finish_run(TARGET.target_id, run_id)
+
+    attribution = await registry.get("session-1", "operation-1")
+    assert attribution is not None
+    assert attribution.run_id == run_id
+    assert attribution.target_id == TARGET.target_id
+
+
+async def test_tool_operation_without_an_active_run_is_not_attributed() -> None:
+    coordinator = AgentRunCoordinator((TARGET,))
+    registry = InMemoryOperationRunAttributionRegistry()
+    observer = AgentOperationAttributionObserverFactory(coordinator, registry).create(
+        "session-1",
+        "fixture-endpoint",
+    )
+    assert observer is not None
+
+    await observer.observe(
+        ToolCallStarted(
+            session_key="session-1",
+            operation_key="operation-1",
+            tool_name="inspect",
+        )
+    )
+
+    assert await registry.get("session-1", "operation-1") is None
+
+
+async def test_tool_operation_attribution_cannot_move_to_a_later_run() -> None:
+    coordinator = AgentRunCoordinator((TARGET,))
+    registry = InMemoryOperationRunAttributionRegistry()
+    observer = AgentOperationAttributionObserverFactory(coordinator, registry).create(
+        "session-1",
+        "fixture-endpoint",
+    )
+    assert observer is not None
+    event = ToolCallStarted(
+        session_key="session-1",
+        operation_key="operation-1",
+        tool_name="inspect",
+    )
+    first_run_id = _command().run_id
+    await coordinator.start_run(TARGET.target_id, first_run_id)
+    await observer.observe(event)
+    await coordinator.finish_run(TARGET.target_id, first_run_id)
+    second_run_id = _command().run_id
+    await coordinator.start_run(TARGET.target_id, second_run_id)
+
+    with pytest.raises(ValueError, match="different Agent Run attribution"):
+        await observer.observe(event)
+
+    attribution = await registry.get("session-1", "operation-1")
+    assert attribution is not None
+    assert attribution.run_id == first_run_id
+    await coordinator.finish_run(TARGET.target_id, second_run_id)

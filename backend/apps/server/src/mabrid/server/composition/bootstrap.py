@@ -38,6 +38,8 @@ async def bootstrap_server(configuration: RuntimeConfiguration) -> BootstrapResu
             await database.migrate()
         gateway = await compose_gateway(configuration, database)
         agent_host = await compose_agent_host(configuration, gateway.runtime)
+        if agent_host is not None:
+            gateway.runtime.configure_session_observer_factory(agent_host.bridge_observer_factory)
     except BaseException:
         logger.exception("Bootstrap failed - closing composed resources")
         if agent_host is not None:

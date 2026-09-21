@@ -26,6 +26,7 @@ from ..inspection.projector import SessionInspectionProjector
 from ..topology.ports import TopologyReader
 from ..topology.revisions import EndpointTopologyRevision
 from .models import BridgeSessionRecord, BridgeSessionStatus
+from .observers import BridgeSessionObserverFactory, CompositeBridgeObserver
 from .ports import BridgeSessionRepository
 from .publication import PublishedEndpoint, PublishedTopology
 
@@ -68,6 +69,7 @@ class GatewaySessionCoordinator:
         self._active_sessions: dict[UUID, BridgeSessionRuntime] = {}
         self._transport_sessions: dict[str, UUID] = {}
         self._session_transport_ids: dict[UUID, str] = {}
+        self._session_observer_factory: BridgeSessionObserverFactory | None = None
         self._lifecycle_stack: AsyncExitStack | None = None
         self._task_group: TaskGroup | None = None
         self._started = False
@@ -81,6 +83,16 @@ class GatewaySessionCoordinator:
 
     def resolve_published_endpoint(self, slug: str) -> PublishedEndpoint | None:
         return self._published_topology.resolve(slug)
+
+    def configure_session_observer_factory(
+        self,
+        factory: BridgeSessionObserverFactory,
+    ) -> None:
+        if self._started:
+            raise RuntimeError("Bridge session observers must be configured before Gateway start")
+        if self._session_observer_factory is not None:
+            raise RuntimeError("Bridge session observer factory is already configured")
+        self._session_observer_factory = factory
 
     async def open_session(self, endpoint_slug: str) -> BridgeSessionRuntime:
         task_group = self._require_task_group()
@@ -96,7 +108,17 @@ class GatewaySessionCoordinator:
         )
         store = await self._get_session_store(session.session_id)
         session_key = str(session.session_id)
-        observer = SessionInspectionProjector(session_key, endpoint.revision, store)
+        inspection_observer = SessionInspectionProjector(session_key, endpoint.revision, store)
+        additional_observer = (
+            self._session_observer_factory.create(session_key, endpoint_slug)
+            if self._session_observer_factory is not None
+            else None
+        )
+        observer = (
+            CompositeBridgeObserver((inspection_observer, additional_observer))
+            if additional_observer is not None
+            else inspection_observer
+        )
         try:
             bridge_session = await self._engine.open_session(
                 session_key=session_key,

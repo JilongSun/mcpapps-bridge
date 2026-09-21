@@ -23,6 +23,7 @@ from mabrid.application.gateway.inspection import (
     BridgeSessionStore,
     SessionInspectionProjector,
 )
+from mabrid.application.gateway.sessions import CompositeBridgeObserver
 from mabrid.application.gateway.topology import (
     EndpointBindingRevision,
     EndpointTopologyRevision,
@@ -167,3 +168,19 @@ async def test_inspection_projector_rejects_cross_session_observations() -> None
                 tool_name="inspect",
             )
         )
+
+
+async def test_composite_bridge_observer_forwards_the_same_observation() -> None:
+    first = AsyncMock()
+    second = AsyncMock()
+    observer = CompositeBridgeObserver((first, second))
+    event = ToolCallStarted(
+        session_key="session-1",
+        operation_key="operation-1",
+        tool_name="inspect",
+    )
+
+    await observer.observe(event)
+
+    first.observe.assert_awaited_once_with(event)
+    second.observe.assert_awaited_once_with(event)

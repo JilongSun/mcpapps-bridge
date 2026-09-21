@@ -2,12 +2,15 @@
 
 from .application import (
     AgentHostService,
+    AgentOperationAttributionObserverFactory,
     AgentRunConflictError,
     AgentRunCoordinator,
     AgentRunError,
     AgentRuntime,
     AgentTargetConflictError,
+    InMemoryOperationRunAttributionRegistry,
     ManagedAgentRuntime,
+    OperationRunAttributionRegistry,
 )
 from .contracts import (
     AgentAdapterCompleted,
@@ -29,6 +32,7 @@ from .contracts import (
     AssistantTextCompleted,
     AssistantTextDelta,
     GenerationOptions,
+    OperationRunAttribution,
     StartRunCommand,
     TokenUsage,
 )
@@ -40,6 +44,7 @@ __all__ = [
     "AgentCapability",
     "AgentEndpointAssignment",
     "AgentHostService",
+    "AgentOperationAttributionObserverFactory",
     "AgentFinishReason",
     "AgentMessage",
     "AgentModel",
@@ -59,7 +64,10 @@ __all__ = [
     "AssistantTextCompleted",
     "AssistantTextDelta",
     "GenerationOptions",
+    "InMemoryOperationRunAttributionRegistry",
     "ManagedAgentRuntime",
+    "OperationRunAttribution",
+    "OperationRunAttributionRegistry",
     "StartRunCommand",
     "TokenUsage",
 ]

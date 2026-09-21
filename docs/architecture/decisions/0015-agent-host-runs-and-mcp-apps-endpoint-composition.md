@@ -243,7 +243,9 @@ provider-neutral Run identity and ordered text events, typed Gateway tool and re
 observations, preserved MCP Apps metadata, and automatic UI resource preloading. An application
 coordinator now rejects duplicate Target identities and endpoint ownership, admits at most one
 active Run per Target, and releases active ownership on terminal completion, failure, or event
-stream cancellation.
+stream cancellation. Gateway sessions compose their inspection projector with an optional Agent
+Host observer that permanently attributes each observed tool operation to the active Run at
+`ToolCallStarted`.
 
-Operation-to-Run attribution, uncached attributable resource loading, the MCP Apps application
-context, and the composed Host event stream remain to be implemented.
+Uncached attributable resource loading, the MCP Apps application context, and the composed Host
+event stream remain to be implemented.
