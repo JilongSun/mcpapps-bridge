@@ -65,8 +65,8 @@ class BridgeSession:
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult:
         return await self._router.call_tool(tool_name, arguments)
 
-    async def preload_tool_resource(self, tool_name: str) -> None:
-        await self._router.preload_tool_resource(tool_name)
+    async def load_tool_resource(self, tool_name: str, operation_key: str) -> None:
+        await self._router.load_tool_resource(tool_name, operation_key)
 
     async def list_resources(self) -> list[ResourceDescriptor]:
         return await self._router.list_resources()

@@ -93,7 +93,7 @@ class ProxyHandlers:
                 result=result,
             )
         )
-        await self._router.preload_tool_resource(tool_name)
+        await self._router.load_tool_resource(tool_name, operation_key)
         return to_mcp_call_tool_result(result)
 
     async def list_resources(self) -> list[types.Resource]:

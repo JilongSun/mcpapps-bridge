@@ -80,6 +80,7 @@ class ResourceContent(BaseModel):
 
 
 class ResourceReadRecord(BaseModel):
+    operation_key: str | None = None
     requested_uri: str
     contents: list[ResourceContent]
     metadata: dict[str, Any] = Field(default_factory=dict)

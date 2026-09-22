@@ -14,6 +14,7 @@ from anyio.abc import TaskGroup
 from ..contracts import (
     BindingAvailabilityChanged,
     BindingAvailabilityStatus,
+    BridgeErrorRaised,
     BridgeFailure,
     BridgeFailureCode,
     BridgeSessionStarted,
@@ -175,7 +176,7 @@ class AggregateRouter:
         await self._publish_availability()
         return result.model_copy(update={"content": self._public_content(bound, result.content)})
 
-    async def preload_tool_resource(self, tool_name: str) -> None:
+    async def load_tool_resource(self, tool_name: str, operation_key: str) -> None:
         route = self._tool_routes.get(tool_name)
         if route is None:
             return
@@ -185,9 +186,21 @@ class AggregateRouter:
             return
         public_uri = self._register_resource_route(bound, tool.ui_resource_uri)
         try:
-            await self.read_resource(public_uri)
-        except Exception:
-            return
+            await self._read_resource(public_uri, operation_key=operation_key)
+        except Exception as exc:
+            await self._observer.observe(
+                BridgeErrorRaised(
+                    session_key=self._session_key,
+                    operation="application_resource_load",
+                    operation_key=operation_key,
+                    failure=BridgeFailure(
+                        code=BridgeFailureCode.UPSTREAM_PROTOCOL,
+                        message=f"Failed to load UI resource for tool '{tool_name}'",
+                        binding_key=bound.binding.binding_key,
+                        details={"reason": str(exc)},
+                    ),
+                )
+            )
 
     async def list_resources(self) -> list[ResourceDescriptor]:
         discovered: dict[str, list[ResourceDescriptor]] = {}
@@ -217,13 +230,21 @@ class AggregateRouter:
         ]
 
     async def read_resource(self, uri: str) -> ReadResourceResult:
+        return await self._read_resource(uri)
+
+    async def _read_resource(
+        self,
+        uri: str,
+        *,
+        operation_key: str | None = None,
+    ) -> ReadResourceResult:
         route = self._resource_routes.get(canonical_uri(uri))
         if route is None:
             raise KeyError(f"Unknown aggregate resource URI: {uri}")
         bound, upstream_uri = route
         try:
             await bound.runtime.start()
-            result = await bound.runtime.read_and_cache_resource(upstream_uri)
+            result = await bound.runtime.read_resource(upstream_uri)
             self._mark_available(bound)
         except Exception as exc:
             self._mark_failed(bound, "resource_read", exc)
@@ -245,6 +266,7 @@ class AggregateRouter:
         await self._observer.observe(
             ResourceRead(
                 session_key=self._session_key,
+                operation_key=operation_key,
                 binding_key=bound.binding.binding_key,
                 requested_uri=canonical_uri(uri),
                 result=public_result,

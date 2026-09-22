@@ -32,7 +32,7 @@ class RecordingObserver:
 class ToolRouter:
     def __init__(self, *, error: Exception | None = None) -> None:
         self._error = error
-        self.preloaded: list[str] = []
+        self.loaded_resources: list[tuple[str, str]] = []
 
     async def list_tools(self) -> list[ToolDescriptor]:
         return []
@@ -42,8 +42,8 @@ class ToolRouter:
             raise self._error
         return ToolCallResult(content=({"type": "text", "text": tool_name},))
 
-    async def preload_tool_resource(self, tool_name: str) -> None:
-        self.preloaded.append(tool_name)
+    async def load_tool_resource(self, tool_name: str, operation_key: str) -> None:
+        self.loaded_resources.append((tool_name, operation_key))
 
     async def list_resources(self) -> list[ResourceDescriptor]:
         return []
@@ -80,7 +80,7 @@ async def test_proxy_handlers_correlate_tool_call_observations() -> None:
     assert started.tool_name == "fixture__inspect"
     assert completed.result is not None
     assert completed.failure is None
-    assert router.preloaded == ["fixture__inspect"]
+    assert router.loaded_resources == [("fixture__inspect", started.operation_key)]
 
 
 async def test_proxy_handlers_emit_typed_failure_before_reraising() -> None:

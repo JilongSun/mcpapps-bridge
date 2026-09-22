@@ -1,4 +1,4 @@
-"""Single-upstream lifecycle, owner task, and bridge-side caches."""
+"""Single-upstream lifecycle, owner task, and bridge-side routing state."""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ RuntimeMessage = _RuntimeCommand[Any] | _ShutdownCommand
 
 
 class UpstreamRuntime:
-    """Owns upstream lifecycle, state synchronization, and bridge-side caches."""
+    """Owns upstream lifecycle, state synchronization, and bridge-side routing state."""
 
     def __init__(
         self,
@@ -75,7 +75,6 @@ class UpstreamRuntime:
         self._version = version
         self._upstream_client = upstream_client
         self._tool_cache: dict[str, ToolDescriptor] = {}
-        self._resource_cache: dict[str, ReadResourceResult] = {}
         self._resource_descriptors: dict[str, ResourceDescriptor] = {}
         self._upstream_identity = UpstreamIdentity(server_name=name, server_version=version)
         self._started = False
@@ -139,23 +138,11 @@ class UpstreamRuntime:
     def tool(self, tool_name: str) -> ToolDescriptor | None:
         return self._tool_cache.get(tool_name)
 
-    async def preload_tool_resource(self, tool_name: str) -> None:
-        tool = self._tool_cache.get(tool_name)
-        if tool is None or tool.ui_resource_uri is None:
-            return
-        await self.read_and_cache_resource(tool.ui_resource_uri)
-
-    async def read_and_cache_resource(self, uri: str) -> ReadResourceResult:
-        cached = self._resource_cache.get(uri)
-        if cached is not None:
-            return cached
-
-        async def read() -> ReadResourceResult:
-            resource = await self._upstream_client.read_resource(uri)
-            self._resource_cache[uri] = resource
-            return resource
-
-        return await self._submit("resources/read", read)
+    async def read_resource(self, uri: str) -> ReadResourceResult:
+        return await self._submit(
+            "resources/read",
+            lambda: self._upstream_client.read_resource(uri),
+        )
 
     async def _run_worker(
         self,

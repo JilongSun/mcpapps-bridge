@@ -87,6 +87,7 @@ class SessionInspectionProjector(BridgeObserver):
         if isinstance(event, ResourceRead):
             await self._store.record_resource_read(
                 ResourceReadRecord(
+                    operation_key=event.operation_key,
                     requested_uri=event.requested_uri,
                     contents=[
                         ResourceContent(
@@ -104,14 +105,17 @@ class SessionInspectionProjector(BridgeObserver):
             )
             return
         if isinstance(event, BridgeErrorRaised):
+            details: dict[str, object] = {
+                "operation": event.operation,
+                "code": event.failure.code.value,
+                "retryable": event.failure.retryable,
+                **event.failure.details,
+            }
+            if event.operation_key is not None:
+                details["operation_key"] = event.operation_key
             await self._store.record_error(
                 event.failure.message,
-                details={
-                    "operation": event.operation,
-                    "code": event.failure.code.value,
-                    "retryable": event.failure.retryable,
-                    **event.failure.details,
-                },
+                details=details,
             )
             return
         raise TypeError(f"Unsupported bridge observation: {type(event).__name__}")

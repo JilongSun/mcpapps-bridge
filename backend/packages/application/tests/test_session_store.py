@@ -88,6 +88,7 @@ async def test_inspection_projector_preserves_operation_and_binding_revision_key
     await observer.observe(
         ResourceRead(
             session_key="session-1",
+            operation_key="operation-1",
             binding_key=str(binding.binding_revision_id),
             requested_uri="docs+file:///manual.txt",
             result=ReadResourceResult(
@@ -133,6 +134,7 @@ async def test_inspection_projector_preserves_operation_and_binding_revision_key
     resource_read_call = record_resource_read.await_args
     assert resource_read_call is not None
     resource_read = resource_read_call.args[0]
+    assert resource_read.operation_key == "operation-1"
     assert resource_read.requested_uri == "docs+file:///manual.txt"
     assert [content.uri for content in resource_read.contents] == [
         "docs+file:///manual.txt",

@@ -88,6 +88,7 @@ class ToolCallCompleted(ObservationBase):
 
 class ResourceRead(ObservationBase):
     kind: Literal["bridge.resource.read"] = "bridge.resource.read"
+    operation_key: str | None = None
     binding_key: str | None = None
     requested_uri: str
     result: ReadResourceResult
@@ -96,6 +97,7 @@ class ResourceRead(ObservationBase):
 class BridgeErrorRaised(ObservationBase):
     kind: Literal["bridge.error.raised"] = "bridge.error.raised"
     operation: str
+    operation_key: str | None = None
     failure: BridgeFailure
 
 

@@ -25,7 +25,7 @@ class EmptyRouter:
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult:
         return ToolCallResult()
 
-    async def preload_tool_resource(self, tool_name: str) -> None:
+    async def load_tool_resource(self, tool_name: str, operation_key: str) -> None:
         return None
 
     async def list_resources(self) -> list[ResourceDescriptor]:

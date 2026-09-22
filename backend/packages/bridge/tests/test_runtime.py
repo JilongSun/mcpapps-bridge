@@ -72,8 +72,10 @@ async def test_upstream_client_lifecycle_stays_in_one_owner_task() -> None:
 
         assert [resource.uri for resource in await runtime.refresh_resources()] == ["data://status"]
         assert (await runtime.call_tool("echo", {})).is_error is False
-        resource = await runtime.read_and_cache_resource("data://status")
-        assert resource.contents[0].text == "ready"
+        first_resource = await runtime.read_resource("data://status")
+        second_resource = await runtime.read_resource("data://status")
+        assert first_resource.contents[0].text == "ready"
+        assert second_resource.contents[0].text == "ready"
         await runtime.close()
 
         async def reconnect() -> None:
@@ -90,6 +92,7 @@ async def test_upstream_client_lifecycle_stays_in_one_owner_task() -> None:
         "tools/list",
         "resources/list",
         "tools/call",
+        "resources/read",
         "resources/read",
         "close",
         "connect",

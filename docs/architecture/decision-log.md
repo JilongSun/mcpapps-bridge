@@ -27,7 +27,7 @@ Implementation states:
 | [0012](decisions/0012-agent-runtime-profiles-and-integration-composition.md) | Accepted; amended by 0015 | Partial | Runtime profiles, typed Hermes capability discovery, nested runtime configuration, and single-instance integration composition are implemented |
 | [0013](decisions/0013-backend-semantic-boundaries-and-mabrid-code-identity.md) | Accepted | Implemented | Backend contexts are modularized, MCP transport is core-owned, provisional contracts are removed, and Mabrid code identity is adopted |
 | [0014](decisions/0014-read-only-v0-1-management-plane.md) | Accepted | Implemented | v0.1 exposes read-only topology, status, readiness, Agent Target assignment, and session inspection while topology mutations remain deferred |
-| [0015](decisions/0015-agent-host-runs-and-mcp-apps-endpoint-composition.md) | Accepted | Partial | Exclusive endpoint ownership, one-active-Run coordination, composite observation, and operation attribution are implemented; fresh resource reads and Host composition remain pending |
+| [0015](decisions/0015-agent-host-runs-and-mcp-apps-endpoint-composition.md) | Accepted | Partial | Endpoint ownership, active-Run coordination, operation attribution, and fresh application-resource reads are implemented; MCP Apps lifecycle and Host composition remain pending |
 
 ## Current v0.1 Position
 
@@ -35,7 +35,7 @@ The aggregate gateway data plane and the ADR 0014 read-only backend management p
 vertical slices. ADR 0015 now defines the remaining first-party Agent Host and MCP Apps composition
 boundary. Remaining backend release work includes:
 
-- Fresh per-operation MCP App resource loading and the MCP Apps lifecycle projector.
+- MCP Apps lifecycle contracts and the correlated widget projector.
 - A composed Host event stream for assistant output and widget lifecycle events.
 - OpenAI-compatible streaming chat, conservative capability reporting, and remote Agent Runtime
   readiness reporting.

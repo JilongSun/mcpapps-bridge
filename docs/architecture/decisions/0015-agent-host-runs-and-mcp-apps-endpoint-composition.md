@@ -240,12 +240,13 @@ As of 2026-09-21, this decision is **Partial**.
 
 Implemented foundations include the single configured Target and endpoint assignment,
 provider-neutral Run identity and ordered text events, typed Gateway tool and resource
-observations, preserved MCP Apps metadata, and automatic UI resource preloading. An application
-coordinator now rejects duplicate Target identities and endpoint ownership, admits at most one
-active Run per Target, and releases active ownership on terminal completion, failure, or event
-stream cancellation. Gateway sessions compose their inspection projector with an optional Agent
-Host observer that permanently attributes each observed tool operation to the active Run at
-`ToolCallStarted`.
+observations, and preserved MCP Apps metadata. An application coordinator now rejects duplicate
+Target identities and endpoint ownership, admits at most one active Run per Target, and releases
+active ownership on terminal completion, failure, or event stream cancellation. Gateway sessions
+compose their inspection projector with an optional Agent Host observer that permanently
+attributes each observed tool operation to the active Run at `ToolCallStarted`.
 
-Uncached attributable resource loading, the MCP Apps application context, and the composed Host
-event stream remain to be implemented.
+Every UI-producing tool call now performs a fresh application-resource read carrying the same
+operation identity. Resource contents are not cached, and a failed automatic read emits an
+attributable error without replacing the successful tool result. The MCP Apps application context
+and the composed Host event stream remain to be implemented.

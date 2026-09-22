@@ -16,6 +16,7 @@ from mabrid.bridge import (
     ReadResourceResult,
     ResourceContent,
     ResourceDescriptor,
+    ResourceRead,
     StdioUpstreamConfig,
     ToolCallResult,
     ToolDescriptor,
@@ -222,6 +223,20 @@ async def test_aggregate_router_preserves_public_mcp_and_mcp_apps_semantics() ->
             assert result.content[2]["text"] == TOOL_UI_URI
             assert result.structured_content == {"resourceUri": TOOL_UI_URI}
             assert result.metadata == {"resourceUri": TOOL_UI_URI}
+
+            reads_before_load = len(client.resource_reads)
+            await router.load_tool_resource("docs__inspect", "operation-1")
+            await router.load_tool_resource("docs__inspect", "operation-2")
+            assert client.resource_reads[reads_before_load:] == [TOOL_UI_URI, TOOL_UI_URI]
+            attributed_reads = [
+                event
+                for event in observer.events
+                if isinstance(event, ResourceRead) and event.operation_key is not None
+            ]
+            assert [event.operation_key for event in attributed_reads] == [
+                "operation-1",
+                "operation-2",
+            ]
 
             linked_resource = await router.read_resource(result.content[0]["uri"])
             assert linked_resource.contents[0].uri == result.content[0]["uri"]
