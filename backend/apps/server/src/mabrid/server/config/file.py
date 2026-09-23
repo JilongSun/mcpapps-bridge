@@ -63,12 +63,15 @@ class HermesAgentRuntimeFileConfig(CamelModel):
 
 class AgentHostFileConfig(CamelModel):
     enabled: bool = False
+    mcp_apps_enabled: bool = False
     target_id: str | None = Field(default=None, min_length=1)
     endpoint_slug: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
     runtime: HermesAgentRuntimeFileConfig = Field(default_factory=HermesAgentRuntimeFileConfig)
 
     @model_validator(mode="after")
     def validate_enabled_target(self) -> AgentHostFileConfig:
+        if self.mcp_apps_enabled and not self.enabled:
+            raise ValueError("'mcpAppsEnabled' requires enabled Agent Host")
         if self.enabled and self.target_id is None:
             raise ValueError("enabled Agent Host requires 'targetId'")
         if self.enabled and self.endpoint_slug is None:

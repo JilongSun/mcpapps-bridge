@@ -25,6 +25,7 @@ class RuntimeHermesAgentConfig(BaseModel):
 
 class RuntimeAgentHostConfig(BaseModel):
     enabled: bool = False
+    mcp_apps_enabled: bool = False
     target_id: str | None = Field(default=None, min_length=1)
     endpoint_slug: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9-]*$")
     runtime: RuntimeHermesAgentConfig = Field(default_factory=RuntimeHermesAgentConfig)

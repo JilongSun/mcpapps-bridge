@@ -6,7 +6,11 @@ transport. It depends on topology and inspection contracts, never on persistence
 """
 
 from .models import BridgeSessionRecord, BridgeSessionStatus
-from .observers import BridgeSessionObserverFactory, CompositeBridgeObserver
+from .observers import (
+    BridgeSessionObserverFactory,
+    CompositeBridgeObserver,
+    CompositeBridgeSessionObserverFactory,
+)
 from .ports import BridgeSessionRepository, SessionHistoryReader
 from .publication import PublishedEndpoint
 from .queries import SessionKeyset, SessionPage, SessionPageRequest
@@ -20,6 +24,7 @@ __all__ = [
     "BridgeSessionObserverFactory",
     "BridgeSessionStatus",
     "CompositeBridgeObserver",
+    "CompositeBridgeSessionObserverFactory",
     "GatewayMcpSessionBroker",
     "GatewaySessionCoordinator",
     "PublishedEndpoint",

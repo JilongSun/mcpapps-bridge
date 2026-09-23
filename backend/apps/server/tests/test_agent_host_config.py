@@ -25,6 +25,7 @@ bridge:
     advertisedBaseUrl: http://mabrid.test:8765
 agentHost:
     enabled: true
+    mcpAppsEnabled: true
     targetId: fixture-target
     endpointSlug: fixture
     runtime:
@@ -62,6 +63,7 @@ def test_enabled_agent_host_resolves_api_key_from_environment(
     )
 
     assert configuration.agent_host.enabled is True
+    assert configuration.agent_host.mcp_apps_enabled is True
     assert configuration.agent_host.target_id == "fixture-target"
     assert configuration.agent_host.endpoint_slug == "fixture"
     assert configuration.agent_host.runtime.integration == "hermes"
@@ -70,6 +72,59 @@ def test_enabled_agent_host_resolves_api_key_from_environment(
     assert configuration.agent_host.runtime.api_key is not None
     assert configuration.agent_host.runtime.api_key.get_secret_value() == "fixture-secret"
     assert configuration.bridge.advertised_base_url == "http://mabrid.test:8765"
+
+
+def test_agent_host_can_disable_mcp_apps_workflow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "fixture.yaml"
+    _write_config(config_path)
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "    mcpAppsEnabled: true\n",
+            "    mcpAppsEnabled: false\n",
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("FIXTURE_HERMES_KEY", "fixture-secret")
+
+    configuration = resolve_runtime_configuration(
+        str(config_path),
+        upstream_name=None,
+        api_host=None,
+        api_port=None,
+        proxy_name=None,
+    )
+
+    assert configuration.agent_host.enabled is True
+    assert configuration.agent_host.mcp_apps_enabled is False
+
+
+def test_mcp_apps_workflow_requires_enabled_agent_host(tmp_path: Path) -> None:
+    config_path = tmp_path / "fixture.yaml"
+    config_path.write_text(
+        """
+agentHost: {mcpAppsEnabled: true}
+endpoints:
+    fixture:
+        bindings: [{upstream: fixture}]
+upstreams:
+    fixture:
+        transport: stdio
+        command: fixture-server
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigError, match="requires enabled Agent Host"):
+        resolve_runtime_configuration(
+            str(config_path),
+            upstream_name=None,
+            api_host=None,
+            api_port=None,
+            proxy_name=None,
+        )
 
 
 def test_enabled_agent_host_requires_configured_api_key_environment(
@@ -121,6 +176,7 @@ upstreams:
 
     assert configuration.agent_host.runtime.api_key is not None
     assert configuration.agent_host.runtime.api_key.get_secret_value() == "fixture-secret"
+    assert configuration.agent_host.mcp_apps_enabled is False
 
 
 def test_agent_host_loads_api_key_from_dotenv_next_to_config(

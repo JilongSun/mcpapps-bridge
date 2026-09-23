@@ -236,7 +236,7 @@ the Hermes HTTP client. Its types remain outside application contracts.
 
 ## Implementation Status
 
-As of 2026-09-21, this decision is **Partial**.
+As of 2026-09-22, this decision is **Partial**.
 
 Implemented foundations include the single configured Target and endpoint assignment,
 provider-neutral Run identity and ordered text events, typed Gateway tool and resource
@@ -249,4 +249,5 @@ attributes each observed tool operation to the active Run at `ToolCallStarted`.
 Every UI-producing tool call now performs a fresh application-resource read carrying the same
 operation identity. Resource contents are not cached, and a failed automatic read emits an
 attributable error without replacing the successful tool result. The MCP Apps application context
-and the composed Host event stream remain to be implemented.
+now projects correlated tool results and application resources into renderer-neutral widget
+creation or failure events. The composed Host event stream remains to be implemented.

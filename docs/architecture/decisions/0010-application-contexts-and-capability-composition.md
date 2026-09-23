@@ -1,6 +1,6 @@
 # ADR 0010: Application Contexts and Capability Composition
 
-- Status: Accepted; amended by ADR 0011, ADR 0012, ADR 0013, and ADR 0014
+- Status: Accepted; amended by ADR 0011, ADR 0012, ADR 0013, ADR 0014, and ADR 0015
 - Date: 2026-08-21
 - Amends: ADR 0003 and ADR 0006
 
@@ -13,6 +13,8 @@ ADR 0013 implements the context-oriented `mabrid.application` structure and remo
 Gateway journal DTO layer while preserving the bounded contexts accepted here.
 ADR 0014 retains topology administration as a Gateway application responsibility but limits v0.1
 to read-only topology and operational inspection APIs.
+ADR 0015 defines exclusive endpoint and active-Run correlation, fresh application-resource reads,
+and the optional composition of MCP Apps widget lifecycle with the Agent Host.
 
 ## Context
 
@@ -205,13 +207,14 @@ because the names overlap.
 
 ## Implementation Status
 
-As of 2026-09-01:
+As of 2026-09-22:
 
 - **Implemented:** `mabrid.application` separates Gateway topology, sessions, inspection, and Agent
   Host contracts; core observations project directly into detailed session events/snapshots; the
   server composes an independently deployed Hermes HTTP adapter.
-- **Partial:** MCP Apps resources are preserved and rendered, but the application resource
-  lifecycle and host-owned actions are incomplete.
+- **Partial:** MCP Apps resources are preserved, fresh application-resource reads are correlated
+  with tool results and Agent Runs, and renderer-neutral widget lifecycle events are projected;
+  Host event composition and host-owned actions remain incomplete.
 - **Partial:** the Agent Host context has provider-neutral text run commands, ordered application
   events, model discovery, failure normalization, an adapter port, and non-streaming production
   composition. Tool activity, Gateway endpoint and MCP Apps correlation, session continuity,

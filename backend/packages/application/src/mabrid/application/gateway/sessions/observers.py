@@ -12,6 +12,25 @@ class BridgeSessionObserverFactory(Protocol):
     def create(self, session_key: str, endpoint_slug: str) -> BridgeObserver | None: ...
 
 
+class CompositeBridgeSessionObserverFactory:
+    def __init__(self, factories: Iterable[BridgeSessionObserverFactory]) -> None:
+        self._factories = tuple(factories)
+        if not self._factories:
+            raise ValueError(
+                "Composite bridge session observer factory requires at least one factory"
+            )
+
+    def create(self, session_key: str, endpoint_slug: str) -> BridgeObserver | None:
+        observers = tuple(
+            observer
+            for factory in self._factories
+            if (observer := factory.create(session_key, endpoint_slug)) is not None
+        )
+        if not observers:
+            return None
+        return CompositeBridgeObserver(observers)
+
+
 class CompositeBridgeObserver:
     def __init__(self, observers: Iterable[BridgeObserver]) -> None:
         self._observers = tuple(observers)

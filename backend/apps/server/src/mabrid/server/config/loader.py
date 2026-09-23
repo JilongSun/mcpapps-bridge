@@ -101,6 +101,7 @@ def _resolve_agent_host_config(config: AgentHostFileConfig) -> RuntimeAgentHostC
         )
     return RuntimeAgentHostConfig(
         enabled=config.enabled,
+        mcp_apps_enabled=config.mcp_apps_enabled,
         target_id=config.target_id,
         endpoint_slug=config.endpoint_slug,
         runtime=RuntimeHermesAgentConfig(

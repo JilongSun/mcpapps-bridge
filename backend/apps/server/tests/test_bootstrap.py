@@ -144,6 +144,7 @@ async def test_enabled_agent_host_composes_hermes_http_adapter(tmp_path: Path) -
         diagnostic_upstream=None,
         agent_host=RuntimeAgentHostConfig(
             enabled=True,
+            mcp_apps_enabled=True,
             target_id="fixture-target",
             endpoint_slug="fixture",
             runtime=RuntimeHermesAgentConfig(
@@ -186,6 +187,7 @@ async def test_enabled_agent_host_composes_hermes_http_adapter(tmp_path: Path) -
         )
         assert observer is not None
         assert result.agent_host.operation_attributions is not None
+        assert result.mcp_apps is not None
         app = create_app(
             result.gateway,
             agent_host=result.agent_host.service,
@@ -194,6 +196,41 @@ async def test_enabled_agent_host_composes_hermes_http_adapter(tmp_path: Path) -
         )
         assert app.state.gateway_management is result.gateway_management
         assert app.state.agent_host_management is result.agent_host.management
+    finally:
+        if result.agent_host is not None:
+            await result.agent_host.runtime.close()
+        await result.database.close()
+
+
+async def test_enabled_agent_host_can_omit_mcp_apps_workflow(tmp_path: Path) -> None:
+    configuration = RuntimeConfiguration(
+        config_path=tmp_path / "fixture.yaml",
+        bridge=BridgeRuntimeConfig(advertised_base_url="http://mabrid.test:8765"),
+        storage=StorageConfig(sqlite_path=tmp_path / "gateway.db", auto_migrate=True),
+        upstreams={
+            "fixture": RuntimeUpstreamConfig(
+                transport="stdio",
+                command="fixture-server",
+            )
+        },
+        endpoints=_endpoints(),
+        diagnostic_upstream=None,
+        agent_host=RuntimeAgentHostConfig(
+            enabled=True,
+            mcp_apps_enabled=False,
+            target_id="fixture-target",
+            endpoint_slug="fixture",
+            runtime=RuntimeHermesAgentConfig(
+                base_url="http://hermes.test:8642/v1",
+                api_key=SecretStr("fixture-secret"),
+            ),
+        ),
+    )
+
+    result = await bootstrap_server(configuration)
+    try:
+        assert result.agent_host is not None
+        assert result.mcp_apps is None
     finally:
         if result.agent_host is not None:
             await result.agent_host.runtime.close()
