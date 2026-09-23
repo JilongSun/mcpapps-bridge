@@ -100,26 +100,41 @@ async def test_hermes_runtime_uses_official_openai_chat_contract() -> None:
                     ],
                 },
             )
+
+        def chunk(choices: list[dict[str, object]], usage: dict[str, int] | None = None) -> str:
+            return (
+                "data: "
+                + json.dumps(
+                    {
+                        "id": "chatcmpl-hermes",
+                        "object": "chat.completion.chunk",
+                        "created": 1_700_000_001,
+                        "model": "hermes-agent",
+                        "choices": choices,
+                        "usage": usage,
+                    }
+                )
+                + "\n\n"
+            )
+
         return httpx.Response(
             200,
-            json={
-                "id": "chatcmpl-hermes",
-                "object": "chat.completion",
-                "created": 1_700_000_001,
-                "model": "fixture-target",
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {"role": "assistant", "content": "Hello from Hermes"},
-                        "finish_reason": "stop",
-                    }
-                ],
-                "usage": {
-                    "prompt_tokens": 4,
-                    "completion_tokens": 3,
-                    "total_tokens": 7,
-                },
-            },
+            headers={"content-type": "text/event-stream"},
+            text=(
+                chunk(
+                    [
+                        {
+                            "index": 0,
+                            "delta": {"role": "assistant", "content": "Hello"},
+                            "finish_reason": None,
+                        }
+                    ]
+                )
+                + chunk([{"index": 0, "delta": {"content": " from Hermes"}, "finish_reason": None}])
+                + chunk([{"index": 0, "delta": {}, "finish_reason": "stop"}])
+                + chunk([], {"prompt_tokens": 4, "completion_tokens": 3, "total_tokens": 7})
+                + "data: [DONE]\n\n"
+            ),
         )
 
     http_client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
@@ -157,11 +172,18 @@ async def test_hermes_runtime_uses_official_openai_chat_contract() -> None:
     finally:
         await runtime.close()
 
-    assert [event.kind for event in events] == ["adapter.text.delta", "adapter.completed"]
+    assert [event.kind for event in events] == [
+        "adapter.text.delta",
+        "adapter.text.delta",
+        "adapter.completed",
+    ]
     assert isinstance(events[0], AgentAdapterTextDelta)
-    assert events[0].delta == "Hello from Hermes"
-    assert isinstance(events[1], AgentAdapterCompleted)
-    assert events[1].usage.total_tokens == 7
+    assert [event.delta for event in events if isinstance(event, AgentAdapterTextDelta)] == [
+        "Hello",
+        " from Hermes",
+    ]
+    assert isinstance(events[-1], AgentAdapterCompleted)
+    assert events[-1].usage.total_tokens == 7
     assert [request.url.path for request in requests] == [
         "/v1/models",
         "/v1/chat/completions",
@@ -173,7 +195,8 @@ async def test_hermes_runtime_uses_official_openai_chat_contract() -> None:
             {"role": "user", "content": "Say hello"},
         ],
         "model": "hermes-agent",
-        "stream": False,
+        "stream": True,
+        "stream_options": {"include_usage": True},
     }
 
 
@@ -203,6 +226,72 @@ async def test_hermes_runtime_requires_exactly_one_remote_model() -> None:
         await runtime.close()
 
 
+async def test_hermes_stream_accepts_explicit_empty_assistant_text() -> None:
+    async def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/models":
+            return httpx.Response(
+                200,
+                json={
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": "hermes-agent",
+                            "object": "model",
+                            "created": 1_700_000_000,
+                            "owned_by": "hermes",
+                        }
+                    ],
+                },
+            )
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            text="data: "
+            + json.dumps(
+                {
+                    "id": "chatcmpl-hermes",
+                    "object": "chat.completion.chunk",
+                    "created": 1_700_000_001,
+                    "model": "hermes-agent",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {"role": "assistant", "content": ""},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                }
+            )
+            + "\n\ndata: [DONE]\n\n",
+        )
+
+    runtime = HermesChatCompletionsAdapter(
+        base_url="http://unused.test/v1",
+        api_key="unused",
+        client=AsyncOpenAI(
+            base_url="http://hermes.test/v1",
+            api_key="fixture-key",
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(handle)),
+        ),
+    )
+    try:
+        events = [
+            event
+            async for event in runtime.run(
+                StartRunCommand(
+                    model="fixture-target",
+                    messages=(AgentMessage(role="user", content="Say hello"),),
+                )
+            )
+        ]
+    finally:
+        await runtime.close()
+
+    assert len(events) == 1
+    assert isinstance(events[0], AgentAdapterCompleted)
+    assert events[0].finish_reason == "stop"
+
+
 async def test_hermes_runtime_normalizes_nonstandard_error_finish_reason() -> None:
     async def handle(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/v1/models":
@@ -222,19 +311,25 @@ async def test_hermes_runtime_normalizes_nonstandard_error_finish_reason() -> No
             )
         return httpx.Response(
             200,
-            json={
-                "id": "chatcmpl-hermes",
-                "object": "chat.completion",
-                "created": 1_700_000_001,
-                "model": "fixture-target",
-                "choices": [
+            headers={"content-type": "text/event-stream"},
+            text="".join(
+                "data: "
+                + json.dumps(
                     {
-                        "index": 0,
-                        "message": {"role": "assistant", "content": "Partial output"},
-                        "finish_reason": "error",
+                        "id": "chatcmpl-hermes",
+                        "object": "chat.completion.chunk",
+                        "created": 1_700_000_001,
+                        "model": "hermes-agent",
+                        "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
                     }
-                ],
-            },
+                )
+                + "\n\n"
+                for delta, finish_reason in [
+                    ({"role": "assistant", "content": "Partial output"}, None),
+                    ({}, "error"),
+                ]
+            )
+            + "data: [DONE]\n\n",
         )
 
     openai_client = AsyncOpenAI(

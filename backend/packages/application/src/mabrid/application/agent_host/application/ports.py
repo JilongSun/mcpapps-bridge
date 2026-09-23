@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Protocol
 
 from ..contracts import AgentAdapterEvent, AgentRuntimeProfile, StartRunCommand
@@ -12,7 +12,7 @@ class AgentRuntime(Protocol):
     @property
     def profile(self) -> AgentRuntimeProfile: ...
 
-    def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]: ...
+    def run(self, command: StartRunCommand) -> AsyncGenerator[AgentAdapterEvent, None]: ...
 
 
 class ManagedAgentRuntime(AgentRuntime, Protocol):

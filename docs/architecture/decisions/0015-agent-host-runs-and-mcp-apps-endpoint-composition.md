@@ -236,7 +236,7 @@ the Hermes HTTP client. Its types remain outside application contracts.
 
 ## Implementation Status
 
-As of 2026-09-22, this decision is **Partial**.
+As of 2026-09-23, this decision is **Partial**.
 
 Implemented foundations include the single configured Target and endpoint assignment,
 provider-neutral Run identity and ordered text events, typed Gateway tool and resource
@@ -253,3 +253,9 @@ now projects correlated tool results and application resources into renderer-neu
 creation or failure events. A Host presentation stream now wraps Agent Host and MCP Apps domain
 events without changing their ownership, waits for attributed widget operations to settle before
 the Run terminal event, and is composed with or without the optional MCP Apps workflow.
+
+The Hermes Chat Completions adapter now consumes streamed SDK chunks and forwards incremental
+assistant text and terminal usage. The OpenAI-compatible inbound adapter emits Chat Completion
+chunks over SSE, optionally includes final usage, and closes the Agent Run and provider stream on
+early termination. Controlled end-to-end Gateway, runtime, MCP server, and MCP App fixtures remain
+the next implementation step.

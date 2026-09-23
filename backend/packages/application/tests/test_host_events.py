@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 import anyio
 
@@ -46,7 +46,7 @@ class WidgetProducingAdapter:
     def profile(self) -> AgentRuntimeProfile:
         return PROFILE
 
-    async def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]:
+    async def run(self, command: StartRunCommand) -> AsyncGenerator[AgentAdapterEvent, None]:
         yield AgentAdapterTextDelta(delta="Hello")
         await self._widget_events.append(
             WidgetCreated(

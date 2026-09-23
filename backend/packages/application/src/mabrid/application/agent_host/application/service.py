@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from contextlib import aclosing
 
 from ..contracts import (
     AgentAdapterCompleted,
@@ -82,36 +83,37 @@ class AgentHostService:
                 model=command.model,
             )
             text_parts: list[str] = []
-            async for event in self._runtime.run(command):
-                sequence += 1
-                if isinstance(event, AgentAdapterTextDelta):
-                    text_parts.append(event.delta)
-                    yield AssistantTextDelta(
-                        run_id=command.run_id,
-                        sequence=sequence,
-                        delta=event.delta,
-                    )
-                    continue
-                if isinstance(event, AgentAdapterCompleted):
-                    text = "".join(text_parts)
-                    yield AssistantTextCompleted(
-                        run_id=command.run_id,
-                        sequence=sequence,
-                        text=text,
-                    )
+            async with aclosing(self._runtime.run(command)) as adapter_events:
+                async for event in adapter_events:
                     sequence += 1
-                    yield AgentRunCompleted(
-                        run_id=command.run_id,
-                        sequence=sequence,
-                        result=AgentRunResult(
+                    if isinstance(event, AgentAdapterTextDelta):
+                        text_parts.append(event.delta)
+                        yield AssistantTextDelta(
                             run_id=command.run_id,
-                            model=command.model,
-                            output_text=text,
-                            finish_reason=event.finish_reason,
-                            usage=event.usage,
-                        ),
-                    )
-                    return
+                            sequence=sequence,
+                            delta=event.delta,
+                        )
+                        continue
+                    if isinstance(event, AgentAdapterCompleted):
+                        text = "".join(text_parts)
+                        yield AssistantTextCompleted(
+                            run_id=command.run_id,
+                            sequence=sequence,
+                            text=text,
+                        )
+                        sequence += 1
+                        yield AgentRunCompleted(
+                            run_id=command.run_id,
+                            sequence=sequence,
+                            result=AgentRunResult(
+                                run_id=command.run_id,
+                                model=command.model,
+                                output_text=text,
+                                finish_reason=event.finish_reason,
+                                usage=event.usage,
+                            ),
+                        )
+                        return
             raise AgentRunError("Agent runtime ended without a completion event")
         except Exception as exc:
             sequence += 1

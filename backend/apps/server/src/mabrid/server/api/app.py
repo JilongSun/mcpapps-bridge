@@ -14,6 +14,7 @@ from mabrid.bridge import create_mcp_asgi_app
 from mabrid.application.agent_host import AgentHostService
 from mabrid.application.gateway.sessions import GatewaySessionCoordinator
 from mabrid.application.gateway import GatewayMcpSessionBroker
+from mabrid.application.host import HostEventStream
 
 from mabrid.server.api.management.agent_host import create_agent_host_management_router
 from mabrid.server.api.management.errors import (
@@ -36,6 +37,7 @@ def create_app(
     manager: GatewaySessionCoordinator,
     *,
     agent_host: AgentHostService | None = None,
+    host_events: HostEventStream | None = None,
     gateway_management: GatewayManagementComposition | None = None,
     agent_host_management: AgentHostManagementView | None = None,
 ) -> FastAPI:
@@ -84,7 +86,7 @@ def create_app(
 
     app.mount("/mcp", create_mcp_asgi_app(GatewayMcpSessionBroker(manager)))
     if agent_host is not None:
-        app.include_router(create_openai_compatibility_router(agent_host))
+        app.include_router(create_openai_compatibility_router(agent_host, host_events))
     if gateway_management is not None:
         app.include_router(create_gateway_management_router(gateway_management))
         app.include_router(create_agent_host_management_router(agent_host_management))

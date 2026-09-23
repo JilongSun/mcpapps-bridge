@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import AsyncGenerator, Iterable, Mapping
+from contextlib import aclosing
 from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import uuid4
@@ -12,20 +13,34 @@ from mabrid.application.agent_host import (
     AgentHostService,
     AgentMessage,
     AgentRunError,
+    AgentRunCompleted,
+    AgentRunFailed,
+    AgentRunStarted,
+    AssistantTextDelta,
     GenerationOptions,
     StartRunCommand,
 )
+from mabrid.application.host import HostAgentEvent, HostEventStream
 from openai.pagination import AsyncPage
 from openai.types import Model
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
+from openai.types.chat.chat_completion_chunk import (
+    ChatCompletionChunk,
+    Choice as ChunkChoice,
+    ChoiceDelta,
+)
 from openai.types.chat.completion_create_params import CompletionCreateParams
 from openai.types.completion_usage import CompletionUsage
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response, StreamingResponse
 
 
-def create_openai_compatibility_router(agent_host: AgentHostService) -> APIRouter:
+def create_openai_compatibility_router(
+    agent_host: AgentHostService,
+    host_events: HostEventStream | None = None,
+) -> APIRouter:
     router = APIRouter(prefix="/v1")
+    event_stream = host_events or HostEventStream(agent_host)
 
     @router.get("/models")
     async def list_models() -> JSONResponse:
@@ -59,18 +74,23 @@ def create_openai_compatibility_router(agent_host: AgentHostService) -> APIRoute
                 }
             },
         ),
-    ) -> JSONResponse:
+    ) -> Response:
         try:
             command = _to_start_run_command(payload)
         except (TypeError, ValueError) as exc:
             return _error_response(str(exc), status_code=422, error_type="invalid_request_error")
 
         if payload.get("stream") is True:
-            return _error_response(
-                "Streaming chat completions are not implemented yet",
-                status_code=400,
-                error_type="invalid_request_error",
-                param="stream",
+            stream_options = payload.get("stream_options") or {}
+            return StreamingResponse(
+                _stream_chat_completion(
+                    event_stream,
+                    command,
+                    model=agent_host.target.target_id,
+                    include_usage=stream_options.get("include_usage") is True,
+                ),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache"},
             )
 
         try:
@@ -102,6 +122,71 @@ def create_openai_compatibility_router(agent_host: AgentHostService) -> APIRoute
         return JSONResponse(completion.model_dump(mode="json", exclude_none=True))
 
     return router
+
+
+async def _stream_chat_completion(
+    host_events: HostEventStream,
+    command: StartRunCommand,
+    *,
+    model: str,
+    include_usage: bool,
+) -> AsyncGenerator[str, None]:
+    completion_id = f"chatcmpl-{command.run_id.hex}"
+    created = int(datetime.now(timezone.utc).timestamp())
+
+    def chunk(choices: list[ChunkChoice], usage: CompletionUsage | None = None) -> str:
+        return (
+            "data: "
+            + ChatCompletionChunk(
+                id=completion_id,
+                choices=choices,
+                created=created,
+                model=model,
+                object="chat.completion.chunk",
+                usage=usage,
+            ).model_dump_json(exclude_none=True)
+            + "\n\n"
+        )
+
+    async with aclosing(host_events.run_events(command)) as events:
+        async for envelope in events:
+            if not isinstance(envelope, HostAgentEvent):
+                continue
+            event = envelope.event
+            if isinstance(event, AgentRunStarted):
+                yield chunk([ChunkChoice(index=0, delta=ChoiceDelta(role="assistant"))])
+            elif isinstance(event, AssistantTextDelta):
+                yield chunk([ChunkChoice(index=0, delta=ChoiceDelta(content=event.delta))])
+            elif isinstance(event, AgentRunCompleted):
+                yield chunk(
+                    [
+                        ChunkChoice(
+                            index=0,
+                            delta=ChoiceDelta(),
+                            finish_reason=event.result.finish_reason,
+                        )
+                    ]
+                )
+                if include_usage:
+                    usage = event.result.usage
+                    yield chunk(
+                        [],
+                        CompletionUsage(
+                            completion_tokens=usage.output_tokens,
+                            prompt_tokens=usage.input_tokens,
+                            total_tokens=usage.total_tokens,
+                        ),
+                    )
+                yield "data: [DONE]\n\n"
+                return
+            elif isinstance(event, AgentRunFailed):
+                error = _error_response(
+                    event.error_message,
+                    status_code=502,
+                    error_type="api_error",
+                )
+                yield "data: " + bytes(error.body).decode("utf-8") + "\n\n"
+                return
 
 
 def _to_start_run_command(payload: Mapping[str, Any]) -> StartRunCommand:

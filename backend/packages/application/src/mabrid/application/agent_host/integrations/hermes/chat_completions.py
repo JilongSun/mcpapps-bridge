@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import cast
 
 from openai import AsyncOpenAI, omit
@@ -13,6 +13,7 @@ from ...contracts import (
     AgentAdapterEvent,
     AgentAdapterTextDelta,
     AgentCapability,
+    AgentFinishReason,
     AgentMessage,
     AgentRuntimeInterface,
     AgentRuntimeProfile,
@@ -68,30 +69,45 @@ class HermesChatCompletionsAdapter:
             cast_to=HermesCapabilityDocument,
         )
 
-    async def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]:
-        completion = await self._client.chat.completions.create(
+    async def run(self, command: StartRunCommand) -> AsyncGenerator[AgentAdapterEvent, None]:
+        stream = await self._client.chat.completions.create(
             model=await self._resolve_remote_model_id(),
             messages=[_to_openai_message(message) for message in command.messages],
             max_completion_tokens=command.options.max_output_tokens or omit,
-            stream=False,
+            stream=True,
+            stream_options={"include_usage": True},
             temperature=(
                 command.options.temperature if command.options.temperature is not None else omit
             ),
         )
-        if not completion.choices:
-            raise RuntimeError("Hermes returned a chat completion without choices")
-        choice = completion.choices[0]
-        content = choice.message.content
-        if content is None:
+        finish_reason: AgentFinishReason | None = None
+        usage = None
+        received_text = False
+        async with stream:
+            async for chunk in stream:
+                if chunk.usage is not None:
+                    usage = chunk.usage
+                for choice in chunk.choices:
+                    if choice.index != 0:
+                        continue
+                    content = choice.delta.content
+                    if content is not None:
+                        received_text = True
+                        if content:
+                            yield AgentAdapterTextDelta(delta=content)
+                    if choice.finish_reason is not None:
+                        reason = str(choice.finish_reason)
+                        if reason not in STANDARD_FINISH_REASONS:
+                            raise RuntimeError(
+                                f"Hermes agent run ended with finish reason: {reason}"
+                            )
+                        finish_reason = cast(AgentFinishReason, reason)
+        if not received_text:
             raise RuntimeError("Hermes returned a chat completion without assistant text")
-        if content:
-            yield AgentAdapterTextDelta(delta=content)
-        finish_reason = str(choice.finish_reason)
-        if finish_reason not in STANDARD_FINISH_REASONS:
-            raise RuntimeError(f"Hermes agent run ended with finish reason: {finish_reason}")
-        usage = completion.usage
+        if finish_reason is None:
+            raise RuntimeError("Hermes chat completion stream ended without a finish reason")
         yield AgentAdapterCompleted(
-            finish_reason=choice.finish_reason,
+            finish_reason=finish_reason,
             usage=TokenUsage(
                 input_tokens=usage.prompt_tokens if usage is not None else 0,
                 output_tokens=usage.completion_tokens if usage is not None else 0,

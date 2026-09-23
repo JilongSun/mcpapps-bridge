@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 import pytest
 from mabrid.bridge import ToolCallStarted
@@ -49,7 +49,7 @@ class SuccessfulAdapter:
     def profile(self) -> AgentRuntimeProfile:
         return PROFILE
 
-    async def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]:
+    async def run(self, command: StartRunCommand) -> AsyncGenerator[AgentAdapterEvent, None]:
         assert command.model == TARGET.target_id
         yield AgentAdapterTextDelta(delta="Hello")
         yield AgentAdapterTextDelta(delta=" world")
@@ -64,7 +64,7 @@ class FailingAdapter:
     def profile(self) -> AgentRuntimeProfile:
         return PROFILE
 
-    async def run(self, command: StartRunCommand) -> AsyncIterator[AgentAdapterEvent]:
+    async def run(self, command: StartRunCommand) -> AsyncGenerator[AgentAdapterEvent, None]:
         raise RuntimeError(f"Provider unavailable for {command.model}")
         yield
 
@@ -123,6 +123,29 @@ async def test_agent_run_stays_active_until_terminal_event_is_consumed() -> None
 
     assert await service.coordinator.active_run_id(TARGET.target_id) == command.run_id
     await stream.aclose()
+    assert await service.coordinator.active_run_id(TARGET.target_id) is None
+
+
+async def test_closing_run_releases_outbound_runtime_stream() -> None:
+    class ClosableAdapter(SuccessfulAdapter):
+        closed = False
+
+        async def run(self, command: StartRunCommand) -> AsyncGenerator[AgentAdapterEvent, None]:
+            try:
+                yield AgentAdapterTextDelta(delta="partial")
+                yield AgentAdapterCompleted()
+            finally:
+                self.closed = True
+
+    adapter = ClosableAdapter()
+    service = _service(adapter)
+    stream = service.run_events(_command())
+    assert (await anext(stream)).kind == "run.started"
+    assert (await anext(stream)).kind == "assistant.text.delta"
+
+    await stream.aclose()
+
+    assert adapter.closed is True
     assert await service.coordinator.active_run_id(TARGET.target_id) is None
 
 

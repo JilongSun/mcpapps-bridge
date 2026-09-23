@@ -67,6 +67,7 @@ async def serve_runtime(args: argparse.Namespace) -> None:
     runtime = MabridServerRuntime(
         result.gateway,
         agent_host=result.agent_host.service if result.agent_host is not None else None,
+        host_events=result.host_events,
         gateway_management=result.gateway_management,
         agent_host_management=(
             result.agent_host.management if result.agent_host is not None else None
