@@ -100,8 +100,6 @@ class AgentHostService:
                         text=text,
                     )
                     sequence += 1
-                    await self._coordinator.finish_run(self._target.target_id, command.run_id)
-                    run_active = False
                     yield AgentRunCompleted(
                         run_id=command.run_id,
                         sequence=sequence,
@@ -117,9 +115,6 @@ class AgentHostService:
             raise AgentRunError("Agent runtime ended without a completion event")
         except Exception as exc:
             sequence += 1
-            if run_active:
-                await self._coordinator.finish_run(self._target.target_id, command.run_id)
-                run_active = False
             yield AgentRunFailed(
                 run_id=command.run_id,
                 sequence=sequence,
@@ -130,11 +125,14 @@ class AgentHostService:
                 await self._coordinator.finish_run(self._target.target_id, command.run_id)
 
     async def complete(self, command: StartRunCommand) -> AgentRunResult:
+        result: AgentRunResult | None = None
         failure: AgentRunFailed | None = None
         async for event in self.run_events(command):
             if isinstance(event, AgentRunCompleted):
-                return event.result
+                result = event.result
             if isinstance(event, AgentRunFailed):
                 failure = event
+        if result is not None:
+            return result
         message = failure.error_message if failure is not None else "Agent run did not complete"
         raise AgentRunError(message)

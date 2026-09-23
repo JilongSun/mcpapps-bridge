@@ -13,6 +13,7 @@ from mabrid.application.gateway.sessions import (
     CompositeBridgeSessionObserverFactory,
     GatewaySessionCoordinator,
 )
+from mabrid.application.host import HostEventStream
 
 from mabrid.server.config import RuntimeConfiguration
 from mabrid.server.logging import get_logger
@@ -32,6 +33,7 @@ class BootstrapResult:
     database: SqliteDatabase
     agent_host: AgentHostComposition | None
     mcp_apps: McpAppsComposition | None
+    host_events: HostEventStream | None
 
 
 async def bootstrap_server(configuration: RuntimeConfiguration) -> BootstrapResult:
@@ -39,6 +41,7 @@ async def bootstrap_server(configuration: RuntimeConfiguration) -> BootstrapResu
     logger.info("SQLite database opened: %s", configuration.storage.sqlite_path)
     agent_host: AgentHostComposition | None = None
     mcp_apps: McpAppsComposition | None = None
+    host_events: HostEventStream | None = None
     try:
         if configuration.storage.auto_migrate:
             logger.info("Running database migrations")
@@ -55,6 +58,10 @@ async def bootstrap_server(configuration: RuntimeConfiguration) -> BootstrapResu
                     agent_host.operation_attributions,
                 )
                 observer_factories.append(mcp_apps.bridge_observer_factory)
+            host_events = HostEventStream(
+                agent_host.service,
+                mcp_apps.events if mcp_apps is not None else None,
+            )
             gateway.runtime.configure_session_observer_factory(
                 CompositeBridgeSessionObserverFactory(observer_factories)
             )
@@ -70,4 +77,5 @@ async def bootstrap_server(configuration: RuntimeConfiguration) -> BootstrapResu
         database=database,
         agent_host=agent_host,
         mcp_apps=mcp_apps,
+        host_events=host_events,
     )

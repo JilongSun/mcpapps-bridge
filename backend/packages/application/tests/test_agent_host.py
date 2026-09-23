@@ -110,6 +110,22 @@ async def test_agent_host_complete_returns_the_terminal_result() -> None:
     assert await service.coordinator.active_run_id(TARGET.target_id) is None
 
 
+async def test_agent_run_stays_active_until_terminal_event_is_consumed() -> None:
+    service = _service(SuccessfulAdapter())
+    command = _command()
+    stream = service.run_events(command)
+
+    terminal = None
+    while terminal is None:
+        event = await anext(stream)
+        if event.kind == "run.completed":
+            terminal = event
+
+    assert await service.coordinator.active_run_id(TARGET.target_id) == command.run_id
+    await stream.aclose()
+    assert await service.coordinator.active_run_id(TARGET.target_id) is None
+
+
 async def test_agent_host_normalizes_adapter_failure() -> None:
     adapter: AgentRuntime = FailingAdapter()
     service = _service(adapter)

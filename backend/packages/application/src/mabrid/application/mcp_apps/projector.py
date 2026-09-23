@@ -29,6 +29,7 @@ from .ports import OperationAttributionReader, WidgetEventStore
 class _PendingToolOperation:
     tool_name: str
     application_resource_uri: str | None
+    attribution: OperationRunAttribution
     result: ToolCallResult | None = None
 
 
@@ -60,10 +61,18 @@ class McpAppsLifecycleProjector:
         if isinstance(event, ToolCallStarted):
             application_resource_uri = self._application_resources_by_tool.get(event.tool_name)
             if application_resource_uri is not None:
+                attribution = await self._attributions.get(
+                    self._session_key,
+                    event.operation_key,
+                )
+                if attribution is None:
+                    return
                 self._operations[event.operation_key] = _PendingToolOperation(
                     tool_name=event.tool_name,
                     application_resource_uri=application_resource_uri,
+                    attribution=attribution,
                 )
+                await self._events.start_operation(attribution)
             return
         if isinstance(event, ToolCallCompleted):
             operation = self._operations.get(event.operation_key)
@@ -71,10 +80,12 @@ class McpAppsLifecycleProjector:
                 return
             if event.result is None or event.failure is not None:
                 del self._operations[event.operation_key]
+                await self._events.settle_operation(operation.attribution)
                 return
             self._operations[event.operation_key] = _PendingToolOperation(
                 tool_name=operation.tool_name,
                 application_resource_uri=operation.application_resource_uri,
+                attribution=operation.attribution,
                 result=event.result,
             )
             return
@@ -92,11 +103,11 @@ class McpAppsLifecycleProjector:
         operation_key = event.operation_key
         if operation_key is None:
             return
-        context = await self._resolve_context(operation_key)
-        if context is None:
+        operation = self._completed_operation(operation_key)
+        if operation is None:
             self._operations.pop(operation_key, None)
             return
-        operation, attribution = context
+        attribution = operation.attribution
         await self._events.append(
             WidgetCreated(
                 widget=WidgetInstance(
@@ -127,11 +138,11 @@ class McpAppsLifecycleProjector:
         operation_key = event.operation_key
         if operation_key is None:
             return
-        context = await self._resolve_context(operation_key)
-        if context is None:
+        operation = self._completed_operation(operation_key)
+        if operation is None:
             self._operations.pop(operation_key, None)
             return
-        operation, attribution = context
+        attribution = operation.attribution
         resource_uri = operation.application_resource_uri
         if resource_uri is None:
             return
@@ -149,17 +160,11 @@ class McpAppsLifecycleProjector:
         )
         del self._operations[operation_key]
 
-    async def _resolve_context(
-        self,
-        operation_key: str,
-    ) -> tuple[_PendingToolOperation, OperationRunAttribution] | None:
+    def _completed_operation(self, operation_key: str) -> _PendingToolOperation | None:
         operation = self._operations.get(operation_key)
         if operation is None or operation.result is None:
             return None
-        attribution = await self._attributions.get(self._session_key, operation_key)
-        if attribution is None:
-            return None
-        return operation, attribution
+        return operation
 
 
 def _tool_result(result: ToolCallResult | None) -> WidgetToolResult:

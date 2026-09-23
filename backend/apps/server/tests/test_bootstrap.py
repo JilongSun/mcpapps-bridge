@@ -188,6 +188,7 @@ async def test_enabled_agent_host_composes_hermes_http_adapter(tmp_path: Path) -
         assert observer is not None
         assert result.agent_host.operation_attributions is not None
         assert result.mcp_apps is not None
+        assert result.host_events is not None
         app = create_app(
             result.gateway,
             agent_host=result.agent_host.service,
@@ -231,6 +232,7 @@ async def test_enabled_agent_host_can_omit_mcp_apps_workflow(tmp_path: Path) -> 
     try:
         assert result.agent_host is not None
         assert result.mcp_apps is None
+        assert result.host_events is not None
     finally:
         if result.agent_host is not None:
             await result.agent_host.runtime.close()

@@ -250,4 +250,6 @@ Every UI-producing tool call now performs a fresh application-resource read carr
 operation identity. Resource contents are not cached, and a failed automatic read emits an
 attributable error without replacing the successful tool result. The MCP Apps application context
 now projects correlated tool results and application resources into renderer-neutral widget
-creation or failure events. The composed Host event stream remains to be implemented.
+creation or failure events. A Host presentation stream now wraps Agent Host and MCP Apps domain
+events without changing their ownership, waits for attributed widget operations to settle before
+the Run terminal event, and is composed with or without the optional MCP Apps workflow.
