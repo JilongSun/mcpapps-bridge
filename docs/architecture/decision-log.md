@@ -27,7 +27,7 @@ Implementation states:
 | [0012](decisions/0012-agent-runtime-profiles-and-integration-composition.md) | Accepted; amended by 0015 | Partial | Runtime profiles, typed Hermes capability discovery, nested runtime configuration, and single-instance integration composition are implemented |
 | [0013](decisions/0013-backend-semantic-boundaries-and-mabrid-code-identity.md) | Accepted | Implemented | Backend contexts are modularized, MCP transport is core-owned, provisional contracts are removed, and Mabrid code identity is adopted |
 | [0014](decisions/0014-read-only-v0-1-management-plane.md) | Accepted | Implemented | v0.1 exposes read-only topology, status, readiness, Agent Target assignment, and session inspection while topology mutations remain deferred |
-| [0015](decisions/0015-agent-host-runs-and-mcp-apps-endpoint-composition.md) | Accepted | Partial | Endpoint ownership, Run correlation, fresh resource reads, widget lifecycle, Host presentation, and Hermes/OpenAI streaming are implemented; complete controlled integration validation remains pending |
+| [0015](decisions/0015-agent-host-runs-and-mcp-apps-endpoint-composition.md) | Accepted | Partial | Endpoint ownership, Run correlation, fresh resource reads, widget lifecycle, Host presentation, Hermes/OpenAI streaming, and controlled integration validation are implemented; first-party host actions remain pending |
 
 ## Current v0.1 Position
 
