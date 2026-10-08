@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 import json
+from datetime import datetime, timezone
 from typing import cast
+from uuid import uuid4
 
 import httpx
 import pytest
+from pydantic import ValidationError
 from mabrid.application.agent_host import (
     AgentAdapterCompleted,
     AgentAdapterEvent,
@@ -27,8 +30,40 @@ from openai import AsyncOpenAI
 from openai import APIStatusError
 
 from mabrid.server.api import create_app
+from mabrid.server.api.host_contracts import (
+    CreateHostSessionRequest,
+    HostSessionPageResponse,
+    HostSessionResponse,
+    StartHostSessionRunRequest,
+)
 from mabrid.server.api.openai_compat import _stream_chat_completion
 from mabrid.application.agent_host import AgentMessage
+
+
+def test_first_party_session_schema_hides_runtime_and_transport_identifiers() -> None:
+    session = HostSessionResponse(
+        session_id=uuid4(),
+        target_id="fixture-target",
+        created_at=datetime.now(timezone.utc),
+        binding_state="unknown",
+    )
+    page = HostSessionPageResponse(sessions=(session,), limit=20, offset=0, has_more=False)
+    assert HostSessionPageResponse.model_validate_json(page.model_dump_json()) == page
+    schema = json.dumps(HostSessionPageResponse.model_json_schema())
+    for private_field in ("remote_session_id", "remote_run_id", "session_key", "operation_key"):
+        assert private_field not in schema
+        with pytest.raises(ValidationError):
+            HostSessionResponse.model_validate({**session.model_dump(), private_field: "private"})
+
+
+def test_first_party_run_schema_accepts_only_new_input() -> None:
+    request = StartHostSessionRunRequest(input_text="Continue")
+    assert request.model_dump() == {"input_text": "Continue"}
+    with pytest.raises(ValidationError):
+        StartHostSessionRunRequest.model_validate({"input_text": "Continue", "messages": []})
+    with pytest.raises(ValidationError):
+        CreateHostSessionRequest.model_validate({"title": "Fixture", "model": "remote-model"})
+
 
 PROFILE = AgentRuntimeProfile(
     integration_kind="fixture",

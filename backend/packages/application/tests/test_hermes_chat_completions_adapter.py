@@ -17,6 +17,146 @@ from mabrid.application.agent_host.integrations.hermes import (
 )
 from openai import AsyncOpenAI
 import pytest
+from pydantic import ValidationError
+
+from mabrid.application.agent_host.integrations.hermes.session_documents import (
+    HermesHistoryDocument,
+    HermesRunStatusDocument,
+    HermesSessionChatRequest,
+    HermesSessionCreateRequest,
+    HermesSessionDocument,
+    HermesStopDocument,
+)
+
+
+@pytest.fixture
+def native_session_transport() -> httpx.MockTransport:
+    run_status = "running"
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        nonlocal run_status
+        if request.headers.get("authorization") != "Bearer fixture-key":
+            return httpx.Response(401, json={"error": {"code": "unauthorized"}})
+        if request.method == "POST" and request.url.path == "/api/sessions":
+            payload = HermesSessionCreateRequest.model_validate_json(request.content)
+            return httpx.Response(
+                201,
+                json={
+                    "object": "hermes.session",
+                    "session": {
+                        "id": "api_fixture",
+                        "title": payload.title,
+                        "source": "api_server",
+                    },
+                },
+            )
+        if request.url.path == "/api/sessions/missing":
+            return httpx.Response(404, json={"error": {"code": "session_not_found"}})
+        if request.method == "GET" and request.url.path == "/api/sessions/api_fixture/messages":
+            assert dict(request.url.params) == {"limit": "2", "offset": "0", "order": "latest"}
+            return httpx.Response(
+                200,
+                json={
+                    "object": "list",
+                    "session_id": "api_fixture",
+                    "data": [
+                        {
+                            "id": 1,
+                            "role": "assistant",
+                            "content": "Searching",
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {"name": "fixture__search", "arguments": "{}"},
+                                }
+                            ],
+                        },
+                        {"id": 2, "role": "tool", "content": "Found", "tool_call_id": "call_1"},
+                    ],
+                    "pagination": {"limit": 2, "offset": 0, "order": "latest", "returned": 2},
+                },
+            )
+        if request.method == "POST" and request.url.path == "/api/sessions/api_fixture/chat/stream":
+            payload = HermesSessionChatRequest.model_validate_json(request.content)
+            assert payload.message == "Continue"
+            frames = [
+                ("run.started", {"run_id": "run_fixture", "session_id": "api_fixture", "seq": 1}),
+                ("assistant.delta", {"delta": "Hello", "run_id": "run_fixture", "seq": 2}),
+                ("assistant.completed", {"content": "Hello", "completed": True, "seq": 3}),
+                ("run.completed", {"completed": True, "session_id": "api_fixture", "seq": 4}),
+                ("done", {"run_id": "run_fixture", "seq": 5}),
+            ]
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream", "x-hermes-session-id": "api_fixture"},
+                text="".join(
+                    f"event: {name}\ndata: {json.dumps(payload)}\n\n" for name, payload in frames
+                ),
+            )
+        if request.method == "POST" and request.url.path == "/v1/runs/run_fixture/stop":
+            run_status = "stopping"
+            return httpx.Response(200, json={"run_id": "run_fixture", "status": "stopping"})
+        if request.method == "GET" and request.url.path == "/v1/runs/run_fixture":
+            return httpx.Response(
+                200,
+                json={"run_id": "run_fixture", "status": run_status, "session_id": "api_fixture"},
+            )
+        raise AssertionError(
+            f"Unexpected native Hermes fixture request: {request.method} {request.url}"
+        )
+
+    return httpx.MockTransport(handle)
+
+
+async def test_native_session_wire_fixture_preserves_history_and_pending_stop(
+    native_session_transport: httpx.MockTransport,
+) -> None:
+    async with httpx.AsyncClient(
+        base_url="http://hermes.test",
+        headers={"authorization": "Bearer fixture-key"},
+        transport=native_session_transport,
+    ) as client:
+        created = await client.post("/api/sessions", json={"title": "Fixture"})
+        session = HermesSessionDocument.model_validate(created.json())
+        assert created.status_code == 201
+        assert session.session.id == "api_fixture"
+
+        response = await client.get(
+            "/api/sessions/api_fixture/messages",
+            params={"limit": 2, "offset": 0, "order": "latest"},
+        )
+        history = HermesHistoryDocument.model_validate(response.json())
+        assert history.pagination.returned == 2
+        assert history.data[0].tool_calls is not None
+        assert history.data[0].tool_calls[0].id == history.data[1].tool_call_id
+        assert "has_more" not in history.model_dump()
+
+        streamed = await client.post(
+            "/api/sessions/api_fixture/chat/stream", json={"message": "Continue"}
+        )
+        assert streamed.headers["x-hermes-session-id"] == "api_fixture"
+        assert "event: run.started\n" in streamed.text
+        assert "event: run.completed\n" in streamed.text
+        assert "event: done\n" in streamed.text
+
+        stopped = HermesStopDocument.model_validate(
+            (await client.post("/v1/runs/run_fixture/stop")).json()
+        )
+        status = HermesRunStatusDocument.model_validate(
+            (await client.get("/v1/runs/run_fixture")).json()
+        )
+        assert stopped.status == "stopping"
+        assert status.status == "stopping"
+
+        missing = await client.get("/api/sessions/missing")
+        assert missing.status_code == 404
+        assert missing.json()["error"]["code"] == "session_not_found"
+
+
+def test_native_session_chat_request_cannot_replay_a_transcript() -> None:
+    with pytest.raises(ValidationError):
+        HermesSessionChatRequest.model_validate({"message": "Continue", "messages": []})
 
 
 async def test_hermes_runtime_reads_its_typed_capabilities() -> None:

@@ -6,10 +6,23 @@ from .attribution import (
     OperationRunAttributionRegistry,
 )
 from .coordination import AgentRunConflictError, AgentRunCoordinator, AgentTargetConflictError
-from .ports import AgentRuntime, ManagedAgentRuntime
+from .ports import (
+    AgentRuntime,
+    AgentSessionRepository,
+    ManagedAgentRuntime,
+    RuntimeSessionCatalog,
+    RuntimeSessionExecution,
+    RuntimeSessionHistory,
+    RuntimeSessionRunControl,
+)
 from .service import AgentHostService, AgentRunError
 
 __all__ = [
+    "AgentSessionRepository",
+    "RuntimeSessionCatalog",
+    "RuntimeSessionExecution",
+    "RuntimeSessionHistory",
+    "RuntimeSessionRunControl",
     "AgentHostService",
     "AgentOperationAttributionObserverFactory",
     "AgentRunConflictError",

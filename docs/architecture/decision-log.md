@@ -32,13 +32,17 @@ Implementation states:
 | [0013](decisions/0013-backend-semantic-boundaries-and-mabrid-code-identity.md) | Accepted | Implemented | Backend contexts are modularized, MCP transport is core-owned, provisional contracts are removed, and Mabrid code identity is adopted |
 | [0014](decisions/0014-read-only-v0-1-management-plane.md) | Accepted | Implemented | v0.1 exposes read-only topology, status, readiness, Agent Target assignment, and session inspection while topology mutations remain deferred |
 | [0015](decisions/0015-agent-host-runs-and-mcp-apps-endpoint-composition.md) | Accepted; amended by 0016 | Partial | Run attribution, fresh resources, widget composition, streaming, and controlled integration exist; timely tool/widget delivery and first-party HTTP remain pending; product Host actions are deferred |
-| [0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md) | Accepted | Pending | Runtime owns conversation history; Mabrid owns durable Agent Session bindings; native history/continuation, first-party contracts, and capability reporting gate the frontend rewrite |
+| [0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md) | Accepted | Partial | Native session interface evidence, typed ports, public schema drafts, and controlled wire tests exist; persistence, native execution, live Host routes, and capability reporting remain pending |
 
 ## Current v0.1 Position
 
 The aggregate gateway data plane and the ADR 0014 read-only backend management plane are complete
 vertical slices. ADR 0015 establishes the composed text-Run and widget baseline. ADR 0016 defines
 the next backend milestone before repository migration and frontend implementation:
+
+The first two ADR 0016 batches are complete: decision reconciliation and the source-verified
+[session contract baseline](host-session-contract.md). This is contract progress, not completed
+native session support or permission to begin the frontend rewrite.
 
 - Verify and implement a native runtime session/history integration and durable Agent Session bindings without duplicating runtime-owned transcripts.
 - Establish thin capability assembly, explicit observer failure policy, and timely tool/widget presentation independent of assistant deltas.

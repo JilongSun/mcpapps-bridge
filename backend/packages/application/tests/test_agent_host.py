@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from datetime import datetime, timezone
+from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 from mabrid.bridge import ToolCallStarted
 from mabrid.application.agent_host import (
     AgentAdapterCompleted,
@@ -25,6 +28,116 @@ from mabrid.application.agent_host import (
     StartRunCommand,
     TokenUsage,
 )
+from mabrid.application.agent_host.contracts.session import (
+    AgentHistoryMessage,
+    AgentHistoryPage,
+    AgentSessionRecord,
+    HistoryPageQuery,
+    HistoryText,
+    HistoryToolCall,
+    HistoryUnsupportedContent,
+    RuntimeRunHandle,
+    RuntimeRunState,
+    RuntimeSessionReference,
+    RuntimeStopReceipt,
+    StartSessionRunCommand,
+)
+
+
+def test_session_contract_separates_binding_history_and_new_input() -> None:
+    session = AgentSessionRecord(
+        target_id="fixture-target",
+        runtime_session=RuntimeSessionReference(
+            runtime_binding_id="fixture-deployment",
+            remote_session_id="api_remote-session",
+        ),
+        created_at=datetime.now(timezone.utc),
+    )
+    command = StartSessionRunCommand(session_id=session.session_id, input_text="Continue")
+    history = AgentHistoryPage(
+        session_id=session.session_id,
+        query=HistoryPageQuery(),
+        messages=(
+            AgentHistoryMessage(
+                message_id="remote-message-1",
+                role="user",
+                content=(HistoryText(text="Earlier input"),),
+            ),
+            AgentHistoryMessage(
+                message_id="remote-message-2",
+                role="assistant",
+                content=(HistoryUnsupportedContent(content_type="image"),),
+            ),
+        ),
+    )
+
+    assert command.session_id == session.session_id
+    assert set(command.model_dump()) == {"run_id", "session_id", "input_text"}
+    assert "messages" not in session.model_dump()
+    assert "remote_session_id" not in history.model_dump_json()
+    assert history.has_more is None
+    assert history.messages[1].content[0].kind == "unsupported"
+    assert AgentHistoryPage.model_validate_json(history.model_dump_json()) == history
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"limit": 0},
+        {"limit": 501},
+        {"offset": -1},
+        {"order": "provider-default"},
+    ],
+)
+def test_history_query_rejects_ambiguous_or_unbounded_pagination(fields: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        HistoryPageQuery.model_validate(fields)
+
+
+def test_session_run_rejects_transcript_replay_and_empty_input() -> None:
+    with pytest.raises(ValidationError):
+        StartSessionRunCommand.model_validate(
+            {"session_id": str(uuid4()), "input_text": "Continue", "messages": []}
+        )
+    with pytest.raises(ValidationError):
+        StartSessionRunCommand(session_id=uuid4(), input_text="")
+    with pytest.raises(ValidationError):
+        StartSessionRunCommand(session_id=uuid4(), input_text=" \n\t")
+
+
+def test_history_preserves_tool_calls_without_turning_them_into_new_input() -> None:
+    message = AgentHistoryMessage(
+        message_id="remote-message-3",
+        role="assistant",
+        content=(
+            HistoryText(text="Searching"),
+            HistoryToolCall(
+                tool_call_id="call_1",
+                tool_name="fixture__search",
+                arguments={"query": "example", "limit": 2},
+            ),
+        ),
+    )
+    assert AgentHistoryMessage.model_validate_json(message.model_dump_json()) == message
+    assert message.content[1].kind == "tool_call"
+
+
+@pytest.mark.parametrize("state", ["queued", "running", "stopping", "unknown"])
+def test_stop_receipt_and_nonterminal_state_do_not_confirm_remote_exit(state: str) -> None:
+    handle = RuntimeRunHandle(runtime_binding_id="fixture-deployment", remote_run_id="run_1")
+    receipt = RuntimeStopReceipt(handle=handle, accepted=True)
+    snapshot = RuntimeRunState.model_validate({"handle": handle, "state": state})
+
+    assert receipt.accepted is True
+    assert snapshot.is_terminal is False
+
+
+@pytest.mark.parametrize("state", ["completed", "failed", "cancelled"])
+def test_runtime_terminal_state_is_explicit(state: str) -> None:
+    handle = RuntimeRunHandle(runtime_binding_id="fixture-deployment", remote_run_id="run_1")
+    snapshot = RuntimeRunState.model_validate({"handle": handle, "state": state})
+    assert snapshot.is_terminal is True
+
 
 PROFILE = AgentRuntimeProfile(
     integration_kind="fixture",
