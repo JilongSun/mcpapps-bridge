@@ -1,11 +1,20 @@
 # ADR 0004: First Release Scope and Distribution
 
-- Status: Accepted; management scope amended by ADR 0008 and ADR 0014
+- Status: Accepted; amended by ADR 0007, ADR 0008, ADR 0012, ADR 0014, and ADR 0016
 - Date: 2026-07-16
 
 ADR 0014 replaces writable topology management in the v0.1 release scope with a read-only
 topology, status, readiness, and session-inspection plane. Its release gates supersede the
 management mutation and writable frontend requirements below.
+
+ADR 0007 selects Tauri with a Python sidecar as the post-v0.1 desktop shell, superseding the
+original Electron direction.
+
+ADR 0012 limits standard OpenAI ingress to models and Chat Completions. ADR 0016 requires native
+Agent Session bindings, runtime-owned history, and session-bound first-party execution before the
+frontend rewrite. It defers product Host actions but retains widget initialization, data exchange,
+and explicit unsupported-action handling. The dated implementation tables below are historical,
+not the current release checklist; current milestones are tracked in the decision log.
 
 ## Context
 
@@ -29,14 +38,16 @@ Agent Host activation is optional at deployment time, but its implementation and
 The 0.1 backend includes:
 
 - SQLite persistence, Alembic migrations, and seed-if-empty bootstrap.
-- Restart-applied upstream and endpoint configuration required by the minimal management UI.
+- Read-only upstream, endpoint, and binding inspection; topology remains frozen after initial seed.
 - Normalized immutable upstream and endpoint revisions captured by bridge sessions.
 - Aggregate tool discovery and call routing with stable namespaces.
 - Reversible aggregate resource routing with MCP Apps metadata preservation.
 - Passthrough routing for compatibility and diagnosis.
 - Session lifecycle, event, snapshot, and health inspection APIs.
-- A provider-neutral internal agent run/event contract.
-- `POST /v1/chat/completions`, `POST /v1/responses`, `GET /v1/models`, and health endpoints.
+- Provider-neutral Agent Session, Run, history presentation, and event contracts.
+- Durable session bindings with runtime-owned history loading and native continued execution.
+- `POST /v1/chat/completions`, `GET /v1/models`, and health endpoints.
+- A separate first-party session and composed Host event API under ADR 0016.
 - An HTTP/SSE Hermes adapter targeting an independently deployed Hermes runtime.
 - Separate contracts for standard OpenAI-compatible behavior and Hermes-specific HTTP capabilities.
 
@@ -46,10 +57,10 @@ The backend is stabilized before frontend implementation expands. After the back
 
 The 0.1 frontend includes:
 
-- Agent conversation input and streaming assistant output.
+- Agent Session selection, runtime-owned history, conversation input, and streaming assistant output.
 - Tool activity and result visibility.
-- MCP App resource and widget rendering with host-owned UI actions.
-- Minimal upstream, endpoint, and binding management.
+- MCP App resource and widget rendering with explicit unsupported Host action handling.
+- Read-only upstream, endpoint, and binding inspection under ADR 0014.
 - Connection, health, and session inspection needed to diagnose the local deployment.
 
 The first release does not attempt to provide a complete enterprise administration console.
@@ -60,7 +71,9 @@ The repository keeps the traditional `backend/` and `frontend/` source split. De
 
 Production distribution uses one OCI image and one public service. The frontend is compiled to static assets during the image build and served by the backend on the same origin. This avoids a second deployment unit, CORS configuration, and independent frontend/backend version skew without coupling frontend source code to Python modules.
 
-Hermes runs as an independent process or service and communicates with the Agent Host over HTTP/SSE. It is not embedded as a Python dependency. A future Electron distribution may launch an ACP-compatible agent sidecar over JSON-RPC stdio, but Electron and ACP packaging are outside the 0.1 boundary.
+Hermes runs as an independent process or service and communicates with the Agent Host over
+HTTP/SSE. It is not embedded as a Python dependency. ADR 0007 selects a future Tauri supervisor
+with a Python service sidecar; desktop packaging and ACP integration are outside the v0.1 boundary.
 
 ### Distribution contract
 
@@ -75,7 +88,7 @@ The 0.1 release excludes:
 - A graph database runtime dependency.
 - Multi-process or horizontally scaled MCP session ownership.
 - Live topology mutation inside an active bridge session.
-- Electron packaging and ACP-based local agent launching.
+- Desktop packaging and ACP-based local agent launching.
 - A stable embedded Python or JavaScript SDK.
 - A full enterprise operations console.
 - Live topology reload or process restart orchestration.
@@ -95,15 +108,17 @@ Version 0.1 is ready when:
 
 1. Aggregate tool and MCP App resource flows pass protocol-level integration tests.
 2. Sessions remain bound to immutable topology revisions.
-3. Management mutations create coherent revisions, report that restart is required, and affect
-   gateway behavior only after a new process loads them.
+3. Read-only topology, status, readiness, Target assignment, and session inspection meet ADR 0014;
+   management APIs do not mutate the v0.1 topology.
 4. OpenAI-compatible non-streaming and streaming flows pass contract tests through the Hermes HTTP adapter.
 5. Hermes-specific capabilities cannot leak into the generic OpenAI adapter or MCP gateway modules.
-6. The first-party UI renders assistant output, tool activity, and MCP App widgets against stable backend contracts.
+6. Native Agent Session bindings, runtime-owned history, session switching, and continued execution
+   meet ADR 0016's frontend readiness gate; the first-party UI renders assistant output, tool
+   activity, and MCP App widgets against those stable contracts.
 7. A clean database can migrate and bootstrap inside the release image.
 8. The image can start from documented configuration and report liveness and readiness without a development toolchain.
 
-## Implementation Status
+## Historical Implementation Snapshot
 
 As of 2026-08-16:
 

@@ -1,6 +1,6 @@
 # ADR 0011: Single Agent Target and Gateway Endpoint Assignment
 
-- Status: Accepted; amended by ADR 0012, ADR 0014, and ADR 0015
+- Status: Accepted; amended by ADR 0012, ADR 0014, ADR 0015, and ADR 0016
 - Date: 2026-08-25
 - Amends: ADR 0003, ADR 0006, and ADR 0010
 
@@ -17,6 +17,12 @@ ADR 0015 makes that endpoint assignment logically exclusive for Agent Host compo
 it with one active Run per Target to correlate Gateway tool activity with MCP Apps Host workflows.
 It supersedes this decision's allowance for unrelated clients to share an assigned endpoint and its
 deferral of all run-to-Gateway correlation.
+
+ADR 0016 makes Agent Sessions the first-party user selection unit while retaining one configured
+Target and one active Run across its sessions. Runtime-owned history and native continuation are
+required before frontend implementation; the original Chat Completions choice below describes
+the initial text-only slice, not the permanent session interface. ADR 0015 already implemented
+streaming for that slice. No multi-target registry is introduced.
 
 ## Context
 
@@ -188,7 +194,7 @@ integrations belong with the Agent Host capability they implement.
 - Exclusive endpoint ownership or authorization derived from target assignment.
 - Proven Agent Run, Hermes session, Gateway bridge session, and MCP App correlation.
 
-## Implementation Status
+## Historical Implementation Snapshot
 
 As of 2026-08-25, this decision is **Partial**.
 

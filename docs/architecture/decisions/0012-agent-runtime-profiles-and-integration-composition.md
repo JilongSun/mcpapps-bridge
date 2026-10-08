@@ -1,12 +1,18 @@
 # ADR 0012: Agent Runtime Profiles and Integration Composition
 
-- Status: Accepted; amended by ADR 0015
+- Status: Accepted; amended by ADR 0015 and ADR 0016
 - Date: 2026-08-25
 - Amends: ADR 0010 and ADR 0011
 
 ADR 0015 keeps the narrow runtime port and selected Chat Completions interface while defining
 MCP Apps correlation from Mabrid-owned endpoint and Run state. Provider tool-progress events and
 agent-framework contracts are not required for that workflow.
+
+ADR 0016 requires native session/history ports, first-party session execution, effective product
+capabilities, and remote runtime availability before the frontend rewrite. It supersedes the
+general deferral of those behaviors below without selecting an unverified Hermes wire interface.
+The narrow-port and conservative-capability rules remain in force. Standard Responses ingress
+is not added to the v0.1 requirements.
 
 ## Context
 
@@ -181,7 +187,7 @@ and selection policy that v0.1 does not yet need.
 - Multiple simultaneous Agent Targets and target registries.
 - Product-level MCP Apps capability composition and run-to-Gateway-session correlation.
 
-## Implementation Status
+## Historical Implementation Snapshot
 
 As of 2026-08-25, this decision is **Partial**.
 

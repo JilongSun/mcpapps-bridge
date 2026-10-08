@@ -1,8 +1,15 @@
 # ADR 0015: Agent Host Runs and MCP Apps Endpoint Composition
 
-- Status: Accepted
+- Status: Accepted; amended by ADR 0016
 - Date: 2026-09-21
 - Amends: ADR 0003, ADR 0010, ADR 0011, and ADR 0012
+
+ADR 0016 adds durable Mabrid Agent Sessions, runtime-owned history, and native session-bound
+execution as frontend prerequisites. It supersedes the general session-continuity deferral below
+and defers product Host actions beyond v0.1. Exclusive endpoint ownership, one active Run per
+Target, operation attribution, fresh resource reads, and distinct event ownership remain unchanged.
+The Chat Completions implementation remains a compatibility slice rather than the permanent
+first-party conversation contract.
 
 ## Context
 
@@ -234,7 +241,7 @@ the Hermes HTTP client. Its types remain outside application contracts.
 7. Validate the complete workflow with controlled Gateway, runtime, MCP server, and MCP App
    fixtures.
 
-## Implementation Status
+## Historical Implementation Snapshot
 
 As of 2026-09-24, this decision is **Partial**.
 

@@ -1,6 +1,6 @@
 # ADR 0003: MCP Apps Gateway and Agent Host
 
-- Status: Accepted; amended by ADR 0008, ADR 0010, ADR 0011, and ADR 0014
+- Status: Accepted; amended by ADR 0008, ADR 0010, ADR 0011, ADR 0012, ADR 0014, ADR 0015, and ADR 0016
 - Date: 2026-07-14
 - Amended: 2026-07-20
 
@@ -11,6 +11,12 @@ identity and one declared Gateway endpoint assignment.
 
 ADR 0014 narrows the v0.1 management plane to read-only topology, status, readiness, and session
 inspection. Writable topology administration moves beyond v0.1.
+
+ADR 0012 limits standard OpenAI ingress to models and Chat Completions; the Responses requirement
+below is superseded. ADR 0015 supplies exclusive endpoint ownership, Run attribution, and streaming.
+ADR 0016 requires runtime-owned conversation history and Mabrid-owned Agent Sessions before the
+frontend rewrite, separates the first-party Host contract from OpenAI compatibility, and defers
+product Host actions beyond v0.1. Session continuity is no longer generally deferred.
 
 ## Context
 
@@ -186,7 +192,7 @@ The first integration boundary is HTTP/SSE to an independently deployed Hermes r
 
 The management API can modify servers and credentials, MCP clients can invoke powerful tools, and Agent Host users can start agent runs. These are different trust levels and may require separate tokens, scopes, or identities. Authentication is deferred until the corresponding public APIs are designed, but one shared unrestricted credential must not become an accidental permanent contract.
 
-## Implementation Status
+## Historical Implementation Snapshot
 
 As of 2026-08-16:
 

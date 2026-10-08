@@ -1,6 +1,6 @@
 # ADR 0010: Application Contexts and Capability Composition
 
-- Status: Accepted; amended by ADR 0011, ADR 0012, ADR 0013, ADR 0014, and ADR 0015
+- Status: Accepted; amended by ADR 0011, ADR 0012, ADR 0013, ADR 0014, ADR 0015, and ADR 0016
 - Date: 2026-08-21
 - Amends: ADR 0003 and ADR 0006
 
@@ -15,6 +15,9 @@ ADR 0014 retains topology administration as a Gateway application responsibility
 to read-only topology and operational inspection APIs.
 ADR 0015 defines exclusive endpoint and active-Run correlation, fresh application-resource reads,
 and the optional composition of MCP Apps widget lifecycle with the Agent Host.
+ADR 0016 assigns durable Agent Session bindings to Agent Host while leaving conversation history
+and context continuity with the external runtime. It requires session-oriented first-party
+contracts before the frontend rewrite and defers product Host actions beyond v0.1.
 
 ## Context
 
@@ -98,15 +101,17 @@ concern.
 
 The Agent Host context owns:
 
+- durable Agent Session identity, runtime binding, selection, and lifecycle contracts;
 - provider-neutral run, message, content, tool-activity, and lifecycle contracts;
 - starting, streaming, cancelling, and completing runs;
-- conversation and run event publication;
+- runtime-owned history loading and normalized history and Run event publication;
 - provider-neutral agent adapter ports; and
 - policies for selecting configured adapters, models, and Gateway endpoints.
 
-Concrete OpenAI-compatible and Hermes HTTP/SSE adapters remain in the deployable server package.
-Hermes-specific events and capabilities do not enter the provider-neutral context or the Gateway
-context.
+Under ADR 0011, isolated reusable outbound runtime integrations belong to the application package.
+Inbound OpenAI-compatible and first-party HTTP adapters remain in the server. Conversation contents
+and context are runtime-owned, not a Mabrid transcript store. Hermes wire types and capabilities do
+not enter provider-neutral contracts or the Gateway context.
 
 ### Composition without strong binding
 
@@ -179,9 +184,10 @@ These are module boundaries inside one distribution. A context becomes a separat
 service only after independent deployment, reuse, scaling, trust, or dependency requirements
 justify the additional boundary.
 
-In the server package, `agent_adapters/` contains concrete provider integrations. The existing
-`host/` area owns Web process hosting and must not become the Agent Host application domain merely
-because the names overlap.
+Reusable outbound integrations now live under `mabrid.application.agent_host.integrations` as
+amended by ADR 0011 and implemented by ADR 0013. The server retains deployment composition and
+inbound adapters. The application Host presentation boundary does not own Web process hosting or
+absorb Agent Host, Gateway, and MCP Apps domain ownership.
 
 ## Consequences
 
@@ -205,7 +211,7 @@ because the names overlap.
 - Billing-grade usage accounting and guaranteed analytics delivery.
 - A generic event bus introduced only to connect in-process contexts.
 
-## Implementation Status
+## Historical Implementation Snapshot
 
 As of 2026-09-22:
 
