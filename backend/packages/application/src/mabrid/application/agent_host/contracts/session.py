@@ -94,6 +94,22 @@ class RuntimeRunHandle(AgentHostModel):
     remote_run_id: str = Field(min_length=1)
 
 
+class UnsettledSessionRun(AgentHostModel):
+    target_id: str = Field(min_length=1)
+    session_id: UUID
+    run_id: UUID
+    runtime_binding_id: str = Field(min_length=1)
+    remote_run_id: str | None = None
+
+    @property
+    def handle(self) -> RuntimeRunHandle | None:
+        if self.remote_run_id is None:
+            return None
+        return RuntimeRunHandle(
+            runtime_binding_id=self.runtime_binding_id, remote_run_id=self.remote_run_id
+        )
+
+
 class RuntimeSessionRunStarted(AgentHostModel):
     kind: Literal["session_adapter.started"] = "session_adapter.started"
     handle: RuntimeRunHandle

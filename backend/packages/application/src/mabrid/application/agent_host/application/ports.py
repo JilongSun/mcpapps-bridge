@@ -19,6 +19,7 @@ from ..contracts.session import (
     RuntimeSessionRunEvent,
     RuntimeStopReceipt,
     StartSessionRunCommand,
+    UnsettledSessionRun,
 )
 
 
@@ -49,6 +50,16 @@ class AgentSessionRepository(Protocol):
         expected: RuntimeSessionReference,
         replacement: RuntimeSessionReference,
     ) -> bool: ...
+
+    async def get_unsettled_run(self, target_id: str) -> UnsettledSessionRun | None: ...
+
+    async def claim_run(self, session: AgentSessionRecord, run_id: UUID) -> bool: ...
+
+    async def record_runtime_run(
+        self, target_id: str, run_id: UUID, handle: RuntimeRunHandle
+    ) -> None: ...
+
+    async def release_run(self, target_id: str, run_id: UUID) -> None: ...
 
 
 class RuntimeSessionCatalog(Protocol):

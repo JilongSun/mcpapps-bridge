@@ -239,8 +239,9 @@ to its implementation sequence.
 ## Implementation Status
 
 As of 2026-10-08, this decision is **Partial**: source verification, typed session/history and
-control ports, public session schema drafts, and controlled wire fixtures exist. They do not
-advertise native session support in a deployment or mark the frontend readiness gate complete.
+control ports, public schema drafts, native session use cases, SQLite bindings, and controlled
+integration tests exist. They do not advertise native session support in a deployment or mark
+the frontend readiness gate complete.
 
 The selected native interface and its evidence are recorded in the
 [Host session contract baseline](../host-session-contract.md). Hermes session resources and
@@ -251,7 +252,7 @@ submission are not required by this selection.
 | --- | --- | --- |
 | 1. Decision and ADR reconciliation | Completed | Accepted ownership, v0.1 scope, and historical amendment notices |
 | 2. Native interface and typed contract baseline | Completed | Pinned Hermes source evidence, application ports, session/history and HTTP schema drafts, controlled wire fixture tests |
-| 3. Durable bindings and native integration | Pending | SQLite, create/reopen/history/continuation, effective references, and stream settlement |
+| 3. Durable bindings and native integration | Completed | Native Hermes adapter, SQLite migration/repository, create/reopen/history/continuation, effective-reference CAS, durable unsettled Runs, bounded stop/status settlement, and controlled restart tests |
 | 4. Capability assembly and observer policy | Pending | Typed assembly, ordering, failure isolation, and settlement tests |
 | 5. Tool activity and timely presentation | Pending | Activity delivery without assistant deltas and early-close behavior |
 | 6. First-party HTTP | Pending | Actual session routes, composed SSE, admission/errors, cancellation, and disconnect semantics |
@@ -259,6 +260,9 @@ submission are not required by this selection.
 | 8. Contract freeze | Pending | Final schemas/examples, complete readiness checks, and owner-led migration handoff |
 
 The existing text Run, Hermes/OpenAI streaming, Gateway attribution, fresh resources, and widget
-composition remain ADR 0015 prerequisites. No native adapter, session persistence, or first-party
-Host router has been enabled in this contract-only batch. No frontend files were inspected or
-changed. OCI and live MCP transport gates remain separate release work.
+composition remain ADR 0015 prerequisites. Native behavior is implemented behind application
+ports but is not yet selected by server bootstrap; the first-party Host router is not registered.
+The assembly batch must restore durable unresolved Target ownership before either native or
+compatibility ingress can invoke that Target, and compose Gateway settlement with native Run
+lifecycle. No frontend files were inspected or changed. OCI and live MCP transport gates remain
+separate release work.

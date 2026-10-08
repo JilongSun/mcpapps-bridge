@@ -43,9 +43,11 @@ from .session import (
     RuntimeSessionTextDelta,
     RuntimeStopReceipt,
     StartSessionRunCommand,
+    UnsettledSessionRun,
 )
 
 __all__ = [
+    "UnsettledSessionRun",
     "AgentHistoryMessage",
     "AgentHistoryPage",
     "AgentSessionRecord",

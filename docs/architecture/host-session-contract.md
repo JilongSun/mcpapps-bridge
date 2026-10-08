@@ -2,7 +2,7 @@
 
 - Decision: [ADR 0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md)
 - Reviewed: 2026-10-08
-- State: Source-verified integration selection and executable schema drafts; not a frozen HTTP API.
+- State: Native use cases and persistence implemented with controlled tests; not a frozen HTTP API.
 
 ## Evidence and Integration Selection
 
@@ -11,7 +11,7 @@ Hermes evidence was read from a clean local source checkout at
 [the API server](https://github.com/NousResearch/hermes-agent/blob/6ce7ab8bfb3fce3ba116f52a11a438d6c7e4c03d/gateway/platforms/api_server.py)
 and [its session tests](https://github.com/NousResearch/hermes-agent/blob/6ce7ab8bfb3fce3ba116f52a11a438d6c7e4c03d/tests/gateway/test_session_api.py).
 This is evidence about that source revision, not a claim that the owner's deployed runtime is
-running it. No live agent or live runtime was invoked during this contract batch.
+running it. No live agent or live runtime was invoked during these backend batches.
 
 The selected first-party behavior uses native Hermes session resources and session chat streaming:
 
@@ -91,9 +91,40 @@ Important boundaries:
 - Status records are process-local and expire. A missing status or unreachable runtime after
   disconnection means unknown execution state, not safe permission for another attributed Run.
 
-The next batch must validate these behaviors with paused/failed/closed stream fixtures. It must
-not reuse the current text adapter's unconditional generator-finalization release as proof of
-remote session execution settlement.
+The native adapter validates these behaviors with controlled complete, paused, failed, closed,
+and uncertain-submission fixtures. It does not reuse the text adapter's generator-finalization
+release as proof of remote settlement.
+
+## Implemented Native Use Cases
+
+[Agent Session use cases](../../backend/packages/application/src/mabrid/application/agent_host/application/sessions.py)
+own create, local listing, remote reopening, runtime-owned history presentation, and new-input
+execution. [The Hermes adapter](../../backend/packages/application/src/mabrid/application/agent_host/integrations/hermes/sessions.py)
+uses explicit native API-root configuration, preserving reverse-proxy prefixes, and a standard
+`httpx-sse` decoder rather than an OpenAI wire stream or custom SSE parser.
+
+[The SQLite repository](../../backend/apps/server/src/mabrid/server/persistence/agent_host.py)
+persists only Agent Session bindings and unresolved Run ownership. The additive
+[migration](../../backend/apps/server/migrations/versions/0002_agent_sessions.py)
+does not reset existing topology or copy remote transcripts. Effective remote references are
+verified through the catalog and updated by compare-and-set within the same deployment binding.
+
+Every native Run claims the shared Target coordinator and a durable unresolved record before
+submission. Its remote handle is recorded on `run.started`. Normal completion or confirmed
+early-close settlement releases ownership only after the consumer finishes the Run generator.
+Failure to observe remote exit retains both unresolved durable state and process ownership.
+Submission timeout/cancellation without a recoverable handle also remains unresolved rather than
+creating a new conversation or assuming no execution occurred.
+
+Stop/status cleanup has a bounded settlement timeout. Explicit reconciliation can release an
+unresolved record only after observing remote terminal state; missing status remains unknown.
+Reconciliation cannot release a locally open Run stream. Unknown execution persists across a
+Mabrid restart and blocks new native execution until verified reconciliation succeeds.
+
+These use cases are not yet constructed by production bootstrap. The capability-assembly batch
+must select native configuration, restore unresolved Target ownership before any compatible or
+native invocation, and integrate Gateway operation/widget settling. Merely calling local
+`reconcile_run` without those composition rules is not a deployment-level readiness guarantee.
 
 ## Typed Boundaries and Public Drafts
 
@@ -124,13 +155,14 @@ receipts. Existing Hermes tests include a controlled HTTP wire fixture for nativ
 named SSE events, missing sessions, and stop/status responses. Server tests validate public schema
 round trips and rejection of private identifiers and transcript input.
 
-Those tests validate contract drafts and controlled wire documents. They do not run Hermes, create
-real remote conversations, test a production native adapter, or prove durable restart continuity.
+Controlled tests now also compose the actual native adapter, application use cases, Alembic, and
+SQLite. They verify two distinct conversations, switching and input-only continuation, effective
+reference updates, database reopen, missing conversations, changed bindings, and unresolved Run
+ownership/reconciliation across restart. They do not run live Hermes or prove a deployed runtime
+version supports the selected contract.
 The following remain implementation gates:
 
-- SQLite bindings and lifecycle-safe create/reopen/history/continuation use cases.
-- A native adapter with history normalization, SSE parsing, failure and stop reconciliation, and
-  effective-session-reference handling.
+- Production capability assembly, durable ownership restoration, and Gateway settlement composition.
 - Timely Gateway tool/widget presentation and the first-party HTTP routes.
 - Conservative capabilities and remote runtime availability.
 - Final OpenAPI/SSE schema freeze and ADR 0016's complete frontend readiness gate.

@@ -32,7 +32,7 @@ Implementation states:
 | [0013](decisions/0013-backend-semantic-boundaries-and-mabrid-code-identity.md) | Accepted | Implemented | Backend contexts are modularized, MCP transport is core-owned, provisional contracts are removed, and Mabrid code identity is adopted |
 | [0014](decisions/0014-read-only-v0-1-management-plane.md) | Accepted | Implemented | v0.1 exposes read-only topology, status, readiness, Agent Target assignment, and session inspection while topology mutations remain deferred |
 | [0015](decisions/0015-agent-host-runs-and-mcp-apps-endpoint-composition.md) | Accepted; amended by 0016 | Partial | Run attribution, fresh resources, widget composition, streaming, and controlled integration exist; timely tool/widget delivery and first-party HTTP remain pending; product Host actions are deferred |
-| [0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md) | Accepted | Partial | Native session interface evidence, typed ports, public schema drafts, and controlled wire tests exist; persistence, native execution, live Host routes, and capability reporting remain pending |
+| [0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md) | Accepted | Partial | Native interface evidence, typed drafts, native session use cases, SQLite bindings, and controlled restart/settlement tests exist; production assembly, live Host routes, and capability reporting remain pending |
 
 ## Current v0.1 Position
 
@@ -40,11 +40,12 @@ The aggregate gateway data plane and the ADR 0014 read-only backend management p
 vertical slices. ADR 0015 establishes the composed text-Run and widget baseline. ADR 0016 defines
 the next backend milestone before repository migration and frontend implementation:
 
-The first two ADR 0016 batches are complete: decision reconciliation and the source-verified
-[session contract baseline](host-session-contract.md). This is contract progress, not completed
-native session support or permission to begin the frontend rewrite.
+The first three ADR 0016 batches are complete: decision reconciliation, source-verified contracts,
+and [native session use cases with durable bindings](host-session-contract.md). Native behavior
+is validated with controlled HTTP and real SQLite, but production bootstrap and first-party
+routes do not enable it yet. This is not permission to begin the frontend rewrite.
 
-- Verify and implement a native runtime session/history integration and durable Agent Session bindings without duplicating runtime-owned transcripts.
+- Compose the implemented native session/history integration and durable Agent Session bindings without duplicating runtime-owned transcripts; restore unresolved Target ownership before accepting invocation.
 - Establish thin capability assembly, explicit observer failure policy, and timely tool/widget presentation independent of assistant deltas.
 - Implement and freeze first-party Host HTTP/history/SSE contracts, lifecycle errors, and conservative capabilities and remote availability reporting.
 

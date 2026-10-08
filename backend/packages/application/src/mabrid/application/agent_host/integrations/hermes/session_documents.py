@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, NonNegativeInt
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, NonNegativeInt, PositiveInt
 
 
 class HermesSessionWireModel(BaseModel):
@@ -74,3 +74,17 @@ class HermesRunStatusDocument(HermesSessionWireModel):
 class HermesStopDocument(HermesSessionWireModel):
     run_id: str = Field(min_length=1)
     status: Literal["stopping"]
+
+
+class HermesSessionStreamUsage(HermesSessionWireModel):
+    input_tokens: NonNegativeInt = 0
+    output_tokens: NonNegativeInt = 0
+
+
+class HermesSessionStreamPayload(HermesSessionWireModel):
+    run_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    seq: PositiveInt
+    delta: str | None = None
+    content: str | None = None
+    usage: HermesSessionStreamUsage = Field(default_factory=HermesSessionStreamUsage)

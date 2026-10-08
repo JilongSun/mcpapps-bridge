@@ -2,6 +2,7 @@
 
 from .capability_document import HermesCapabilityDocument
 from .chat_completions import HermesChatCompletionsAdapter
+from .sessions import HermesSessionAdapter
 from .session_documents import (
     HermesHistoryDocument,
     HermesRunStatusDocument,
@@ -12,6 +13,7 @@ from .session_documents import (
 )
 
 __all__ = [
+    "HermesSessionAdapter",
     "HermesCapabilityDocument",
     "HermesChatCompletionsAdapter",
     "HermesHistoryDocument",

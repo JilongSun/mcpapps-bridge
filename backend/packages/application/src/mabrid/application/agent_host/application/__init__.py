@@ -16,8 +16,12 @@ from .ports import (
     RuntimeSessionRunControl,
 )
 from .service import AgentHostService, AgentRunError
+from .sessions import AgentSessionService
+from .session_errors import AgentSessionError
 
 __all__ = [
+    "AgentSessionError",
+    "AgentSessionService",
     "AgentSessionRepository",
     "RuntimeSessionCatalog",
     "RuntimeSessionExecution",

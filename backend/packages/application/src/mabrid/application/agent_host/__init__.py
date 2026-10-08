@@ -8,6 +8,8 @@ from .application import (
     AgentRunError,
     AgentRuntime,
     AgentSessionRepository,
+    AgentSessionService,
+    AgentSessionError,
     AgentTargetConflictError,
     InMemoryOperationRunAttributionRegistry,
     ManagedAgentRuntime,
@@ -39,6 +41,7 @@ from .contracts import (
     RuntimeSessionTextDelta,
     RuntimeStopReceipt,
     StartSessionRunCommand,
+    UnsettledSessionRun,
     AgentAdapterCompleted,
     AgentAdapterEvent,
     AgentAdapterTextDelta,
@@ -64,6 +67,9 @@ from .contracts import (
 )
 
 __all__ = [
+    "AgentSessionError",
+    "AgentSessionService",
+    "UnsettledSessionRun",
     "AgentHistoryMessage",
     "AgentHistoryPage",
     "AgentSessionRecord",

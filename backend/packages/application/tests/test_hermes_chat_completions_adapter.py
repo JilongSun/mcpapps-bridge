@@ -27,6 +27,13 @@ from mabrid.application.agent_host.integrations.hermes.session_documents import 
     HermesSessionDocument,
     HermesStopDocument,
 )
+from mabrid.application.agent_host.integrations.hermes.sessions import HermesSessionAdapter
+from mabrid.application.agent_host import (
+    CreateAgentSessionCommand,
+    HistoryPageQuery,
+    RuntimeSessionReference,
+)
+from mabrid.application.agent_host.application.session_errors import AgentSessionError
 
 
 @pytest.fixture
@@ -91,7 +98,8 @@ def native_session_transport() -> httpx.MockTransport:
                 200,
                 headers={"content-type": "text/event-stream", "x-hermes-session-id": "api_fixture"},
                 text="".join(
-                    f"event: {name}\ndata: {json.dumps(payload)}\n\n" for name, payload in frames
+                    f"event: {name}\ndata: {json.dumps({'run_id': 'run_fixture', 'session_id': 'api_fixture', **payload})}\n\n"
+                    for name, payload in frames
                 ),
             )
         if request.method == "POST" and request.url.path == "/v1/runs/run_fixture/stop":
@@ -157,6 +165,238 @@ async def test_native_session_wire_fixture_preserves_history_and_pending_stop(
 def test_native_session_chat_request_cannot_replay_a_transcript() -> None:
     with pytest.raises(ValidationError):
         HermesSessionChatRequest.model_validate({"message": "Continue", "messages": []})
+
+
+async def test_native_adapter_reads_runtime_history_without_replaying_it(
+    native_session_transport: httpx.MockTransport,
+) -> None:
+    adapter = HermesSessionAdapter(
+        api_root="http://hermes.test/",
+        api_key="fixture-key",
+        runtime_binding_id="fixture-deployment",
+        client=httpx.AsyncClient(transport=native_session_transport),
+    )
+    try:
+        remote = await adapter.create_session(CreateAgentSessionCommand(title="Fixture"))
+        reference = RuntimeSessionReference(
+            runtime_binding_id="fixture-deployment", remote_session_id=remote.remote_session_id
+        )
+        history = await adapter.read_history(reference, HistoryPageQuery(limit=2))
+        assert history.has_more is None
+        assert history.messages[0].content[1].kind == "tool_call"
+        assert history.messages[1].tool_call_id == "call_1"
+        with pytest.raises(AgentSessionError) as missing:
+            await adapter.get_session(reference.model_copy(update={"remote_session_id": "missing"}))
+        assert missing.value.code == "remote_session_not_found"
+        with pytest.raises(AgentSessionError) as changed:
+            await adapter.get_session(reference.model_copy(update={"runtime_binding_id": "other"}))
+        assert changed.value.code == "runtime_binding_changed"
+    finally:
+        await adapter.close()
+
+
+async def test_native_adapter_preserves_reverse_proxy_prefix() -> None:
+    requests: list[httpx.Request] = []
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200, json={"object": "hermes.session", "session": {"id": "api_fixture"}}
+        )
+
+    adapter = HermesSessionAdapter(
+        api_root="http://hermes.test/proxy/hermes/",
+        api_key="fixture-key",
+        runtime_binding_id="fixture-deployment",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handle)),
+    )
+    try:
+        await adapter.get_session(
+            RuntimeSessionReference(
+                runtime_binding_id="fixture-deployment", remote_session_id="api_fixture"
+            )
+        )
+    finally:
+        await adapter.close()
+    assert requests[0].url.path == "/proxy/hermes/api/sessions/api_fixture"
+
+
+async def test_native_adapter_executes_new_input_and_terminal_usage(
+    native_session_transport: httpx.MockTransport,
+) -> None:
+    from mabrid.application.agent_host import StartSessionRunCommand
+    from uuid import uuid4
+
+    adapter = HermesSessionAdapter(
+        api_root="http://hermes.test/",
+        api_key="fixture-key",
+        runtime_binding_id="fixture-deployment",
+        client=httpx.AsyncClient(transport=native_session_transport),
+    )
+    try:
+        events = [
+            event
+            async for event in adapter.run_session(
+                RuntimeSessionReference(
+                    runtime_binding_id="fixture-deployment", remote_session_id="api_fixture"
+                ),
+                StartSessionRunCommand(session_id=uuid4(), input_text="Continue"),
+            )
+        ]
+        assert [event.kind for event in events] == [
+            "session_adapter.started",
+            "session_adapter.text.delta",
+            "session_adapter.completed",
+        ]
+        assert events[-1].kind == "session_adapter.completed"
+        assert events[-1].output_text == "Hello"
+    finally:
+        await adapter.close()
+
+
+@pytest.mark.parametrize("terminal", [True, False])
+async def test_native_adapter_close_waits_for_remote_terminal(terminal: bool) -> None:
+    from mabrid.application.agent_host import StartSessionRunCommand
+    from uuid import uuid4
+
+    requests: list[str] = []
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request.url.path)
+        if request.url.path.endswith("/chat/stream"):
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                text='event: run.started\ndata: {"run_id":"run_fixture","session_id":"api_fixture","seq":1}\n\n',
+            )
+        if request.url.path.endswith("/stop"):
+            return httpx.Response(200, json={"run_id": "run_fixture", "status": "stopping"})
+        return httpx.Response(
+            200, json={"run_id": "run_fixture", "status": "cancelled" if terminal else "stopping"}
+        )
+
+    adapter = HermesSessionAdapter(
+        api_root="http://hermes.test/",
+        api_key="fixture-key",
+        runtime_binding_id="fixture-deployment",
+        settlement_timeout_seconds=0.02,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handle)),
+    )
+    stream = adapter.run_session(
+        RuntimeSessionReference(
+            runtime_binding_id="fixture-deployment", remote_session_id="api_fixture"
+        ),
+        StartSessionRunCommand(session_id=uuid4(), input_text="Continue"),
+    )
+    try:
+        await anext(stream)
+        if terminal:
+            await stream.aclose()
+        else:
+            with pytest.raises(AgentSessionError) as unknown:
+                await stream.aclose()
+            assert unknown.value.code == "run_state_unknown"
+        assert "/v1/runs/run_fixture/stop" in requests
+        assert "/v1/runs/run_fixture" in requests
+    finally:
+        await adapter.close()
+
+
+@pytest.mark.parametrize("started", [True, False])
+async def test_native_done_without_completion_is_not_success(started: bool) -> None:
+    from mabrid.application.agent_host import StartSessionRunCommand
+    from uuid import uuid4
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/chat/stream"):
+            data = '{"run_id":"run_fixture","session_id":"api_fixture","seq":1}'
+            text = (
+                f"event: run.started\ndata: {data}\n\n" if started else ""
+            ) + f"event: done\ndata: {data}\n\n"
+            return httpx.Response(200, headers={"content-type": "text/event-stream"}, text=text)
+        return httpx.Response(
+            200,
+            json={
+                "run_id": "run_fixture",
+                "status": "stopping" if request.url.path.endswith("/stop") else "failed",
+            },
+        )
+
+    adapter = HermesSessionAdapter(
+        api_root="http://hermes.test/",
+        api_key="fixture-key",
+        runtime_binding_id="fixture-deployment",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handle)),
+    )
+    try:
+        with pytest.raises(AgentSessionError) as failure:
+            async for _event in adapter.run_session(
+                RuntimeSessionReference(
+                    runtime_binding_id="fixture-deployment", remote_session_id="api_fixture"
+                ),
+                StartSessionRunCommand(session_id=uuid4(), input_text="Continue"),
+            ):
+                pass
+        assert failure.value.code == ("runtime_contract_error" if started else "run_state_unknown")
+    finally:
+        await adapter.close()
+
+
+async def test_native_submission_timeout_has_unknown_remote_outcome() -> None:
+    from mabrid.application.agent_host import StartSessionRunCommand
+    from uuid import uuid4
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("fixture timeout", request=request)
+
+    adapter = HermesSessionAdapter(
+        api_root="http://hermes.test/",
+        api_key="fixture-key",
+        runtime_binding_id="fixture-deployment",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handle)),
+    )
+    try:
+        with pytest.raises(AgentSessionError) as unknown:
+            await anext(
+                adapter.run_session(
+                    RuntimeSessionReference(
+                        runtime_binding_id="fixture-deployment", remote_session_id="api_fixture"
+                    ),
+                    StartSessionRunCommand(session_id=uuid4(), input_text="Continue"),
+                )
+            )
+        assert unknown.value.code == "run_state_unknown"
+    finally:
+        await adapter.close()
+
+
+async def test_native_submission_cancellation_has_unknown_remote_outcome() -> None:
+    import asyncio
+    from mabrid.application.agent_host import StartSessionRunCommand
+    from uuid import uuid4
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        raise asyncio.CancelledError()
+
+    adapter = HermesSessionAdapter(
+        api_root="http://hermes.test/",
+        api_key="fixture-key",
+        runtime_binding_id="fixture-deployment",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handle)),
+    )
+    try:
+        with pytest.raises(AgentSessionError) as unknown:
+            await anext(
+                adapter.run_session(
+                    RuntimeSessionReference(
+                        runtime_binding_id="fixture-deployment", remote_session_id="api_fixture"
+                    ),
+                    StartSessionRunCommand(session_id=uuid4(), input_text="Continue"),
+                )
+            )
+        assert unknown.value.code == "run_state_unknown"
+    finally:
+        await adapter.close()
 
 
 async def test_hermes_runtime_reads_its_typed_capabilities() -> None:
