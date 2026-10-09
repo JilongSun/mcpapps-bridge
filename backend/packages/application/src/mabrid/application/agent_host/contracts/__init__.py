@@ -21,6 +21,7 @@ from .run import (
 )
 from .run_events import (
     AgentRunCompleted,
+    AgentRunCancelled,
     AgentRunEvent,
     AgentRunFailed,
     AgentRunStarted,
@@ -32,6 +33,7 @@ from .session import (
     AgentHistoryMessage,
     AgentHistoryPage,
     AgentSessionRecord,
+    AgentSessionRunStatus,
     CreateAgentSessionCommand,
     HistoryContent,
     HistoryPageQuery,
@@ -54,6 +56,8 @@ from .session import (
 )
 
 __all__ = [
+    "AgentSessionRunStatus",
+    "AgentRunCancelled",
     "ToolActivityEvent",
     "ToolInvocationStarted",
     "ToolInvocationCompleted",

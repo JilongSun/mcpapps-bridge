@@ -48,11 +48,16 @@ class AgentRunFailed(AgentRunEventBase):
     error_message: str
 
 
+class AgentRunCancelled(AgentRunEventBase):
+    kind: Literal["run.cancelled"] = "run.cancelled"
+
+
 AgentRunEvent: TypeAlias = Annotated[
     AgentRunStarted
     | AssistantTextDelta
     | AssistantTextCompleted
     | AgentRunCompleted
-    | AgentRunFailed,
+    | AgentRunFailed
+    | AgentRunCancelled,
     Field(discriminator="kind"),
 ]

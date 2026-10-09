@@ -9,12 +9,15 @@ import anyio
 from ..contracts.session import (
     AgentHistoryPage,
     AgentSessionRecord,
+    AgentSessionRunStatus,
     CreateAgentSessionCommand,
     HistoryPageQuery,
     RuntimeSessionReference,
     RuntimeSessionRunCompleted,
     RuntimeSessionRunEvent,
     RuntimeSessionRunStarted,
+    RuntimeSessionRunCancelled,
+    UnsettledSessionRun,
     RuntimeStopReceipt,
     StartSessionRunCommand,
 )
@@ -71,6 +74,8 @@ class AgentSessionService:
         self.coordinator = coordinator
         self._settlement = settlement
         self._open_runs: set[UUID] = set()
+        self._stop_requested: set[UUID] = set()
+        self._terminal_observed: set[UUID] = set()
 
     async def create_session(self, command: CreateAgentSessionCommand) -> AgentSessionRecord:
         remote = await self._catalog.create_session(command)
@@ -91,6 +96,16 @@ class AgentSessionService:
     ) -> tuple[AgentSessionRecord, ...]:
         return await self._repository.list_sessions(
             target_id=self.target_id, limit=limit, offset=offset
+        )
+
+    async def get_target_run(self) -> AgentSessionRunStatus | None:
+        pending = await self._repository.get_unsettled_run(self.target_id)
+        if pending is None:
+            return None
+        return AgentSessionRunStatus(
+            session_id=pending.session_id,
+            run_id=pending.run_id,
+            state="active" if pending.run_id in self._open_runs else "unsettled",
         )
 
     async def _load(self, session_id: UUID) -> AgentSessionRecord:
@@ -138,9 +153,10 @@ class AgentSessionService:
         self, command: StartSessionRunCommand
     ) -> AsyncGenerator[RuntimeSessionRunEvent, None]:
         session = await self._load(command.session_id)
-        if await self._repository.get_unsettled_run(self.target_id) is not None:
+        pending = await self._repository.get_unsettled_run(self.target_id)
+        if pending is not None:
             raise AgentSessionError(
-                "run_state_unknown",
+                "target_busy" if pending.run_id in self._open_runs else "run_state_unknown",
                 "Target has an unsettled Run; reconcile it before invoking again",
             )
         await self.coordinator.start_run(self.target_id, command.run_id)
@@ -167,9 +183,14 @@ class AgentSessionService:
                             self.target_id, command.run_id, event.handle
                         )
                     elif isinstance(event, RuntimeSessionRunCompleted):
+                        self._terminal_observed.add(command.run_id)
+                        cancelled = command.run_id in self._stop_requested
                         if self._settlement is not None:
                             await self._settlement.wait_until_settled(command.run_id)
                         await self._adopt_reference(session, event.remote_session_id)
+                        if cancelled:
+                            yield RuntimeSessionRunCancelled()
+                            continue
                     yield event
             finally:
                 with anyio.CancelScope(shield=True):
@@ -183,19 +204,45 @@ class AgentSessionService:
             raise
         finally:
             self._open_runs.discard(command.run_id)
+            self._stop_requested.discard(command.run_id)
+            self._terminal_observed.discard(command.run_id)
             if closed and not unresolved:
                 with anyio.CancelScope(shield=True):
                     await self._repository.release_run(self.target_id, command.run_id)
                     await self.coordinator.finish_run(self.target_id, command.run_id)
 
-    async def request_stop(self, run_id: UUID) -> RuntimeStopReceipt:
+    async def _validate_run_reference(
+        self, pending: UnsettledSessionRun | None, session_id: UUID | None, run_id: UUID | None
+    ) -> None:
+        if session_id is not None:
+            await self._load(session_id)
+        if (session_id is not None or run_id is not None) and (
+            pending is None
+            or (session_id is not None and pending.session_id != session_id)
+            or (run_id is not None and pending.run_id != run_id)
+        ):
+            raise AgentSessionError("run_not_found", "Run was not found for this Session")
+
+    async def request_stop(
+        self, run_id: UUID, *, session_id: UUID | None = None
+    ) -> RuntimeStopReceipt:
         pending = await self._repository.get_unsettled_run(self.target_id)
+        if session_id is not None:
+            await self._validate_run_reference(pending, session_id, run_id)
         if pending is None or pending.run_id != run_id or pending.handle is None:
             raise AgentSessionError("run_state_unknown", "No controllable remote Run is known")
-        return await self._control.request_stop(pending.handle)
+        if run_id in self._terminal_observed:
+            return RuntimeStopReceipt(handle=pending.handle, accepted=False)
+        receipt = await self._control.request_stop(pending.handle)
+        if receipt.accepted and run_id in self._open_runs and run_id not in self._terminal_observed:
+            self._stop_requested.add(run_id)
+        return receipt
 
-    async def reconcile_run(self) -> bool:
+    async def reconcile_run(
+        self, *, session_id: UUID | None = None, run_id: UUID | None = None
+    ) -> bool:
         pending = await self._repository.get_unsettled_run(self.target_id)
+        await self._validate_run_reference(pending, session_id, run_id)
         if pending is None:
             return True
         if pending.run_id in self._open_runs:

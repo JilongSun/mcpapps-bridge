@@ -15,12 +15,14 @@ import anyio
 
 from ..agent_host import (
     AgentRunCompleted,
+    AgentRunCancelled,
     AgentRunEvent,
     ToolActivityEvent,
     StartSessionRunCommand,
     RuntimeSessionRunStarted,
     RuntimeSessionTextDelta,
     RuntimeSessionRunCompleted,
+    RuntimeSessionRunCancelled,
     AssistantTextDelta,
     AssistantTextCompleted,
     AgentRunResult,
@@ -102,7 +104,9 @@ class _HostEventMerger:
                 agent_read = None
                 if agent_event is None:
                     return
-                terminal = isinstance(agent_event, (AgentRunCompleted, AgentRunFailed))
+                terminal = isinstance(
+                    agent_event, (AgentRunCompleted, AgentRunFailed, AgentRunCancelled)
+                )
                 if terminal and self._widget_events is not None:
                     for widget_event in (await self._widget_events.list_for_run(run_id))[
                         emitted_widget_count:
@@ -131,7 +135,7 @@ class _HostEventMerger:
         self, source: AsyncGenerator[AgentRunEvent, None], run_id: UUID
     ) -> AgentRunEvent | None:
         event = await anext(source, None)
-        if isinstance(event, (AgentRunCompleted, AgentRunFailed)):
+        if isinstance(event, (AgentRunCompleted, AgentRunFailed, AgentRunCancelled)):
             if self._run_settlement is not None:
                 try:
                     await self._run_settlement.wait_until_settled(run_id)
@@ -221,6 +225,9 @@ class HostSessionEventStream(_HostEventMerger):
                             usage=event.usage,
                         ),
                     )
+                    return
+                elif isinstance(event, RuntimeSessionRunCancelled):
+                    yield AgentRunCancelled(run_id=command.run_id, sequence=sequence)
                     return
         raise AgentSessionError(
             "runtime_contract_error", "Runtime Run ended without a completion event"

@@ -3,6 +3,8 @@
 from typing import Literal
 
 SessionErrorCode = Literal[
+    "target_busy",
+    "run_not_found",
     "session_not_found",
     "remote_session_not_found",
     "runtime_binding_changed",

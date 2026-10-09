@@ -32,6 +32,7 @@ from .contracts import (
     ToolInvocationResult,
     AgentHistoryPage,
     AgentSessionRecord,
+    AgentSessionRunStatus,
     CreateAgentSessionCommand,
     HistoryContent,
     HistoryPageQuery,
@@ -60,6 +61,7 @@ from .contracts import (
     AgentMessage,
     AgentModel,
     AgentRunCompleted,
+    AgentRunCancelled,
     AgentRunEvent,
     AgentRunFailed,
     AgentRunResult,
@@ -76,6 +78,8 @@ from .contracts import (
 )
 
 __all__ = [
+    "AgentSessionRunStatus",
+    "AgentRunCancelled",
     "AgentToolActivityObserverFactory",
     "InMemoryToolActivityStore",
     "ToolActivityEvent",

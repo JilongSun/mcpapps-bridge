@@ -26,6 +26,12 @@ class CreateAgentSessionCommand(AgentHostModel):
     title: str | None = None
 
 
+class AgentSessionRunStatus(AgentHostModel):
+    session_id: UUID
+    run_id: UUID
+    state: Literal["active", "unsettled"]
+
+
 class StartSessionRunCommand(AgentHostModel):
     run_id: UUID = Field(default_factory=uuid4)
     session_id: UUID
