@@ -33,6 +33,9 @@ agentHost:
         interface: openai-chat-completions
         baseUrl: http://hermes.test:8642/v1
         apiKeyEnv: FIXTURE_HERMES_KEY
+        sessions:
+            apiRoot: http://hermes.test:8642/prefix
+            bindingId: fixture-deployment
 endpoints:
     fixture:
         bindings:
@@ -69,6 +72,9 @@ def test_enabled_agent_host_resolves_api_key_from_environment(
     assert configuration.agent_host.runtime.integration == "hermes"
     assert configuration.agent_host.runtime.interface == "openai-chat-completions"
     assert configuration.agent_host.runtime.base_url == "http://hermes.test:8642/v1"
+    assert configuration.agent_host.runtime.sessions is not None
+    assert configuration.agent_host.runtime.sessions.api_root == "http://hermes.test:8642/prefix"
+    assert configuration.agent_host.runtime.sessions.binding_id == "fixture-deployment"
     assert configuration.agent_host.runtime.api_key is not None
     assert configuration.agent_host.runtime.api_key.get_secret_value() == "fixture-secret"
     assert configuration.bridge.advertised_base_url == "http://mabrid.test:8765"

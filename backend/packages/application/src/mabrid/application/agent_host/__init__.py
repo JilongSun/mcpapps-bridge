@@ -10,6 +10,8 @@ from .application import (
     AgentSessionRepository,
     AgentSessionService,
     AgentSessionError,
+    AgentRunSettlement,
+    restore_target_run_ownership,
     AgentTargetConflictError,
     InMemoryOperationRunAttributionRegistry,
     ManagedAgentRuntime,
@@ -67,6 +69,8 @@ from .contracts import (
 )
 
 __all__ = [
+    "AgentRunSettlement",
+    "restore_target_run_ownership",
     "AgentSessionError",
     "AgentSessionService",
     "UnsettledSessionRun",

@@ -15,12 +15,18 @@ from pydantic import BaseModel, Field, PositiveFloat, SecretStr
 from .file import BridgeRuntimeConfig, EndpointFileConfig, StorageConfig
 
 
+class RuntimeHermesSessionConfig(BaseModel):
+    api_root: str = Field(min_length=1)
+    binding_id: str = Field(min_length=1)
+
+
 class RuntimeHermesAgentConfig(BaseModel):
     integration: Literal["hermes"] = "hermes"
     interface: Literal["openai-chat-completions"] = "openai-chat-completions"
     base_url: str = "http://127.0.0.1:8642/v1"
     api_key: SecretStr | None = None
     timeout_seconds: PositiveFloat = 120.0
+    sessions: RuntimeHermesSessionConfig | None = None
 
 
 class RuntimeAgentHostConfig(BaseModel):

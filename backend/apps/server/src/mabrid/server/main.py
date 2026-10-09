@@ -78,9 +78,12 @@ async def serve_runtime(args: argparse.Namespace) -> None:
     try:
         await runtime.serve()
     finally:
-        if result.agent_host is not None:
-            await result.agent_host.runtime.close()
-        await result.database.close()
+        with anyio.CancelScope(shield=True):
+            try:
+                if result.agent_host is not None:
+                    await result.agent_host.close()
+            finally:
+                await result.database.close()
 
 
 def main() -> None:

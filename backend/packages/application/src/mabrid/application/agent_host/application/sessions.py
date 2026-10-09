@@ -25,8 +25,26 @@ from .ports import (
     RuntimeSessionExecution,
     RuntimeSessionHistory,
     RuntimeSessionRunControl,
+    AgentRunSettlement,
 )
 from .session_errors import AgentSessionError
+
+
+async def restore_target_run_ownership(
+    repository: AgentSessionRepository,
+    coordinator: AgentRunCoordinator,
+    target_id: str,
+) -> None:
+    pending = await repository.get_unsettled_run(target_id)
+    if pending is None:
+        return
+    active = await coordinator.active_run_id(target_id)
+    if active is None:
+        await coordinator.start_run(target_id, pending.run_id)
+    elif active != pending.run_id:
+        raise AgentSessionError(
+            "run_state_unknown", "Target ownership differs from its durable Run"
+        )
 
 
 class AgentSessionService:
@@ -41,6 +59,7 @@ class AgentSessionService:
         execution: RuntimeSessionExecution,
         control: RuntimeSessionRunControl,
         coordinator: AgentRunCoordinator,
+        settlement: AgentRunSettlement | None = None,
     ) -> None:
         self.target_id = target_id
         self.runtime_binding_id = runtime_binding_id
@@ -50,6 +69,7 @@ class AgentSessionService:
         self._execution = execution
         self._control = control
         self.coordinator = coordinator
+        self._settlement = settlement
         self._open_runs: set[UUID] = set()
 
     async def create_session(self, command: CreateAgentSessionCommand) -> AgentSessionRecord:
@@ -147,12 +167,17 @@ class AgentSessionService:
                             self.target_id, command.run_id, event.handle
                         )
                     elif isinstance(event, RuntimeSessionRunCompleted):
+                        if self._settlement is not None:
+                            await self._settlement.wait_until_settled(command.run_id)
                         await self._adopt_reference(session, event.remote_session_id)
                     yield event
             finally:
                 with anyio.CancelScope(shield=True):
                     await stream.aclose()
                 closed = True
+                if self._settlement is not None:
+                    with anyio.CancelScope(shield=True):
+                        await self._settlement.wait_until_settled(command.run_id)
         except AgentSessionError as exc:
             unresolved = exc.code == "run_state_unknown"
             raise
@@ -191,6 +216,15 @@ class AgentSessionService:
         state = await self._control.get_run_state(pending.handle)
         if not state.is_terminal:
             return False
+        if self._settlement is not None:
+            try:
+                await self._settlement.wait_until_settled(pending.run_id)
+            except AgentSessionError as exc:
+                if exc.code != "runtime_contract_error":
+                    raise
         await self._repository.release_run(self.target_id, pending.run_id)
         await self.coordinator.finish_run(self.target_id, pending.run_id)
         return True
+
+    async def restore_ownership(self) -> None:
+        await restore_target_run_ownership(self._repository, self.coordinator, self.target_id)

@@ -7,13 +7,12 @@ start later in the server runtime and close in reverse ownership order.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import anyio
 
 from mabrid.application.gateway.sessions import (
-    BridgeSessionObserverFactory,
-    CompositeBridgeSessionObserverFactory,
     GatewaySessionCoordinator,
 )
-from mabrid.application.host import HostEventStream
+from mabrid.application.host import HostEventStream, McpAppsComposition
 
 from mabrid.server.config import RuntimeConfiguration
 from mabrid.server.logging import get_logger
@@ -21,7 +20,6 @@ from mabrid.server.persistence import SqliteDatabase
 
 from .agent_host import AgentHostComposition, compose_agent_host
 from .gateway import GatewayManagementComposition, compose_gateway
-from .mcp_apps import McpAppsComposition, compose_mcp_apps
 
 logger = get_logger(__name__)
 
@@ -47,29 +45,19 @@ async def bootstrap_server(configuration: RuntimeConfiguration) -> BootstrapResu
             logger.info("Running database migrations")
             await database.migrate()
         gateway = await compose_gateway(configuration, database)
-        agent_host = await compose_agent_host(configuration, gateway.runtime)
+        agent_host = await compose_agent_host(configuration, gateway.runtime, database)
         if agent_host is not None:
-            observer_factories: list[BridgeSessionObserverFactory] = [
-                agent_host.bridge_observer_factory
-            ]
-            if configuration.agent_host.mcp_apps_enabled:
-                mcp_apps = compose_mcp_apps(
-                    agent_host.management.endpoint_slug,
-                    agent_host.operation_attributions,
-                )
-                observer_factories.append(mcp_apps.bridge_observer_factory)
-            host_events = HostEventStream(
-                agent_host.service,
-                mcp_apps.events if mcp_apps is not None else None,
-            )
-            gateway.runtime.configure_session_observer_factory(
-                CompositeBridgeSessionObserverFactory(observer_factories)
-            )
+            mcp_apps = agent_host.capabilities.mcp_apps
+            host_events = agent_host.capabilities.events
+            gateway.runtime.configure_session_observer_factory(agent_host.bridge_observer_factory)
     except BaseException:
         logger.exception("Bootstrap failed - closing composed resources")
-        if agent_host is not None:
-            await agent_host.runtime.close()
-        await database.close()
+        with anyio.CancelScope(shield=True):
+            try:
+                if agent_host is not None:
+                    await agent_host.close()
+            finally:
+                await database.close()
         raise
     return BootstrapResult(
         gateway=gateway.runtime,

@@ -3,8 +3,24 @@ from __future__ import annotations
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 
-from mabrid.application.agent_host import AgentCapability, AgentRuntimeInterface
-from mabrid.application.agent_host.integrations.hermes import HermesChatCompletionsAdapter
+from mabrid.application.agent_host import (
+    AgentCapability,
+    AgentRuntimeInterface,
+    AgentSessionRecord,
+    RuntimeSessionReference,
+    RuntimeRunHandle,
+    StartRunCommand,
+    AgentMessage,
+    AgentRunConflictError,
+)
+from mabrid.application.agent_host.integrations.hermes import (
+    HermesChatCompletionsAdapter,
+    HermesSessionAdapter,
+)
+from mabrid.server.config.runtime import RuntimeHermesSessionConfig
+from mabrid.server.persistence.agent_host import SqliteAgentSessionRepository
+from datetime import datetime, timezone
+from uuid import uuid4
 import pytest
 from pydantic import SecretStr
 from sqlalchemy import inspect
@@ -22,7 +38,7 @@ from mabrid.server.config import (
     StorageConfig,
 )
 from mabrid.server.persistence import Base, SqliteDatabase, SqliteReadinessProbe
-import mabrid.server.composition.agent_host as agent_host_composition
+import mabrid.application.host.composition as host_capabilities
 
 
 def _endpoints() -> dict[str, EndpointFileConfig]:
@@ -272,15 +288,23 @@ async def test_agent_target_requires_a_published_enabled_endpoint(tmp_path: Path
         raise AssertionError("bootstrap accepted an unpublished Agent Target endpoint")
 
 
+@pytest.mark.parametrize("fail_session_close", [False, True])
 async def test_bootstrap_failure_closes_agent_runtime_before_database(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    fail_session_close: bool,
 ) -> None:
     closed: list[str] = []
     original_database_close = SqliteDatabase.close
 
     async def close_agent_runtime(_runtime: HermesChatCompletionsAdapter) -> None:
         closed.append("agent-runtime")
+
+    async def close_session_runtime(runtime: HermesSessionAdapter) -> None:
+        closed.append("session-runtime")
+        await original_session_close(runtime)
+        if fail_session_close:
+            raise RuntimeError("fixture native close failure")
 
     async def close_database(database: SqliteDatabase) -> None:
         closed.append("database")
@@ -290,7 +314,9 @@ async def test_bootstrap_failure_closes_agent_runtime_before_database(
         raise RuntimeError("fixture composition failure")
 
     monkeypatch.setattr(HermesChatCompletionsAdapter, "close", close_agent_runtime)
-    monkeypatch.setattr(agent_host_composition, "AgentHostService", fail_agent_host_service)
+    original_session_close = HermesSessionAdapter.close
+    monkeypatch.setattr(HermesSessionAdapter, "close", close_session_runtime)
+    monkeypatch.setattr(host_capabilities, "AgentHostService", fail_agent_host_service)
     monkeypatch.setattr(SqliteDatabase, "close", close_database)
     configuration = RuntimeConfiguration(
         config_path=tmp_path / "fixture.yaml",
@@ -315,10 +341,93 @@ async def test_bootstrap_failure_closes_agent_runtime_before_database(
         ),
     )
 
-    with pytest.raises(RuntimeError, match="fixture composition failure"):
+    configuration.agent_host.runtime.sessions = RuntimeHermesSessionConfig(
+        api_root="http://hermes.test:8642/prefix", binding_id="fixture-deployment"
+    )
+    with pytest.raises(
+        RuntimeError,
+        match="fixture native close failure"
+        if fail_session_close
+        else "fixture composition failure",
+    ):
         await bootstrap_server(configuration)
 
-    assert closed == ["agent-runtime", "database"]
+    assert closed == ["session-runtime", "agent-runtime", "database"]
+
+
+@pytest.mark.parametrize("native_binding", [None, "original", "changed"])
+async def test_bootstrap_restores_unsettled_native_ownership_before_all_ingress(
+    tmp_path: Path, native_binding: str | None
+) -> None:
+    database_path = tmp_path / "restart.db"
+    database = SqliteDatabase(database_path)
+    await database.migrate()
+    repository = SqliteAgentSessionRepository(database.session_factory)
+    session = AgentSessionRecord(
+        target_id="fixture-target",
+        runtime_session=RuntimeSessionReference(
+            runtime_binding_id="original", remote_session_id="remote-session"
+        ),
+        created_at=datetime.now(timezone.utc),
+    )
+    run_id = uuid4()
+    try:
+        await repository.add(session)
+        assert await repository.claim_run(session, run_id)
+        await repository.record_runtime_run(
+            session.target_id,
+            run_id,
+            RuntimeRunHandle(runtime_binding_id="original", remote_run_id="remote-run"),
+        )
+    finally:
+        await database.close()
+    configuration = RuntimeConfiguration(
+        config_path=tmp_path / "fixture.yaml",
+        bridge=BridgeRuntimeConfig(advertised_base_url="http://mabrid.test"),
+        storage=StorageConfig(sqlite_path=database_path),
+        upstreams={"fixture": RuntimeUpstreamConfig(command="fixture-server")},
+        endpoints=_endpoints(),
+        diagnostic_upstream=None,
+        agent_host=RuntimeAgentHostConfig(
+            enabled=True,
+            target_id="fixture-target",
+            endpoint_slug="fixture",
+            runtime=RuntimeHermesAgentConfig(
+                base_url="http://hermes.test:8642/v1",
+                api_key=SecretStr("fixture"),
+                sessions=RuntimeHermesSessionConfig(
+                    api_root="http://hermes.test:8642/native-prefix", binding_id=native_binding
+                )
+                if native_binding is not None
+                else None,
+            ),
+        ),
+    )
+    result = await bootstrap_server(configuration)
+    try:
+        assert result.agent_host is not None
+        assert (
+            await result.agent_host.service.coordinator.active_run_id(session.target_id) == run_id
+        )
+        with pytest.raises(AgentRunConflictError):
+            await anext(
+                result.agent_host.service.run_events(
+                    StartRunCommand(
+                        model=session.target_id,
+                        messages=(AgentMessage(role="user", content="Must not execute"),),
+                    )
+                )
+            )
+        if native_binding is None:
+            assert result.agent_host.sessions is None
+        else:
+            assert result.agent_host.sessions is not None
+            assert result.agent_host.sessions.coordinator is result.agent_host.service.coordinator
+            assert result.agent_host.session_runtime is not None
+    finally:
+        if result.agent_host is not None:
+            await result.agent_host.close()
+        await result.database.close()
 
 
 async def test_diagnostic_upstream_explicitly_overrides_configured_endpoints(

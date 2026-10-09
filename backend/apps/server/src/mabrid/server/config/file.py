@@ -53,12 +53,18 @@ class StorageConfig(CamelModel):
     auto_migrate: bool = True
 
 
+class HermesSessionFileConfig(CamelModel):
+    api_root: AnyHttpUrl
+    binding_id: str = Field(min_length=1)
+
+
 class HermesAgentRuntimeFileConfig(CamelModel):
     integration: Literal["hermes"] = "hermes"
     interface: Literal["openai-chat-completions"] = "openai-chat-completions"
     base_url: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:8642/v1")
     api_key_env: str = Field(default="API_SERVER_KEY", min_length=1)
     timeout_seconds: PositiveFloat = 120.0
+    sessions: HermesSessionFileConfig | None = None
 
 
 class AgentHostFileConfig(CamelModel):

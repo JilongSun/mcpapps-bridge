@@ -34,6 +34,10 @@ class ManagedAgentRuntime(AgentRuntime, Protocol):
     async def close(self) -> None: ...
 
 
+class AgentRunSettlement(Protocol):
+    async def wait_until_settled(self, run_id: UUID) -> None: ...
+
+
 class AgentSessionRepository(Protocol):
     async def add(self, session: AgentSessionRecord) -> None: ...
 

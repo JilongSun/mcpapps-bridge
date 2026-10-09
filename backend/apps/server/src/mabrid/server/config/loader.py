@@ -20,6 +20,7 @@ from .runtime import (
     RuntimeAgentHostConfig,
     RuntimeConfiguration,
     RuntimeHermesAgentConfig,
+    RuntimeHermesSessionConfig,
     RuntimeUpstreamConfig,
 )
 
@@ -110,6 +111,13 @@ def _resolve_agent_host_config(config: AgentHostFileConfig) -> RuntimeAgentHostC
             base_url=str(runtime.base_url),
             api_key=SecretStr(api_key) if api_key is not None else None,
             timeout_seconds=runtime.timeout_seconds,
+            sessions=(
+                RuntimeHermesSessionConfig(
+                    api_root=str(runtime.sessions.api_root), binding_id=runtime.sessions.binding_id
+                )
+                if runtime.sessions is not None
+                else None
+            ),
         ),
     )
 

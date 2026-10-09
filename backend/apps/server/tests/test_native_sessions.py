@@ -5,6 +5,9 @@ import json
 
 import httpx
 import pytest
+import anyio
+from mabrid.application.agent_host import AgentRunSettlement
+from mabrid.application.host import HostRunSettlement
 
 from mabrid.application.agent_host import (
     AgentSessionRecord,
@@ -124,6 +127,7 @@ def session_service(
     coordinator: AgentRunCoordinator | None = None,
     *,
     binding_id: str = "fixture-deployment",
+    settlement: AgentRunSettlement | None = None,
 ) -> AgentSessionService:
     return AgentSessionService(
         target_id=TARGET.target_id,
@@ -134,6 +138,7 @@ def session_service(
         execution=adapter,
         control=adapter,
         coordinator=coordinator or AgentRunCoordinator((TARGET,)),
+        settlement=settlement,
     )
 
 
@@ -239,6 +244,8 @@ async def test_unresolved_native_execution_blocks_restart_until_remote_terminal(
     reopened = SqliteDatabase(path)
     try:
         service = session_service(reopened, adapter)
+        await service.restore_ownership()
+        assert await service.coordinator.active_run_id(TARGET.target_id) == command.run_id
         assert not await service.reconcile_run()
         with pytest.raises(AgentSessionError) as blocked:
             await anext(
@@ -311,3 +318,61 @@ async def test_native_binding_and_unsettled_ownership_survive_database_reopen(
         assert await repository.get_unsettled_run(session.target_id) is None
     finally:
         await reopened.close()
+
+
+@pytest.mark.parametrize("outcome", ["unknown", "failure", "success", "early_close"])
+async def test_native_terminal_and_durable_release_depend_on_host_settlement(
+    tmp_path: Path, outcome: str
+) -> None:
+    fixture = NativeHermesFixture()
+    adapter = HermesSessionAdapter(
+        api_root="http://hermes.test/",
+        api_key="fixture",
+        runtime_binding_id="fixture-deployment",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(fixture.handle)),
+    )
+    database = SqliteDatabase(tmp_path / "settling.db")
+    await database.migrate()
+    settlement = HostRunSettlement(timeout_seconds=0.01)
+    service = session_service(database, adapter, settlement=settlement)
+    repository = SqliteAgentSessionRepository(database.session_factory)
+    try:
+        session = await service.create_session(CreateAgentSessionCommand())
+        command = StartSessionRunCommand(session_id=session.session_id, input_text="Fixture")
+        stream = service.run_session(command)
+        await anext(stream)
+        await settlement.start(command.run_id, "gateway-session", "operation")
+        if outcome == "failure":
+            await settlement.fail(command.run_id)
+            await settlement.complete(command.run_id, "gateway-session", "operation")
+        elif outcome == "success":
+            await settlement.complete(command.run_id, "gateway-session", "operation")
+        if outcome == "success":
+            events = [event async for event in stream]
+            assert events[-1].kind == "session_adapter.completed"
+        else:
+            with pytest.raises(AgentSessionError) as error:
+                with anyio.fail_after(0.3):
+                    if outcome == "early_close":
+                        await stream.aclose()
+                    else:
+                        async for event in stream:
+                            assert event.kind != "session_adapter.completed"
+            assert error.value.code == (
+                "run_state_unknown"
+                if outcome in {"unknown", "early_close"}
+                else "runtime_contract_error"
+            )
+        if outcome in {"unknown", "early_close"}:
+            pending = await repository.get_unsettled_run(TARGET.target_id)
+            assert pending is not None and pending.run_id == command.run_id
+            assert await service.coordinator.active_run_id(TARGET.target_id) == command.run_id
+            with pytest.raises(AgentSessionError):
+                await service.reconcile_run()
+            await settlement.complete(command.run_id, "gateway-session", "operation")
+            assert await service.reconcile_run()
+        assert await repository.get_unsettled_run(TARGET.target_id) is None
+        assert await service.coordinator.active_run_id(TARGET.target_id) is None
+    finally:
+        await adapter.close()
+        await database.close()

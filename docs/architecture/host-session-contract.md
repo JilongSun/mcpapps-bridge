@@ -2,7 +2,7 @@
 
 - Decision: [ADR 0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md)
 - Reviewed: 2026-10-08
-- State: Native use cases and persistence implemented with controlled tests; not a frozen HTTP API.
+- State: Native use cases, persistence, deployment assembly, and observer settlement implemented with controlled tests; not a frozen HTTP API.
 
 ## Evidence and Integration Selection
 
@@ -28,7 +28,7 @@ This does not select `POST /v1/runs`, detached event subscriptions, Responses, o
 as the first-party execution interface. Existing Chat Completions remains a separate compatibility
 slice. Native resource paths must resolve against the configured runtime API root; the legacy
 OpenAI `/v1` base URL must not accidentally produce `/v1/api/sessions` or discard a deployment's
-reverse-proxy prefix. Concrete native URL configuration belongs to the implementation batch.
+reverse-proxy prefix. Native URL configuration is explicit and separate from the compatibility URL.
 
 ## Runtime-Owned History
 
@@ -54,9 +54,9 @@ text. Message identifiers are opaque strings in the public presentation contract
 
 Hermes resolves resume/compaction lineage when reading history; its returned effective session ID
 may differ from the requested ID. Completion may also report an effective session ID. Mabrid keeps
-its Agent Session UUID stable. The next implementation must distinguish a verified same-runtime
-continuation from a changed deployment binding and update references with an expected-reference
-check rather than silently replacing a conversation or binding it to another runtime.
+its Agent Session UUID stable. The implementation distinguishes verified same-runtime continuation
+from changed deployment bindings and updates references with an expected-reference check rather
+than silently replacing a conversation or binding it to another runtime.
 
 ## Execution and Stop Semantics
 
@@ -117,14 +117,59 @@ Submission timeout/cancellation without a recoverable handle also remains unreso
 creating a new conversation or assuming no execution occurred.
 
 Stop/status cleanup has a bounded settlement timeout. Explicit reconciliation can release an
-unresolved record only after observing remote terminal state; missing status remains unknown.
+unresolved record only after observing remote terminal state and settling local Host operations;
+missing status remains unknown.
 Reconciliation cannot release a locally open Run stream. Unknown execution persists across a
 Mabrid restart and blocks new native execution until verified reconciliation succeeds.
 
-These use cases are not yet constructed by production bootstrap. The capability-assembly batch
-must select native configuration, restore unresolved Target ownership before any compatible or
-native invocation, and integrate Gateway operation/widget settling. Merely calling local
-`reconcile_run` without those composition rules is not a deployment-level readiness guarantee.
+## Deployment Assembly and Observer Policy
+
+[Application capability assembly](../../backend/packages/application/src/mabrid/application/host/composition.py)
+connects one Target coordinator, attribution registry, optional MCP Apps, Run settlement, and
+per-Run presentation through typed ports. Both native and compatibility services share the same
+coordinator. Server composition retains configuration, secrets, concrete adapters, repository
+construction, migrations, and cleanup; there is no dynamic registry or generic event bus.
+
+Native ports are selected by an optional `agentHost.runtime.sessions` mapping:
+
+```yaml
+agentHost:
+  enabled: true
+  targetId: hermes
+  endpointSlug: tools
+  runtime:
+    baseUrl: http://127.0.0.1:8642/v1
+    sessions:
+      apiRoot: http://127.0.0.1:8642
+      bindingId: local-hermes
+```
+
+This fragment assumes the deployment already declares `bridge.advertisedBaseUrl`, the `tools`
+endpoint, and the API key environment variable. `apiRoot` is not inferred from `baseUrl`.
+`bindingId` identifies the external runtime deployment, not the Mabrid process or a conversation;
+keep it stable across Mabrid restarts and change it when replacing the runtime deployment. Do not
+reuse a binding to silently migrate conversations to a different runtime. Omitting `sessions`
+keeps compatibility-only behavior; it does not erase existing durable unresolved ownership.
+
+Bootstrap restores unresolved Target ownership before either ingress can invoke the runtime,
+without a remote probe and even if native configuration is absent or changed. Normal shutdown and
+startup rollback close the native client, compatibility client, and database in ownership order,
+including when client cleanup fails.
+
+[Host observation and settlement](../../backend/packages/application/src/mabrid/application/host/settlement.py)
+keep attribution before widget projection, separately track actual Gateway tool completion, and
+bound observer and Run-settlement waits to five seconds by default. A Host observer exception or
+timeout does not replace an MCP tool result. It records an attributable workflow failure and
+aborts widget pending state, but actual tools still have to finish. Late widget events for an
+aborted Run are not published. External cancellation records failure and propagates unchanged.
+The Gateway inspection observer remains outside this Host-specific policy.
+
+Both Run services wait for tools and optional widgets before successful terminal events, and also
+settle on early consumer closure. A known workflow failure terminates the Host Run without an
+infinite wait. Unknown tool/widget settlement retains Target ownership; native Runs also retain
+the durable lease until remote and local settlement permit reconciliation. The compatibility
+adapter's client closure still does not prove remote cancellation. Presentation remains per-Run;
+it does not yet independently deliver tool/widget events during an assistant pause.
 
 ## Typed Boundaries and Public Drafts
 
@@ -159,10 +204,13 @@ Controlled tests now also compose the actual native adapter, application use cas
 SQLite. They verify two distinct conversations, switching and input-only continuation, effective
 reference updates, database reopen, missing conversations, changed bindings, and unresolved Run
 ownership/reconciliation across restart. They do not run live Hermes or prove a deployed runtime
-version supports the selected contract.
+version supports the selected contract. Production bootstrap tests verify native selection,
+shared coordination, restoration before compatibility invocation with absent or changed native
+configuration, and reverse-order cleanup including cleanup failure. Focused Host tests verify
+observer order, failure and timeout isolation, cancellation propagation, and bounded presentation;
+native tests verify completion and early-close leases against local Host settlement.
 The following remain implementation gates:
 
-- Production capability assembly, durable ownership restoration, and Gateway settlement composition.
 - Timely Gateway tool/widget presentation and the first-party HTTP routes.
 - Conservative capabilities and remote runtime availability.
 - Final OpenAPI/SSE schema freeze and ADR 0016's complete frontend readiness gate.

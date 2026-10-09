@@ -6,7 +6,14 @@ from collections.abc import AsyncGenerator
 from contextlib import aclosing
 from uuid import UUID
 
-from ..agent_host import AgentRunCompleted, AgentRunFailed, AgentRunStarted, StartRunCommand
+from ..agent_host import (
+    AgentRunCompleted,
+    AgentRunFailed,
+    AgentRunStarted,
+    StartRunCommand,
+    AgentRunSettlement,
+    AgentSessionError,
+)
 from ..mcp_apps import WidgetEvent
 from .contracts import HostAgentEvent, HostEvent, HostWidgetEvent
 from .ports import AgentRunEventSource, WidgetEventReader
@@ -17,9 +24,11 @@ class HostEventStream:
         self,
         agent_runs: AgentRunEventSource,
         widget_events: WidgetEventReader | None = None,
+        run_settlement: AgentRunSettlement | None = None,
     ) -> None:
         self._agent_runs = agent_runs
         self._widget_events = widget_events
+        self._run_settlement = run_settlement
 
     async def run_events(self, command: StartRunCommand) -> AsyncGenerator[HostEvent, None]:
         sequence = 0
@@ -27,7 +36,13 @@ class HostEventStream:
         async with aclosing(self._agent_runs.run_events(command)) as agent_events:
             async for agent_event in agent_events:
                 if isinstance(agent_event, (AgentRunCompleted, AgentRunFailed)):
-                    if self._widget_events is not None:
+                    if self._run_settlement is not None:
+                        try:
+                            await self._run_settlement.wait_until_settled(command.run_id)
+                        except AgentSessionError:
+                            if not isinstance(agent_event, AgentRunFailed):
+                                raise
+                    elif self._widget_events is not None:
                         await self._widget_events.wait_until_settled(command.run_id)
                 pending_widgets = await self._pending_widgets(
                     command.run_id,

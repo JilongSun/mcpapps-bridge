@@ -8,6 +8,7 @@ from .attribution import (
 from .coordination import AgentRunConflictError, AgentRunCoordinator, AgentTargetConflictError
 from .ports import (
     AgentRuntime,
+    AgentRunSettlement,
     AgentSessionRepository,
     ManagedAgentRuntime,
     RuntimeSessionCatalog,
@@ -16,10 +17,12 @@ from .ports import (
     RuntimeSessionRunControl,
 )
 from .service import AgentHostService, AgentRunError
-from .sessions import AgentSessionService
+from .sessions import AgentSessionService, restore_target_run_ownership
 from .session_errors import AgentSessionError
 
 __all__ = [
+    "AgentRunSettlement",
+    "restore_target_run_ownership",
     "AgentSessionError",
     "AgentSessionService",
     "AgentSessionRepository",

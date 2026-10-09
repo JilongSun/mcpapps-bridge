@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from contextlib import aclosing
+import anyio
 
 from ..contracts import (
     AgentAdapterCompleted,
@@ -21,7 +22,8 @@ from ..contracts import (
     StartRunCommand,
 )
 from .coordination import AgentRunCoordinator
-from .ports import AgentRuntime
+from .ports import AgentRuntime, AgentRunSettlement
+from .session_errors import AgentSessionError
 
 
 class AgentRunError(RuntimeError):
@@ -34,6 +36,7 @@ class AgentHostService:
         target: AgentTarget,
         runtime: AgentRuntime,
         coordinator: AgentRunCoordinator,
+        settlement: AgentRunSettlement | None = None,
     ) -> None:
         if target.runtime_profile != runtime.profile:
             raise ValueError(
@@ -43,6 +46,7 @@ class AgentHostService:
         self._target = target
         self._runtime = runtime
         self._coordinator = coordinator
+        self._settlement = settlement
         if (
             self._coordinator.target_for_endpoint(target.endpoint_assignment.endpoint_slug)
             != target
@@ -95,6 +99,8 @@ class AgentHostService:
                         )
                         continue
                     if isinstance(event, AgentAdapterCompleted):
+                        if self._settlement is not None:
+                            await self._settlement.wait_until_settled(command.run_id)
                         text = "".join(text_parts)
                         yield AssistantTextCompleted(
                             run_id=command.run_id,
@@ -124,7 +130,14 @@ class AgentHostService:
             )
         finally:
             if run_active:
-                await self._coordinator.finish_run(self._target.target_id, command.run_id)
+                with anyio.CancelScope(shield=True):
+                    if self._settlement is not None:
+                        try:
+                            await self._settlement.wait_until_settled(command.run_id)
+                        except AgentSessionError as exc:
+                            if exc.code == "run_state_unknown":
+                                raise
+                    await self._coordinator.finish_run(self._target.target_id, command.run_id)
 
     async def complete(self, command: StartRunCommand) -> AgentRunResult:
         result: AgentRunResult | None = None

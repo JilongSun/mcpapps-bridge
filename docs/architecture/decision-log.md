@@ -26,13 +26,13 @@ Implementation states:
 | [0007](decisions/0007-cembrid-identity-and-deployment-shells.md) | Accepted; brand superseded by 0009 | Partial | Retain Web/OCI and Tauri desktop service shells; its Cembrid identity is superseded |
 | [0008](decisions/0008-restart-applied-managed-topology.md) | Accepted; v0.1 scope amended by 0014 | Pending | Retain restart-applied topology mutation as the basis for a post-v0.1 writable management milestone |
 | [0009](decisions/0009-mabrid-product-identity.md) | Accepted; code migration timing amended by 0013 | Partial | Mabrid code identity migrates with the backend refactor; repository and remote migration remain deferred |
-| [0010](decisions/0010-application-contexts-and-capability-composition.md) | Accepted; amended by 0011, 0012, 0013, 0014, 0015, and 0016 | Partial | Distinct contexts, reusable outbound integrations, and widget composition exist; Agent Session bindings and effective capabilities remain pending; product Host actions are deferred |
-| [0011](decisions/0011-single-agent-target-and-endpoint-assignment.md) | Accepted; amended by 0012, 0014, 0015, and 0016 | Partial | Single Target, exclusive endpoint ownership, one-active-Run coordination, attribution, and assignment management exist; durable Agent Sessions are pending |
-| [0012](decisions/0012-agent-runtime-profiles-and-integration-composition.md) | Accepted; amended by 0015 and 0016 | Partial | Profiles, typed Hermes discovery, and single-instance integration exist; native session/history, effective capabilities, and runtime availability are required before frontend implementation |
+| [0010](decisions/0010-application-contexts-and-capability-composition.md) | Accepted; amended by 0011, 0012, 0013, 0014, 0015, and 0016 | Partial | Distinct contexts, reusable integrations, durable Agent Session bindings, typed Host assembly, and widget composition exist; effective capabilities remain pending; product Host actions are deferred |
+| [0011](decisions/0011-single-agent-target-and-endpoint-assignment.md) | Accepted; amended by 0012, 0014, 0015, and 0016 | Partial | Single Target, exclusive endpoint ownership, one-active-Run coordination, attribution, durable Agent Sessions, and startup restoration exist; session-facing HTTP remains pending |
+| [0012](decisions/0012-agent-runtime-profiles-and-integration-composition.md) | Accepted; amended by 0015 and 0016 | Partial | Profiles, typed Hermes discovery, native session/history, and explicit deployment assembly exist; effective capabilities and runtime availability remain required before frontend implementation |
 | [0013](decisions/0013-backend-semantic-boundaries-and-mabrid-code-identity.md) | Accepted | Implemented | Backend contexts are modularized, MCP transport is core-owned, provisional contracts are removed, and Mabrid code identity is adopted |
 | [0014](decisions/0014-read-only-v0-1-management-plane.md) | Accepted | Implemented | v0.1 exposes read-only topology, status, readiness, Agent Target assignment, and session inspection while topology mutations remain deferred |
 | [0015](decisions/0015-agent-host-runs-and-mcp-apps-endpoint-composition.md) | Accepted; amended by 0016 | Partial | Run attribution, fresh resources, widget composition, streaming, and controlled integration exist; timely tool/widget delivery and first-party HTTP remain pending; product Host actions are deferred |
-| [0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md) | Accepted | Partial | Native interface evidence, typed drafts, native session use cases, SQLite bindings, and controlled restart/settlement tests exist; production assembly, live Host routes, and capability reporting remain pending |
+| [0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md) | Accepted | Partial | First four batches complete: native interfaces/use cases, SQLite bindings, production assembly, startup ownership restoration, and observer/settlement policy; timely presentation, live Host routes, and capabilities remain pending |
 
 ## Current v0.1 Position
 
@@ -40,13 +40,14 @@ The aggregate gateway data plane and the ADR 0014 read-only backend management p
 vertical slices. ADR 0015 establishes the composed text-Run and widget baseline. ADR 0016 defines
 the next backend milestone before repository migration and frontend implementation:
 
-The first three ADR 0016 batches are complete: decision reconciliation, source-verified contracts,
-and [native session use cases with durable bindings](host-session-contract.md). Native behavior
-is validated with controlled HTTP and real SQLite, but production bootstrap and first-party
-routes do not enable it yet. This is not permission to begin the frontend rewrite.
+The first four ADR 0016 batches are complete: decision reconciliation, source-verified contracts,
+[native session use cases with durable bindings](host-session-contract.md), and typed production
+assembly with explicit observer and settlement policy. Bootstrap can select native ports and
+restores unresolved ownership before all invocation, validated with controlled HTTP and real
+SQLite. First-party routes and effective capabilities are not available yet. This is not
+permission to begin the frontend rewrite.
 
-- Compose the implemented native session/history integration and durable Agent Session bindings without duplicating runtime-owned transcripts; restore unresolved Target ownership before accepting invocation.
-- Establish thin capability assembly, explicit observer failure policy, and timely tool/widget presentation independent of assistant deltas.
+- Deliver timely tool/widget presentation independent of assistant deltas while preserving established attribution and settlement.
 - Implement and freeze first-party Host HTTP/history/SSE contracts, lifecycle errors, and conservative capabilities and remote availability reporting.
 
 Real MCP transport integration, OCI assembly, static frontend serving, and release-image startup
