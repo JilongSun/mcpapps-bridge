@@ -7,7 +7,32 @@ import httpx
 import pytest
 import anyio
 from mabrid.application.agent_host import AgentRunSettlement
-from mabrid.application.host import HostRunSettlement
+from mabrid.application.host import (
+    HostRunSettlement,
+    compose_host_capabilities,
+    NativeSessionPorts,
+    HostAgentEvent,
+    HostToolEvent,
+    HostWidgetEvent,
+)
+from mabrid.application.agent_host import (
+    AgentAdapterCompleted,
+    AgentAdapterEvent,
+    StartRunCommand,
+    ToolInvocationStarted,
+    ToolInvocationCompleted,
+)
+from collections.abc import AsyncGenerator, AsyncIterator
+from mabrid.bridge import (
+    ToolsPublished,
+    ToolDescriptor,
+    ToolCallStarted,
+    ToolCallCompleted,
+    ToolCallResult,
+    BridgeErrorRaised,
+    BridgeFailure,
+    BridgeFailureCode,
+)
 
 from mabrid.application.agent_host import (
     AgentSessionRecord,
@@ -119,6 +144,46 @@ class NativeHermesFixture:
                 ),
             )
         return httpx.Response(200, json={"object": "hermes.session", "session": {"id": remote_id}})
+
+
+class PausedNativeHermesFixture(NativeHermesFixture):
+    def __init__(self) -> None:
+        super().__init__()
+        self.terminal = False
+        self.paused = anyio.Event()
+        self.resume = anyio.Event()
+        self.stream_closed = anyio.Event()
+
+    async def handle(self, request: httpx.Request) -> httpx.Response:
+        response = await super().handle(request)
+        if request.url.path.endswith("/chat/stream"):
+            fixture = self
+            remote_id = request.url.path.split("/")[3]
+            initial = response.content
+
+            class PausedSse(httpx.AsyncByteStream):
+                async def __aiter__(self) -> AsyncIterator[bytes]:
+                    yield initial
+                    fixture.paused.set()
+                    await fixture.resume.wait()
+                    for index, (name, data) in enumerate(
+                        (
+                            ("assistant.delta", {"delta": "Reply"}),
+                            ("assistant.completed", {"content": "Reply"}),
+                            ("run.completed", {"usage": {"input_tokens": 3, "output_tokens": 2}}),
+                            ("done", {}),
+                        ),
+                        2,
+                    ):
+                        yield f"event: {name}\ndata: {json.dumps({'run_id': 'run_fixture', 'session_id': remote_id, 'seq': index, **data})}\n\n".encode()
+
+                async def aclose(self) -> None:
+                    fixture.stream_closed.set()
+
+            return httpx.Response(
+                200, headers={"content-type": "text/event-stream"}, stream=PausedSse()
+            )
+        return response
 
 
 def session_service(
@@ -374,5 +439,139 @@ async def test_native_terminal_and_durable_release_depend_on_host_settlement(
         assert await repository.get_unsettled_run(TARGET.target_id) is None
         assert await service.coordinator.active_run_id(TARGET.target_id) is None
     finally:
+        await adapter.close()
+        await database.close()
+
+
+@pytest.mark.parametrize("early_close", [False, True])
+async def test_native_composed_stream_presents_activity_during_provider_pause_and_settles(
+    tmp_path: Path, early_close: bool
+) -> None:
+    fixture = PausedNativeHermesFixture()
+    adapter = HermesSessionAdapter(
+        api_root="http://hermes.test/",
+        api_key="fixture",
+        runtime_binding_id="fixture-deployment",
+        settlement_timeout_seconds=0.02,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(fixture.handle)),
+    )
+    database = SqliteDatabase(tmp_path / "presentation.db")
+    await database.migrate()
+    repository = SqliteAgentSessionRepository(database.session_factory)
+
+    class UnusedCompatibilityRuntime:
+        profile = TARGET.runtime_profile
+
+        async def run(self, command: StartRunCommand) -> AsyncGenerator[AgentAdapterEvent, None]:
+            raise AssertionError("Native presentation must not invoke compatibility runtime")
+            yield AgentAdapterCompleted()
+
+    composition = await compose_host_capabilities(
+        TARGET,
+        UnusedCompatibilityRuntime(),
+        repository,
+        native=NativeSessionPorts(
+            binding_id="fixture-deployment",
+            catalog=adapter,
+            history=adapter,
+            execution=adapter,
+            control=adapter,
+        ),
+        mcp_apps_enabled=True,
+    )
+    assert composition.sessions is not None and composition.session_events is not None
+    session = await composition.sessions.create_session(CreateAgentSessionCommand())
+    command = StartSessionRunCommand(session_id=session.session_id, input_text="New input")
+    observer = composition.bridge_observer_factory.create("gateway-session", "fixture")
+    assert observer is not None
+    await observer.observe(
+        ToolsPublished(
+            session_key="gateway-session",
+            tools=(ToolDescriptor(name="inspect", ui_resource_uri="ui://fixture/inspect"),),
+        )
+    )
+    stream = composition.session_events.run_events(command)
+    received = []
+    try:
+        received.append(await anext(stream))
+        assert isinstance(received[0], HostAgentEvent) and received[0].event.kind == "run.started"
+        delivered = anyio.Event()
+
+        async def receive_activity() -> None:
+            for _index in range(3):
+                received.append(await anext(stream))
+            delivered.set()
+
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(receive_activity)
+            await fixture.paused.wait()
+            await observer.observe(
+                ToolCallStarted(
+                    session_key="gateway-session",
+                    operation_key="operation",
+                    tool_name="inspect",
+                    arguments={"value": 42},
+                )
+            )
+            await observer.observe(
+                ToolCallCompleted(
+                    session_key="gateway-session",
+                    operation_key="operation",
+                    result=ToolCallResult(structured_content={"value": 42}),
+                )
+            )
+            await observer.observe(
+                BridgeErrorRaised(
+                    session_key="gateway-session",
+                    operation_key="operation",
+                    operation="application_resource_load",
+                    failure=BridgeFailure(
+                        code=BridgeFailureCode.UPSTREAM_PROTOCOL, message="widget unavailable"
+                    ),
+                )
+            )
+            with anyio.fail_after(0.5):
+                await delivered.wait()
+        assert isinstance(received[1], HostToolEvent) and isinstance(
+            received[1].event, ToolInvocationStarted
+        )
+        assert isinstance(received[2], HostToolEvent) and isinstance(
+            received[2].event, ToolInvocationCompleted
+        )
+        assert (
+            isinstance(received[3], HostWidgetEvent) and received[3].event.kind == "widget.failed"
+        )
+        assert received[3].tool_invocation_id == received[1].event.tool_invocation_id
+        assert received[2].event.result.structured_content == {"value": 42}
+        assert not fixture.resume.is_set()
+        assert all(event.session_id == session.session_id for event in received)
+        assert all("remote_run_id" not in event.model_dump_json() for event in received)
+        if early_close:
+            with pytest.raises(AgentSessionError) as unknown:
+                with anyio.fail_after(0.3):
+                    await stream.aclose()
+            assert unknown.value.code == "run_state_unknown"
+            pending = await repository.get_unsettled_run(TARGET.target_id)
+            assert pending is not None and pending.run_id == command.run_id
+            assert (
+                await composition.sessions.coordinator.active_run_id(TARGET.target_id)
+                == command.run_id
+            )
+            fixture.terminal = True
+            assert await composition.sessions.reconcile_run()
+        else:
+            fixture.terminal = True
+            fixture.resume.set()
+            received.extend([event async for event in stream])
+            assert (
+                isinstance(received[-1], HostAgentEvent)
+                and received[-1].event.kind == "run.completed"
+            )
+            assert [event.sequence for event in received] == list(range(1, len(received) + 1))
+            assert await repository.get_unsettled_run(TARGET.target_id) is None
+        assert fixture.stream_closed.is_set()
+        assert await composition.sessions.coordinator.active_run_id(TARGET.target_id) is None
+    finally:
+        await stream.aclose()
         await adapter.close()
         await database.close()

@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from ..agent_host import (
     AgentHostService,
+    AgentToolActivityObserverFactory,
+    InMemoryToolActivityStore,
     AgentSessionService,
     AgentSessionRepository,
     AgentRuntime,
@@ -20,7 +22,7 @@ from ..agent_host import (
 )
 from ..mcp_apps import InMemoryWidgetEventStore, McpAppsLifecycleObserverFactory
 from ..gateway.sessions import BridgeSessionObserverFactory
-from .service import HostEventStream
+from .service import HostEventStream, HostSessionEventStream
 from .settlement import HostRunSettlement, HostObservationFactory
 
 
@@ -60,6 +62,8 @@ class HostCapabilityComposition:
     mcp_apps: McpAppsComposition | None
     events: HostEventStream
     settlement: HostRunSettlement
+    tool_activity: InMemoryToolActivityStore
+    session_events: HostSessionEventStream | None
 
 
 async def compose_host_capabilities(
@@ -75,8 +79,10 @@ async def compose_host_capabilities(
     coordinator = AgentRunCoordinator((target,))
     await restore_target_run_ownership(repository, coordinator, target.target_id)
     attributions = InMemoryOperationRunAttributionRegistry()
+    tool_activity = InMemoryToolActivityStore()
     factories: list[BridgeSessionObserverFactory] = [
-        AgentOperationAttributionObserverFactory(coordinator, attributions)
+        AgentOperationAttributionObserverFactory(coordinator, attributions),
+        AgentToolActivityObserverFactory(attributions, tool_activity),
     ]
     apps = (
         compose_mcp_apps(target.endpoint_assignment.endpoint_slug, attributions)
@@ -116,6 +122,14 @@ async def compose_host_capabilities(
             timeout_seconds=observer_timeout_seconds,
         ),
         mcp_apps=apps,
-        events=HostEventStream(service, apps.events if apps is not None else None, settlement),
+        events=HostEventStream(
+            service, apps.events if apps is not None else None, settlement, tool_activity
+        ),
         settlement=settlement,
+        tool_activity=tool_activity,
+        session_events=HostSessionEventStream(
+            sessions, apps.events if apps is not None else None, settlement, tool_activity
+        )
+        if sessions is not None
+        else None,
     )

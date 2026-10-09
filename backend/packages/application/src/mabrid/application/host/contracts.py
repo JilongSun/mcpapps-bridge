@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 
-from ..agent_host import AgentRunEvent
+from ..agent_host import AgentRunEvent, ToolActivityEvent
 from ..mcp_apps import WidgetEvent
 
 
@@ -25,6 +25,7 @@ class HostEventBase(HostEventModel):
     run_id: UUID
     sequence: PositiveInt
     created_at: datetime = Field(default_factory=utc_now)
+    session_id: UUID | None = None
 
 
 class HostAgentEvent(HostEventBase):
@@ -35,6 +36,12 @@ class HostAgentEvent(HostEventBase):
 class HostWidgetEvent(HostEventBase):
     kind: Literal["host.widget"] = "host.widget"
     event: WidgetEvent
+    tool_invocation_id: UUID | None = None
 
 
-HostEvent: TypeAlias = HostAgentEvent | HostWidgetEvent
+class HostToolEvent(HostEventBase):
+    kind: Literal["host.tool"] = "host.tool"
+    event: ToolActivityEvent
+
+
+HostEvent: TypeAlias = HostAgentEvent | HostWidgetEvent | HostToolEvent

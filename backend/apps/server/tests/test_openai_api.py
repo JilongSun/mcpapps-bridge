@@ -38,6 +38,8 @@ from mabrid.server.api.host_contracts import (
 )
 from mabrid.server.api.openai_compat import _stream_chat_completion
 from mabrid.application.agent_host import AgentMessage
+from mabrid.application.agent_host import InMemoryToolActivityStore, OperationRunAttribution
+from mabrid.bridge import ToolCallStarted, ToolCallCompleted, ToolCallResult
 
 
 def test_first_party_session_schema_hides_runtime_and_transport_identifiers() -> None:
@@ -80,6 +82,69 @@ TARGET = AgentTarget(
     runtime_profile=PROFILE,
     endpoint_assignment=AgentEndpointAssignment(endpoint_slug="fixture-endpoint"),
 )
+
+
+async def test_openai_stream_filters_live_tool_activity() -> None:
+    activity = InMemoryToolActivityStore()
+
+    class ActivityAdapter(FixtureAgentAdapter):
+        async def run(self, command: StartRunCommand) -> AsyncGenerator[AgentAdapterEvent, None]:
+            await activity.record_started(
+                OperationRunAttribution(
+                    run_id=command.run_id,
+                    target_id=TARGET.target_id,
+                    session_key="session",
+                    operation_key="operation",
+                ),
+                ToolCallStarted(
+                    session_key="session",
+                    operation_key="operation",
+                    tool_name="activity-only-marker",
+                    arguments={"value": 42},
+                ),
+            )
+            async for event in super().run(command):
+                if isinstance(event, AgentAdapterCompleted):
+                    await activity.record_completed(
+                        ToolCallCompleted(
+                            session_key="session",
+                            operation_key="operation",
+                            result=ToolCallResult(structured_content={"activity_only_output": 42}),
+                        )
+                    )
+                yield event
+
+    coordinator = AgentRunCoordinator((TARGET,))
+    source = AgentHostService(TARGET, ActivityAdapter(), coordinator)
+    command = StartRunCommand(
+        model=TARGET.target_id, messages=(AgentMessage(role="user", content="Say hello"),)
+    )
+    chunks = [
+        chunk
+        async for chunk in _stream_chat_completion(
+            HostEventStream(source, tool_activity=activity),
+            command,
+            model=TARGET.target_id,
+            include_usage=False,
+        )
+    ]
+    assert len(await activity.list_for_run(command.run_id)) == 2
+    assert chunks[-1] == "data: [DONE]\n\n"
+    wire = "".join(chunks)
+    for private_value in (
+        "host.tool",
+        "tool_invocation_id",
+        "activity-only-marker",
+        "activity_only_output",
+    ):
+        assert private_value not in wire
+    documents = [json.loads(chunk.removeprefix("data: ").strip()) for chunk in chunks[:-1]]
+    assert all(document["object"] == "chat.completion.chunk" for document in documents)
+    assert (
+        "".join(document["choices"][0]["delta"].get("content", "") for document in documents)
+        == "Hello from the fixture"
+    )
+    assert await coordinator.active_run_id(TARGET.target_id) is None
 
 
 class FixtureAgentAdapter:

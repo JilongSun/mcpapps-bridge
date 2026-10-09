@@ -31,8 +31,8 @@ Implementation states:
 | [0012](decisions/0012-agent-runtime-profiles-and-integration-composition.md) | Accepted; amended by 0015 and 0016 | Partial | Profiles, typed Hermes discovery, native session/history, and explicit deployment assembly exist; effective capabilities and runtime availability remain required before frontend implementation |
 | [0013](decisions/0013-backend-semantic-boundaries-and-mabrid-code-identity.md) | Accepted | Implemented | Backend contexts are modularized, MCP transport is core-owned, provisional contracts are removed, and Mabrid code identity is adopted |
 | [0014](decisions/0014-read-only-v0-1-management-plane.md) | Accepted | Implemented | v0.1 exposes read-only topology, status, readiness, Agent Target assignment, and session inspection while topology mutations remain deferred |
-| [0015](decisions/0015-agent-host-runs-and-mcp-apps-endpoint-composition.md) | Accepted; amended by 0016 | Partial | Run attribution, fresh resources, widget composition, streaming, and controlled integration exist; timely tool/widget delivery and first-party HTTP remain pending; product Host actions are deferred |
-| [0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md) | Accepted | Partial | First four batches complete: native interfaces/use cases, SQLite bindings, production assembly, startup ownership restoration, and observer/settlement policy; timely presentation, live Host routes, and capabilities remain pending |
+| [0015](decisions/0015-agent-host-runs-and-mcp-apps-endpoint-composition.md) | Accepted; amended by 0016 | Partial | Run attribution, fresh resources, widget composition, streaming, timely tool/widget delivery, and controlled integration exist; first-party HTTP remains pending; product Host actions are deferred |
+| [0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md) | Accepted | Partial | First five batches complete: native interfaces/use cases, SQLite bindings, production assembly, startup ownership restoration, observer/settlement policy, and timely native/compatibility presentation; live Host routes, capabilities, and contract freeze remain pending |
 
 ## Current v0.1 Position
 
@@ -40,14 +40,16 @@ The aggregate gateway data plane and the ADR 0014 read-only backend management p
 vertical slices. ADR 0015 establishes the composed text-Run and widget baseline. ADR 0016 defines
 the next backend milestone before repository migration and frontend implementation:
 
-The first four ADR 0016 batches are complete: decision reconciliation, source-verified contracts,
+The first five ADR 0016 batches are complete: decision reconciliation, source-verified contracts,
 [native session use cases with durable bindings](host-session-contract.md), and typed production
-assembly with explicit observer and settlement policy. Bootstrap can select native ports and
+assembly with explicit observer and settlement policy, and timely tool/widget presentation.
+Bootstrap can select native ports and
 restores unresolved ownership before all invocation, validated with controlled HTTP and real
-SQLite. First-party routes and effective capabilities are not available yet. This is not
+SQLite. Native and compatibility presentation deliver attributed tool activity and optional
+widgets during provider pauses, with reader cleanup and unknown-state lease retention. First-party
+routes and effective capabilities are not available yet. This is not
 permission to begin the frontend rewrite.
 
-- Deliver timely tool/widget presentation independent of assistant deltas while preserving established attribution and settlement.
 - Implement and freeze first-party Host HTTP/history/SSE contracts, lifecycle errors, and conservative capabilities and remote availability reporting.
 
 Real MCP transport integration, OCI assembly, static frontend serving, and release-image startup

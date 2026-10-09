@@ -1,8 +1,8 @@
 # Host Session Contract Baseline
 
 - Decision: [ADR 0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md)
-- Reviewed: 2026-10-08
-- State: Native use cases, persistence, deployment assembly, and observer settlement implemented with controlled tests; not a frozen HTTP API.
+- Reviewed: 2026-10-09
+- State: Native use cases, persistence, deployment assembly, observer settlement, and timely Run presentation implemented with controlled tests; not a frozen HTTP API.
 
 ## Evidence and Integration Selection
 
@@ -157,7 +157,7 @@ startup rollback close the native client, compatibility client, and database in 
 including when client cleanup fails.
 
 [Host observation and settlement](../../backend/packages/application/src/mabrid/application/host/settlement.py)
-keep attribution before widget projection, separately track actual Gateway tool completion, and
+keep attribution before tool activity and optional widget projection, separately track actual Gateway tool completion, and
 bound observer and Run-settlement waits to five seconds by default. A Host observer exception or
 timeout does not replace an MCP tool result. It records an attributable workflow failure and
 aborts widget pending state, but actual tools still have to finish. Late widget events for an
@@ -168,8 +168,51 @@ Both Run services wait for tools and optional widgets before successful terminal
 settle on early consumer closure. A known workflow failure terminates the Host Run without an
 infinite wait. Unknown tool/widget settlement retains Target ownership; native Runs also retain
 the durable lease until remote and local settlement permit reconciliation. The compatibility
-adapter's client closure still does not prove remote cancellation. Presentation remains per-Run;
-it does not yet independently deliver tool/widget events during an assistant pause.
+adapter's client closure still does not prove remote cancellation. Presentation remains per-Run
+and does not own runtime conversation history.
+
+## Timely Run Presentation
+
+[Tool activity contracts](../../backend/packages/application/src/mabrid/application/agent_host/contracts/activity.py)
+represent invocation start, successful completion, and failure. The
+[attributed activity projector](../../backend/packages/application/src/mabrid/application/agent_host/application/activity.py)
+assigns an opaque invocation UUID to each Gateway operation and preserves arguments, content,
+structured results, error status, and metadata. Its routing-key mapping is internal; activity
+models do not serialize Gateway session/operation keys or failure binding details. Tool activity
+is enabled independently of MCP Apps. A tool error result and a transport failure are distinct;
+widget loading failure does not replace or suppress a successful tool result.
+
+[Host presentation](../../backend/packages/application/src/mabrid/application/host/service.py)
+waits on the Agent source, tool activity notifications, and optional widget notifications, without
+polling or waiting for another assistant delta. At most one read task per source is retained by
+the generator. Normal completion, early closure, consumer cancellation, and reader failure cancel
+and join remaining reads before closing the domain source. No reader tasks are detached, and no
+task-group cancellation scope spans generator yields across consumer tasks.
+
+The stream emits Run start first, uses contiguous per-Run delivery sequence numbers, presents
+recorded tool activity before associated widgets, and drains settled widget events before the
+terminal event. This is delivery order, not global wall-clock sorting or durable replay.
+`HostToolEvent` carries invocation activity; `HostWidgetEvent.tool_invocation_id` links a widget
+to its invocation when the activity source is composed. Resource contents, MIME types, and widget
+metadata remain the owned MCP Apps payload rather than fabricated assistant output.
+
+`HostSessionEventStream` uses the same merger for native execution. It retains the stable local
+Agent Session UUID and Run UUID in every envelope, translates native callbacks into local Agent
+events, and does not forward remote session/run handles. The native command still contains only
+new input. Compatibility OpenAI streaming filters all non-Agent envelopes and retains standard
+Chat Completion chunks and `[DONE]`.
+
+Closing presentation triggers source cleanup; it does not prove remote stopping. Native unknown
+execution retains durable ownership until verified reconciliation, including after tool/widget
+events have already been delivered. Switching UI selection, HTTP cancellation transport, and
+cancelled terminal-state ordering remain router/lifecycle work, not conclusions of these local
+cleanup tests. Runtime errors still cross the native source as typed application errors for the
+HTTP batch to translate.
+
+These are application presentation contracts, not registered first-party SSE routes or frozen
+HTTP DTOs. The HTTP batch must project widget payloads without their internal Gateway routing
+keys, define safe error DTOs, and establish admission and disconnection behavior. Run-local stores
+do not reconstruct old widgets, expose a resume cursor, or promise reconnection replay.
 
 ## Typed Boundaries and Public Drafts
 
@@ -187,7 +230,8 @@ reject unrecognized request fields and expose session metadata and binding avail
 remote session/run IDs or Gateway routing keys.
 
 The planned paths in ADR 0016 remain unchanged. These models establish the session/history portion
-of that contract; they do not register routes or finish the live tool/widget SSE family. Binding
+of that contract; timely application presentation does not register routes or freeze the public
+tool/widget SSE family. Binding
 availability is separate from persisted identity, and a stored handle does not imply a reachable
 remote conversation. The final router batch must establish HTTP status mappings, admission before
 SSE headers, stream errors, and cancellation transport using the verified application behavior.
@@ -208,9 +252,15 @@ version supports the selected contract. Production bootstrap tests verify native
 shared coordination, restoration before compatibility invocation with absent or changed native
 configuration, and reverse-order cleanup including cleanup failure. Focused Host tests verify
 observer order, failure and timeout isolation, cancellation propagation, and bounded presentation;
-native tests verify completion and early-close leases against local Host settlement.
+native tests verify completion and early-close leases against local Host settlement. Paused
+provider tests deliver tool start/result and widget success/failure before any assistant delta,
+including MCP Apps-disabled deployments. A controlled paused HTTP byte stream verifies the same
+behavior through the actual Hermes native adapter and SQLite, then verifies normal completion or
+durable unknown-state retention after early closure. Counting-reader fixtures verify cleanup on
+normal completion, early close, consumer cancellation, and tool/widget reader exceptions. OpenAI
+wire tests verify that tool activity does not leak into standard response chunks.
 The following remain implementation gates:
 
-- Timely Gateway tool/widget presentation and the first-party HTTP routes.
+- First-party HTTP routes, public widget/error DTOs, admission, cancellation, and disconnect behavior.
 - Conservative capabilities and remote runtime availability.
 - Final OpenAPI/SSE schema freeze and ADR 0016's complete frontend readiness gate.

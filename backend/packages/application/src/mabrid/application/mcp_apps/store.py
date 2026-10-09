@@ -44,10 +44,20 @@ class InMemoryWidgetEventStore:
             self._operation_keys.add(key)
             self._events.append(event)
             self._settle(run_id, key)
+            self._condition.notify_all()
 
     async def list_for_run(self, run_id: UUID) -> tuple[WidgetEvent, ...]:
         async with self._condition:
             return tuple(event for event in self._events if _event_run_id(event) == run_id)
+
+    async def wait_for_events(self, run_id: UUID, after: int) -> tuple[WidgetEvent, ...]:
+        if after < 0:
+            raise ValueError("Event offset must not be negative")
+        async with self._condition:
+            await self._condition.wait_for(
+                lambda: sum(_event_run_id(event) == run_id for event in self._events) > after
+            )
+            return tuple(event for event in self._events if _event_run_id(event) == run_id)[after:]
 
     async def wait_until_settled(self, run_id: UUID) -> None:
         async with self._condition:

@@ -238,9 +238,9 @@ to its implementation sequence.
 
 ## Implementation Status
 
-As of 2026-10-08, this decision is **Partial**: source verification, typed session/history and
+As of 2026-10-09, this decision is **Partial**: source verification, typed session/history and
 control ports, public schema drafts, native session use cases, SQLite bindings, typed capability
-assembly, observer policy, and controlled integration tests exist. Deployment can explicitly select
+assembly, observer policy, timely tool/widget presentation, and controlled integration tests exist. Deployment can explicitly select
 native session ports, but effective capabilities and first-party HTTP do not yet advertise them or
 mark the frontend readiness gate complete.
 
@@ -255,7 +255,7 @@ submission are not required by this selection.
 | 2. Native interface and typed contract baseline | Completed | Pinned Hermes source evidence, application ports, session/history and HTTP schema drafts, controlled wire fixture tests |
 | 3. Durable bindings and native integration | Completed | Native Hermes adapter, SQLite migration/repository, create/reopen/history/continuation, effective-reference CAS, durable unsettled Runs, bounded stop/status settlement, and controlled restart tests |
 | 4. Capability assembly and observer policy | Completed | Thin typed application assembly, explicit native deployment configuration, durable ownership restoration before all ingress, ordered and bounded Host observers, tool/widget settlement, failure/cancellation isolation, early-close lease retention, and reverse-order client cleanup tests |
-| 5. Tool activity and timely presentation | Pending | Activity delivery without assistant deltas and early-close behavior |
+| 5. Tool activity and timely presentation | Completed | Run-owned invocation UUIDs and results, ordered activity projection independent of MCP Apps, notification-driven native/compatibility presentation during provider pauses, widget failure with visible tool results, contiguous delivery, joined reader cleanup, native early-close lease retention, and OpenAI wire isolation |
 | 6. First-party HTTP | Pending | Actual session routes, composed SSE, admission/errors, cancellation, and disconnect semantics |
 | 7. Capabilities and remote availability | Pending | Effective support and availability separate from Gateway readiness |
 | 8. Contract freeze | Pending | Final schemas/examples, complete readiness checks, and owner-led migration handoff |
@@ -270,3 +270,11 @@ Host observer exceptions and timeouts do not rewrite MCP results; attributable w
 are reported through settling, while external cancellation propagates. Unknown settlement retains
 ownership instead of admitting overlap. No frontend files were inspected or changed. OCI and live
 MCP transport gates remain separate release work.
+
+Application presentation now consumes Agent, tool, and optional widget notifications independently
+of assistant deltas. Native session presentation shares this merger and retains local Session/Run
+identity without forwarding runtime handles. Controlled tests verify provider pauses, tool results
+with widget failure, normal completion, early closure, reader failure, and consumer cancellation.
+OpenAI wire contracts still exclude tool/widget envelopes. First-party HTTP error and widget DTOs,
+admission, cancellation/disconnection policy, effective capabilities, and schema freeze remain
+pending; timely delivery alone does not authorize frontend implementation.

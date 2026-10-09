@@ -3,6 +3,13 @@
 from .adapter_events import AgentAdapterCompleted, AgentAdapterEvent, AgentAdapterTextDelta
 from .attribution import OperationRunAttribution
 from .base import AgentHostModel
+from .activity import (
+    ToolActivityEvent,
+    ToolInvocationStarted,
+    ToolInvocationCompleted,
+    ToolInvocationFailed,
+    ToolInvocationResult,
+)
 from .profile import AgentCapability, AgentRuntimeInterface, AgentRuntimeProfile
 from .run import (
     AgentFinishReason,
@@ -47,6 +54,11 @@ from .session import (
 )
 
 __all__ = [
+    "ToolActivityEvent",
+    "ToolInvocationStarted",
+    "ToolInvocationCompleted",
+    "ToolInvocationFailed",
+    "ToolInvocationResult",
     "UnsettledSessionRun",
     "AgentHistoryMessage",
     "AgentHistoryPage",

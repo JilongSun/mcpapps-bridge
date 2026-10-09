@@ -1,8 +1,15 @@
 """Public facade for Host presentation composition."""
 
-from .contracts import HostAgentEvent, HostEvent, HostEventBase, HostEventModel, HostWidgetEvent
-from .ports import AgentRunEventSource, WidgetEventReader
-from .service import HostEventStream
+from .contracts import (
+    HostAgentEvent,
+    HostEvent,
+    HostEventBase,
+    HostEventModel,
+    HostWidgetEvent,
+    HostToolEvent,
+)
+from .ports import AgentRunEventSource, WidgetEventReader, ToolActivityReader, SessionRunEventSource
+from .service import HostEventStream, HostSessionEventStream
 from .composition import (
     HostCapabilityComposition,
     McpAppsComposition,
@@ -13,6 +20,10 @@ from .composition import (
 from .settlement import HostRunSettlement, HostObservationFactory
 
 __all__ = [
+    "HostSessionEventStream",
+    "SessionRunEventSource",
+    "HostToolEvent",
+    "ToolActivityReader",
     "HostCapabilityComposition",
     "McpAppsComposition",
     "NativeSessionPorts",

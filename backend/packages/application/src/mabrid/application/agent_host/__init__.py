@@ -2,6 +2,8 @@
 
 from .application import (
     AgentHostService,
+    AgentToolActivityObserverFactory,
+    InMemoryToolActivityStore,
     AgentOperationAttributionObserverFactory,
     AgentRunConflictError,
     AgentRunCoordinator,
@@ -23,6 +25,11 @@ from .application import (
 )
 from .contracts import (
     AgentHistoryMessage,
+    ToolActivityEvent,
+    ToolInvocationStarted,
+    ToolInvocationCompleted,
+    ToolInvocationFailed,
+    ToolInvocationResult,
     AgentHistoryPage,
     AgentSessionRecord,
     CreateAgentSessionCommand,
@@ -69,6 +76,13 @@ from .contracts import (
 )
 
 __all__ = [
+    "AgentToolActivityObserverFactory",
+    "InMemoryToolActivityStore",
+    "ToolActivityEvent",
+    "ToolInvocationStarted",
+    "ToolInvocationCompleted",
+    "ToolInvocationFailed",
+    "ToolInvocationResult",
     "AgentRunSettlement",
     "restore_target_run_ownership",
     "AgentSessionError",
