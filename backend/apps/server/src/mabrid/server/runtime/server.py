@@ -7,9 +7,9 @@ application lifecycles remain delegated to the API and Gateway services.
 from __future__ import annotations
 
 import uvicorn
-from mabrid.application.agent_host import AgentHostService
+from mabrid.application.agent_host import AgentHostService, AgentSessionService
 from mabrid.application.gateway.sessions import GatewaySessionCoordinator
-from mabrid.application.host import HostEventStream
+from mabrid.application.host import HostEventStream, HostSessionEventStream
 
 from mabrid.server.api import create_app
 from mabrid.server.composition import AgentHostManagementView, GatewayManagementComposition
@@ -25,6 +25,8 @@ class MabridServerRuntime:
         *,
         agent_host: AgentHostService | None = None,
         host_events: HostEventStream | None = None,
+        agent_sessions: AgentSessionService | None = None,
+        host_session_events: HostSessionEventStream | None = None,
         gateway_management: GatewayManagementComposition | None = None,
         agent_host_management: AgentHostManagementView | None = None,
         api_host: str = "127.0.0.1",
@@ -33,6 +35,8 @@ class MabridServerRuntime:
         self._gateway = gateway
         self._agent_host = agent_host
         self._host_events = host_events
+        self._agent_sessions = agent_sessions
+        self._host_session_events = host_session_events
         self._gateway_management = gateway_management
         self._agent_host_management = agent_host_management
         self._api_host = api_host
@@ -43,6 +47,8 @@ class MabridServerRuntime:
             self._gateway,
             agent_host=self._agent_host,
             host_events=self._host_events,
+            agent_sessions=self._agent_sessions,
+            host_session_events=self._host_session_events,
             gateway_management=self._gateway_management,
             agent_host_management=self._agent_host_management,
         )

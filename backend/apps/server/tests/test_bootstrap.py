@@ -22,6 +22,10 @@ from mabrid.server.persistence.agent_host import SqliteAgentSessionRepository
 from datetime import datetime, timezone
 from uuid import uuid4
 import pytest
+import httpx
+import uvicorn
+from fastapi import FastAPI
+import mabrid.server.main as server_main
 from pydantic import SecretStr
 from sqlalchemy import inspect
 
@@ -43,6 +47,56 @@ import mabrid.application.host.composition as host_capabilities
 
 def _endpoints() -> dict[str, EndpointFileConfig]:
     return {"fixture": EndpointFileConfig(bindings=[EndpointBindingFileConfig(upstream="fixture")])}
+
+
+@pytest.mark.parametrize("native_enabled", [False, True])
+async def test_main_runtime_wires_first_party_host_without_changing_gateway_readiness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, native_enabled: bool
+) -> None:
+    configuration = RuntimeConfiguration(
+        config_path=tmp_path / "fixture.yaml",
+        bridge=BridgeRuntimeConfig(advertised_base_url="http://mabrid.test"),
+        storage=StorageConfig(sqlite_path=tmp_path / "runtime.db"),
+        upstreams={"fixture": RuntimeUpstreamConfig(command="fixture-server")},
+        endpoints=_endpoints(),
+        diagnostic_upstream=None,
+        agent_host=RuntimeAgentHostConfig(
+            enabled=native_enabled,
+            target_id="fixture-target" if native_enabled else None,
+            endpoint_slug="fixture" if native_enabled else None,
+            runtime=RuntimeHermesAgentConfig(
+                api_key=SecretStr("fixture"),
+                sessions=RuntimeHermesSessionConfig(
+                    api_root="http://hermes.test", binding_id="fixture"
+                )
+                if native_enabled
+                else None,
+            ),
+        ),
+    )
+
+    async def serve(server: uvicorn.Server) -> None:
+        app = server.config.app
+        assert isinstance(app, FastAPI)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://mabrid.test"
+        ) as client:
+            assert (await client.get("/health")).status_code == 200
+            assert (await client.get("/ready")).status_code == 200
+            response = await client.get("/api/v1/host/sessions")
+            assert response.status_code == (200 if native_enabled else 503)
+            if native_enabled:
+                assert response.json()["sessions"] == []
+            else:
+                assert response.json()["code"] == "unsupported_operation"
+
+    monkeypatch.setattr(
+        server_main, "resolve_runtime_configuration", lambda *_args, **_kwargs: configuration
+    )
+    monkeypatch.setattr(uvicorn.Server, "serve", serve)
+    await server_main.serve_runtime(
+        server_main.parse_args(["--config", str(configuration.config_path)])
+    )
 
 
 async def test_clean_sqlite_database_migrates_seeds_and_composes_gateway(tmp_path: Path) -> None:

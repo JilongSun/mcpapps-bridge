@@ -11,10 +11,10 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from mabrid.bridge import create_mcp_asgi_app
-from mabrid.application.agent_host import AgentHostService
+from mabrid.application.agent_host import AgentHostService, AgentSessionService
 from mabrid.application.gateway.sessions import GatewaySessionCoordinator
 from mabrid.application.gateway import GatewayMcpSessionBroker
-from mabrid.application.host import HostEventStream
+from mabrid.application.host import HostEventStream, HostSessionEventStream
 
 from mabrid.server.api.management.agent_host import create_agent_host_management_router
 from mabrid.server.api.management.errors import (
@@ -24,6 +24,7 @@ from mabrid.server.api.management.errors import (
 )
 from mabrid.server.api.management.gateway import create_gateway_management_router
 from mabrid.server.api.openai_compat import create_openai_compatibility_router
+from mabrid.server.api.host import create_host_router, host_error_response
 from mabrid.server.api.readiness import create_readiness_router
 from mabrid.server.logging import get_logger
 
@@ -38,6 +39,8 @@ def create_app(
     *,
     agent_host: AgentHostService | None = None,
     host_events: HostEventStream | None = None,
+    agent_sessions: AgentSessionService | None = None,
+    host_session_events: HostSessionEventStream | None = None,
     gateway_management: GatewayManagementComposition | None = None,
     agent_host_management: AgentHostManagementView | None = None,
 ) -> FastAPI:
@@ -73,6 +76,8 @@ def create_app(
         request: Request,
         exc: RequestValidationError,
     ):
+        if request.url.path == "/api/v1/host" or request.url.path.startswith("/api/v1/host/"):
+            return host_error_response("invalid_request")
         if _uses_management_problem_details(request.url.path):
             return problem_response(
                 problem(
@@ -85,6 +90,7 @@ def create_app(
         return await request_validation_exception_handler(request, exc)
 
     app.mount("/mcp", create_mcp_asgi_app(GatewayMcpSessionBroker(manager)))
+    app.include_router(create_host_router(agent_sessions, host_session_events))
     if agent_host is not None:
         app.include_router(create_openai_compatibility_router(agent_host, host_events))
     if gateway_management is not None:

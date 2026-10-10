@@ -39,6 +39,17 @@ from mabrid.server.api.host_contracts import (
 from mabrid.server.api.openai_compat import _stream_chat_completion
 from mabrid.application.agent_host import AgentMessage
 from mabrid.application.agent_host import InMemoryToolActivityStore, OperationRunAttribution
+from mabrid.application.agent_host import ToolInvocationFailed
+from mabrid.application.host import HostWidgetEvent, HostToolEvent
+from mabrid.application.mcp_apps import (
+    WidgetCreated,
+    WidgetFailed,
+    WidgetInstance,
+    WidgetToolResult,
+    ApplicationResourceContent,
+)
+from mabrid.server.api.host_stream import project_host_event
+from mabrid.server.api.host_contracts import HostStreamEvent
 from mabrid.bridge import ToolCallStarted, ToolCallCompleted, ToolCallResult
 
 
@@ -65,6 +76,99 @@ def test_first_party_run_schema_accepts_only_new_input() -> None:
         StartHostSessionRunRequest.model_validate({"input_text": "Continue", "messages": []})
     with pytest.raises(ValidationError):
         CreateHostSessionRequest.model_validate({"title": "Fixture", "model": "remote-model"})
+
+
+def test_public_host_widget_payload_keeps_resources_and_hides_routing_and_debug_errors() -> None:
+    session_id, run_id, invocation_id = uuid4(), uuid4(), uuid4()
+    tool_result = WidgetToolResult(
+        content=({"type": "text", "text": "Tool result"},),
+        structured_content={"value": 42},
+        metadata={"fixture": True},
+    )
+    widget = WidgetInstance(
+        run_id=run_id,
+        target_id="fixture",
+        session_key="private-session-key",
+        operation_key="private-operation-key",
+        tool_name="inspect",
+        tool_result=tool_result,
+        application_resource_uri="ui://fixture/inspect",
+        resource_contents=(
+            ApplicationResourceContent(
+                uri="ui://fixture/inspect",
+                mime_type="text/html;profile=mcp-app",
+                text="<p>fixture</p>",
+                metadata={"ui": {"csp": {"connectDomains": []}}},
+            ),
+        ),
+        resource_metadata={"fixture": True},
+    )
+    created = project_host_event(
+        HostWidgetEvent(
+            run_id=run_id,
+            session_id=session_id,
+            sequence=1,
+            tool_invocation_id=invocation_id,
+            event=WidgetCreated(widget=widget),
+        )
+    )
+    assert created.event.kind == "widget.created"
+    assert created.event.widget.tool_invocation_id == invocation_id
+    assert created.event.widget.resource_contents[0].text == "<p>fixture</p>"
+    assert created.event.widget.resource_contents[0].metadata == {
+        "ui": {"csp": {"connectDomains": []}}
+    }
+    assert created.event.widget.resource_contents[0].mime_type == "text/html;profile=mcp-app"
+    assert created.event.widget.tool_result.structured_content == {"value": 42}
+    failed = project_host_event(
+        HostWidgetEvent(
+            run_id=run_id,
+            session_id=session_id,
+            sequence=2,
+            tool_invocation_id=invocation_id,
+            event=WidgetFailed(
+                run_id=run_id,
+                target_id="fixture",
+                session_key="private-session-key",
+                operation_key="private-operation-key",
+                tool_name="inspect",
+                tool_result=tool_result,
+                application_resource_uri="ui://fixture/inspect",
+                error_message="private-runtime-url-and-secret",
+            ),
+        )
+    )
+    assert failed.event.kind == "widget.failed"
+    assert failed.event.tool_result.structured_content == {"value": 42}
+    tool_failed = project_host_event(
+        HostToolEvent(
+            run_id=run_id,
+            session_id=session_id,
+            sequence=3,
+            event=ToolInvocationFailed(
+                run_id=run_id,
+                target_id="fixture",
+                tool_invocation_id=invocation_id,
+                tool_name="inspect",
+                error_code="upstream_transport",
+                error_message="private-runtime-url-and-secret",
+            ),
+        )
+    )
+    for event in (created, failed, tool_failed):
+        assert HostStreamEvent.model_validate_json(event.model_dump_json()) == event
+        assert event.session_id == session_id and event.run_id == run_id
+        for private in (
+            "session_key",
+            "operation_key",
+            "private-session-key",
+            "private-operation-key",
+            "private-runtime-url-and-secret",
+        ):
+            assert private not in event.model_dump_json()
+    schema = json.dumps(HostStreamEvent.model_json_schema())
+    for private_field in ("session_key", "operation_key", "remote_run_id", "runtime_binding_id"):
+        assert private_field not in schema
 
 
 PROFILE = AgentRuntimeProfile(
@@ -194,6 +298,9 @@ def test_chat_completions_openapi_describes_the_official_sdk_request_body() -> N
 
     assert app.title == "Mabrid"
     operation = app.openapi()["paths"]["/v1/chat/completions"]["post"]
+    host_operation = app.openapi()["paths"]["/api/v1/host/sessions/{session_id}/runs"]["post"]
+    assert "text/event-stream" in host_operation["responses"]["200"]["content"]
+    assert "application/json" in host_operation["responses"]["409"]["content"]
     request_body = operation["requestBody"]
     json_body = request_body["content"]["application/json"]
     schema = json_body["schema"]
