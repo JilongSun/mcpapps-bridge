@@ -239,13 +239,12 @@ to its implementation sequence.
 
 ## Implementation Status
 
-As of 2026-10-10, this decision is **Partial**: source verification, typed session/history and
-control ports, public schema drafts, native session use cases, SQLite bindings, typed capability
-assembly, observer policy, timely tool/widget presentation, first-party HTTP/SSE, safe public DTOs,
-controlled cancellation/disconnection tests, and conservative capability/availability reporting
-exist. Deployment can explicitly select native session ports, invoke registered Host routes, and
-inspect effective capabilities independently of Gateway readiness. Final schema freeze remains
-pending. The frontend readiness gate is not complete.
+As of 2026-10-10, this decision's backend frontend-readiness milestone is **Implemented**. All
+eight batches are complete: verified native interfaces, typed session/history/control ports,
+durable bindings, production assembly, observer policy, timely presentation, first-party HTTP/SSE,
+safe public DTOs, cancellation/disconnection controls, conservative capabilities, and frozen
+OpenAPI/SSE/history schemas and examples. Controlled tests establish all six frontend prerequisites.
+This is not a claim that the frontend, deployed integration, or OCI release is complete.
 
 The selected native interface and its evidence are recorded in the
 [Host session contract baseline](../host-session-contract.md). Hermes session resources and
@@ -261,7 +260,7 @@ submission are not required by this selection.
 | 5. Tool activity and timely presentation | Completed | Run-owned invocation UUIDs and results, ordered activity projection independent of MCP Apps, notification-driven native/compatibility presentation during provider pauses, widget failure with visible tool results, contiguous delivery, joined reader cleanup, native early-close lease retention, and OpenAI wire isolation |
 | 6. First-party HTTP | Completed | Production session/history/control routes, pre-header admission, safe local-identity tool/widget SSE, shared Target busy/unknown handling, acknowledgement-ordered user cancellation, ASGI disconnect/header-send cleanup, recoverable Target Run metadata, verified reconciliation, and OpenAI/OpenAPI regression tests |
 | 7. Capabilities and remote availability | Completed | Registered product capability endpoint, typed local/selected/remote/effective facts, strictly validated read-only Hermes discovery, independent native/compatibility observations, unknown/unsupported/outage states, bounded fresh probes with joined cancellation, safe public fields, and production Gateway-readiness independence tests |
-| 8. Contract freeze | Pending | Final schemas/examples, complete readiness checks, and owner-led migration handoff |
+| 8. Contract freeze | Completed | Offline reproducible first-party OpenAPI and SSE snapshot, exact validated examples for all event kinds/history/capabilities/control/errors, schema-reference and drift checks, production deployment equality, six-prerequisite evidence matrix, route/media-type partition checks, and owner migration/post-migration review handoff |
 
 The existing text Run, Hermes/OpenAI streaming, Gateway attribution, fresh resources, and widget
 composition remain ADR 0015 prerequisites. Server bootstrap can select native session ports with
@@ -289,5 +288,13 @@ compatibility observations rather than treating local runtime profiles as remote
 declarations remain unknown, explicit false remains unsupported, and current discovery failures do
 not reuse cached success. Probe requests are read-only, bounded, joined, and excluded from startup
 and Gateway health/readiness. Their verified declarations do not certify LLM execution or bypass
-Run admission. Final schema freeze remains pending; these seven batches do not authorize frontend
-implementation.
+Run admission. The v0.1 frontend contract is now frozen and the backend is ready for the next
+frontend phase. Repository migration remains owner-controlled, followed by the owner's code review
+before starting the explicitly requested frontend rewrite. Broader expansion points remain separate
+discussions rather than automatic v0.1 additions.
+
+The [readiness and migration handoff](../frontend-readiness.md) records the frozen artifacts,
+controlled evidence, verification commands, post-migration review priorities, and remaining release
+gates. No migration, commit, frontend edit, or live provider invocation is performed by this
+completion batch. Real deployment/MCP integration and OCI/static serving remain release work;
+completed contract readiness does not mark them complete.

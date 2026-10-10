@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
@@ -18,6 +19,16 @@ class ProblemDetails(BaseModel):
     status: int
     detail: str
     code: str
+
+
+def problem_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
+    return {
+        status: {
+            "description": "Management or readiness failure.",
+            "content": {PROBLEM_MEDIA_TYPE: {"schema": ProblemDetails.model_json_schema()}},
+        }
+        for status in statuses
+    }
 
 
 @dataclass(frozen=True)

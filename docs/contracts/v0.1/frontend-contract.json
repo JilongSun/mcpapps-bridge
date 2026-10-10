@@ -1,0 +1,5175 @@
+{
+  "contract_version": "v0.1",
+  "host_errors": {
+    "internal_error": {
+      "message": "The Host operation failed.",
+      "status": 500
+    },
+    "invalid_request": {
+      "message": "The request parameters are invalid.",
+      "status": 422
+    },
+    "remote_session_not_found": {
+      "message": "The runtime conversation was not found.",
+      "status": 404
+    },
+    "run_not_found": {
+      "message": "Run was not found for this Agent Session.",
+      "status": 404
+    },
+    "run_state_unknown": {
+      "message": "Run settlement is unknown; overlapping execution is not allowed.",
+      "status": 409
+    },
+    "runtime_binding_changed": {
+      "message": "Agent Session belongs to another runtime deployment.",
+      "status": 409
+    },
+    "runtime_contract_error": {
+      "message": "The Agent runtime returned an invalid response.",
+      "status": 502
+    },
+    "runtime_unavailable": {
+      "message": "The Agent runtime is unavailable.",
+      "status": 503
+    },
+    "session_not_found": {
+      "message": "Agent Session was not found.",
+      "status": 404
+    },
+    "target_busy": {
+      "message": "The Agent Target already has an active Run.",
+      "status": 409
+    },
+    "unsupported_operation": {
+      "message": "This Host operation is not enabled or supported.",
+      "status": 503
+    }
+  },
+  "host_sse": {
+    "$defs": {
+      "HostErrorResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "enum": [
+              "invalid_request",
+              "run_not_found",
+              "internal_error",
+              "session_not_found",
+              "remote_session_not_found",
+              "runtime_binding_changed",
+              "runtime_unavailable",
+              "runtime_contract_error",
+              "target_busy",
+              "unsupported_operation",
+              "run_state_unknown"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Run Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "HostErrorResponse",
+        "type": "object"
+      },
+      "HostResourceContent": {
+        "additionalProperties": false,
+        "properties": {
+          "blob": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Blob"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "$ref": "#/$defs/JsonValue"
+            },
+            "title": "Metadata",
+            "type": "object"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Mime Type"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Text"
+          },
+          "uri": {
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uri"
+        ],
+        "title": "HostResourceContent",
+        "type": "object"
+      },
+      "HostRunCancelledPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "run.cancelled",
+            "default": "run.cancelled",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "title": "HostRunCancelledPayload",
+        "type": "object"
+      },
+      "HostRunCompletedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "run.completed",
+            "default": "run.completed",
+            "title": "Kind",
+            "type": "string"
+          },
+          "output_text": {
+            "title": "Output Text",
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/$defs/TokenUsage"
+          }
+        },
+        "required": [
+          "output_text",
+          "usage"
+        ],
+        "title": "HostRunCompletedPayload",
+        "type": "object"
+      },
+      "HostRunFailedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "$ref": "#/$defs/HostErrorResponse"
+          },
+          "kind": {
+            "const": "run.failed",
+            "default": "run.failed",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "HostRunFailedPayload",
+        "type": "object"
+      },
+      "HostRunStartedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "run.started",
+            "default": "run.started",
+            "title": "Kind",
+            "type": "string"
+          },
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_id"
+        ],
+        "title": "HostRunStartedPayload",
+        "type": "object"
+      },
+      "HostTextCompletedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "assistant.text.completed",
+            "default": "assistant.text.completed",
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "HostTextCompletedPayload",
+        "type": "object"
+      },
+      "HostTextDeltaPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "delta": {
+            "title": "Delta",
+            "type": "string"
+          },
+          "kind": {
+            "const": "assistant.text.delta",
+            "default": "assistant.text.delta",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "delta"
+        ],
+        "title": "HostTextDeltaPayload",
+        "type": "object"
+      },
+      "HostToolCompletedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "tool.completed",
+            "default": "tool.completed",
+            "title": "Kind",
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/$defs/HostToolResult"
+          },
+          "tool_invocation_id": {
+            "format": "uuid",
+            "title": "Tool Invocation Id",
+            "type": "string"
+          },
+          "tool_name": {
+            "title": "Tool Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool_invocation_id",
+          "tool_name",
+          "result"
+        ],
+        "title": "HostToolCompletedPayload",
+        "type": "object"
+      },
+      "HostToolFailedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "error_code": {
+            "title": "Error Code",
+            "type": "string"
+          },
+          "error_message": {
+            "title": "Error Message",
+            "type": "string"
+          },
+          "kind": {
+            "const": "tool.failed",
+            "default": "tool.failed",
+            "title": "Kind",
+            "type": "string"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HostToolResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "tool_invocation_id": {
+            "format": "uuid",
+            "title": "Tool Invocation Id",
+            "type": "string"
+          },
+          "tool_name": {
+            "title": "Tool Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool_invocation_id",
+          "tool_name",
+          "error_code",
+          "error_message"
+        ],
+        "title": "HostToolFailedPayload",
+        "type": "object"
+      },
+      "HostToolResult": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "default": [],
+            "items": {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            "title": "Content",
+            "type": "array"
+          },
+          "is_error": {
+            "default": false,
+            "title": "Is Error",
+            "type": "boolean"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "$ref": "#/$defs/JsonValue"
+            },
+            "title": "Metadata",
+            "type": "object"
+          },
+          "structured_content": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/$defs/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Structured Content"
+          }
+        },
+        "title": "HostToolResult",
+        "type": "object"
+      },
+      "HostToolStartedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "arguments": {
+            "additionalProperties": {
+              "$ref": "#/$defs/JsonValue"
+            },
+            "title": "Arguments",
+            "type": "object"
+          },
+          "kind": {
+            "const": "tool.started",
+            "default": "tool.started",
+            "title": "Kind",
+            "type": "string"
+          },
+          "tool_invocation_id": {
+            "format": "uuid",
+            "title": "Tool Invocation Id",
+            "type": "string"
+          },
+          "tool_name": {
+            "title": "Tool Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tool_invocation_id",
+          "tool_name",
+          "arguments"
+        ],
+        "title": "HostToolStartedPayload",
+        "type": "object"
+      },
+      "HostWidget": {
+        "additionalProperties": false,
+        "properties": {
+          "application_resource_uri": {
+            "title": "Application Resource Uri",
+            "type": "string"
+          },
+          "resource_contents": {
+            "items": {
+              "$ref": "#/$defs/HostResourceContent"
+            },
+            "title": "Resource Contents",
+            "type": "array"
+          },
+          "resource_metadata": {
+            "additionalProperties": {
+              "$ref": "#/$defs/JsonValue"
+            },
+            "title": "Resource Metadata",
+            "type": "object"
+          },
+          "tool_invocation_id": {
+            "format": "uuid",
+            "title": "Tool Invocation Id",
+            "type": "string"
+          },
+          "tool_name": {
+            "title": "Tool Name",
+            "type": "string"
+          },
+          "tool_result": {
+            "$ref": "#/$defs/HostToolResult"
+          },
+          "widget_id": {
+            "format": "uuid",
+            "title": "Widget Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "widget_id",
+          "tool_invocation_id",
+          "tool_name",
+          "tool_result",
+          "application_resource_uri",
+          "resource_contents",
+          "resource_metadata"
+        ],
+        "title": "HostWidget",
+        "type": "object"
+      },
+      "HostWidgetCreatedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "widget.created",
+            "default": "widget.created",
+            "title": "Kind",
+            "type": "string"
+          },
+          "widget": {
+            "$ref": "#/$defs/HostWidget"
+          }
+        },
+        "required": [
+          "widget"
+        ],
+        "title": "HostWidgetCreatedPayload",
+        "type": "object"
+      },
+      "HostWidgetFailedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "application_resource_uri": {
+            "title": "Application Resource Uri",
+            "type": "string"
+          },
+          "error_message": {
+            "title": "Error Message",
+            "type": "string"
+          },
+          "kind": {
+            "const": "widget.failed",
+            "default": "widget.failed",
+            "title": "Kind",
+            "type": "string"
+          },
+          "tool_invocation_id": {
+            "format": "uuid",
+            "title": "Tool Invocation Id",
+            "type": "string"
+          },
+          "tool_name": {
+            "title": "Tool Name",
+            "type": "string"
+          },
+          "tool_result": {
+            "$ref": "#/$defs/HostToolResult"
+          }
+        },
+        "required": [
+          "tool_invocation_id",
+          "tool_name",
+          "tool_result",
+          "application_resource_uri",
+          "error_message"
+        ],
+        "title": "HostWidgetFailedPayload",
+        "type": "object"
+      },
+      "JsonValue": {},
+      "TokenUsage": {
+        "additionalProperties": false,
+        "properties": {
+          "input_tokens": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Output Tokens",
+            "type": "integer"
+          }
+        },
+        "title": "TokenUsage",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "created_at": {
+        "format": "date-time",
+        "title": "Created At",
+        "type": "string"
+      },
+      "event": {
+        "discriminator": {
+          "mapping": {
+            "assistant.text.completed": "#/$defs/HostTextCompletedPayload",
+            "assistant.text.delta": "#/$defs/HostTextDeltaPayload",
+            "run.cancelled": "#/$defs/HostRunCancelledPayload",
+            "run.completed": "#/$defs/HostRunCompletedPayload",
+            "run.failed": "#/$defs/HostRunFailedPayload",
+            "run.started": "#/$defs/HostRunStartedPayload",
+            "tool.completed": "#/$defs/HostToolCompletedPayload",
+            "tool.failed": "#/$defs/HostToolFailedPayload",
+            "tool.started": "#/$defs/HostToolStartedPayload",
+            "widget.created": "#/$defs/HostWidgetCreatedPayload",
+            "widget.failed": "#/$defs/HostWidgetFailedPayload"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/HostRunStartedPayload"
+          },
+          {
+            "$ref": "#/$defs/HostTextDeltaPayload"
+          },
+          {
+            "$ref": "#/$defs/HostTextCompletedPayload"
+          },
+          {
+            "$ref": "#/$defs/HostRunCompletedPayload"
+          },
+          {
+            "$ref": "#/$defs/HostRunCancelledPayload"
+          },
+          {
+            "$ref": "#/$defs/HostRunFailedPayload"
+          },
+          {
+            "$ref": "#/$defs/HostToolStartedPayload"
+          },
+          {
+            "$ref": "#/$defs/HostToolCompletedPayload"
+          },
+          {
+            "$ref": "#/$defs/HostToolFailedPayload"
+          },
+          {
+            "$ref": "#/$defs/HostWidgetCreatedPayload"
+          },
+          {
+            "$ref": "#/$defs/HostWidgetFailedPayload"
+          }
+        ],
+        "title": "Event"
+      },
+      "event_id": {
+        "format": "uuid",
+        "title": "Event Id",
+        "type": "string"
+      },
+      "run_id": {
+        "format": "uuid",
+        "title": "Run Id",
+        "type": "string"
+      },
+      "sequence": {
+        "exclusiveMinimum": 0,
+        "title": "Sequence",
+        "type": "integer"
+      },
+      "session_id": {
+        "format": "uuid",
+        "title": "Session Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "event_id",
+      "session_id",
+      "run_id",
+      "sequence",
+      "created_at",
+      "event"
+    ],
+    "title": "HostStreamEvent",
+    "type": "object"
+  },
+  "openapi": {
+    "components": {
+      "schemas": {
+        "AgentHistoryMessage": {
+          "additionalProperties": false,
+          "properties": {
+            "content": {
+              "items": {
+                "discriminator": {
+                  "mapping": {
+                    "text": "#/components/schemas/HistoryText",
+                    "tool_call": "#/components/schemas/HistoryToolCall",
+                    "unsupported": "#/components/schemas/HistoryUnsupportedContent"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/HistoryText"
+                  },
+                  {
+                    "$ref": "#/components/schemas/HistoryToolCall"
+                  },
+                  {
+                    "$ref": "#/components/schemas/HistoryUnsupportedContent"
+                  }
+                ]
+              },
+              "title": "Content",
+              "type": "array"
+            },
+            "created_at": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created At"
+            },
+            "message_id": {
+              "minLength": 1,
+              "title": "Message Id",
+              "type": "string"
+            },
+            "role": {
+              "enum": [
+                "system",
+                "developer",
+                "user",
+                "assistant",
+                "tool",
+                "unsupported"
+              ],
+              "title": "Role",
+              "type": "string"
+            },
+            "tool_call_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tool Call Id"
+            },
+            "tool_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tool Name"
+            }
+          },
+          "required": [
+            "message_id",
+            "role",
+            "content"
+          ],
+          "title": "AgentHistoryMessage",
+          "type": "object"
+        },
+        "AgentHistoryPage": {
+          "additionalProperties": false,
+          "properties": {
+            "has_more": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has More"
+            },
+            "messages": {
+              "items": {
+                "$ref": "#/components/schemas/AgentHistoryMessage"
+              },
+              "title": "Messages",
+              "type": "array"
+            },
+            "query": {
+              "$ref": "#/components/schemas/HistoryPageQuery"
+            },
+            "session_id": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "session_id",
+            "messages",
+            "query"
+          ],
+          "title": "AgentHistoryPage",
+          "type": "object"
+        },
+        "AgentHostCapabilitySnapshot": {
+          "additionalProperties": false,
+          "properties": {
+            "compatibility_runtime": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/RuntimeCapabilityObservation"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "enabled": {
+              "title": "Enabled",
+              "type": "boolean"
+            },
+            "features": {
+              "$ref": "#/components/schemas/AgentHostFeatures"
+            },
+            "max_concurrent_runs": {
+              "const": 1,
+              "default": 1,
+              "title": "Max Concurrent Runs",
+              "type": "integer"
+            },
+            "native_runtime": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/RuntimeCapabilityObservation"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "target_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Id"
+            }
+          },
+          "required": [
+            "enabled",
+            "features"
+          ],
+          "title": "AgentHostCapabilitySnapshot",
+          "type": "object"
+        },
+        "AgentHostFeatures": {
+          "additionalProperties": false,
+          "properties": {
+            "compatibility_streaming": {
+              "$ref": "#/components/schemas/EffectiveCapability"
+            },
+            "event_replay": {
+              "$ref": "#/components/schemas/EffectiveCapability"
+            },
+            "host_actions": {
+              "$ref": "#/components/schemas/EffectiveCapability"
+            },
+            "remote_session_import": {
+              "$ref": "#/components/schemas/EffectiveCapability"
+            },
+            "run_cancel": {
+              "$ref": "#/components/schemas/EffectiveCapability"
+            },
+            "run_reconcile": {
+              "$ref": "#/components/schemas/EffectiveCapability"
+            },
+            "session_create": {
+              "$ref": "#/components/schemas/EffectiveCapability"
+            },
+            "session_history": {
+              "$ref": "#/components/schemas/EffectiveCapability"
+            },
+            "session_list": {
+              "$ref": "#/components/schemas/EffectiveCapability"
+            },
+            "session_reopen": {
+              "$ref": "#/components/schemas/EffectiveCapability"
+            },
+            "session_streaming": {
+              "$ref": "#/components/schemas/EffectiveCapability"
+            },
+            "tool_activity": {
+              "$ref": "#/components/schemas/EffectiveCapability"
+            },
+            "widgets": {
+              "$ref": "#/components/schemas/EffectiveCapability"
+            }
+          },
+          "required": [
+            "session_list",
+            "session_create",
+            "session_reopen",
+            "session_history",
+            "session_streaming",
+            "run_cancel",
+            "run_reconcile",
+            "tool_activity",
+            "widgets",
+            "compatibility_streaming",
+            "host_actions",
+            "event_replay",
+            "remote_session_import"
+          ],
+          "title": "AgentHostFeatures",
+          "type": "object"
+        },
+        "AgentRuntimeProfileResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "capabilities": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Capabilities",
+              "type": "array",
+              "uniqueItems": true
+            },
+            "integration_kind": {
+              "title": "Integration Kind",
+              "type": "string"
+            },
+            "interface": {
+              "title": "Interface",
+              "type": "string"
+            }
+          },
+          "required": [
+            "integration_kind",
+            "interface",
+            "capabilities"
+          ],
+          "title": "AgentRuntimeProfileResponse",
+          "type": "object"
+        },
+        "AgentSessionRunStatus": {
+          "additionalProperties": false,
+          "properties": {
+            "run_id": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            },
+            "session_id": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            },
+            "state": {
+              "enum": [
+                "active",
+                "unsettled"
+              ],
+              "title": "State",
+              "type": "string"
+            }
+          },
+          "required": [
+            "session_id",
+            "run_id",
+            "state"
+          ],
+          "title": "AgentSessionRunStatus",
+          "type": "object"
+        },
+        "AgentTargetAssignmentResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "advertised_url": {
+              "title": "Advertised Url",
+              "type": "string"
+            },
+            "endpoint_id": {
+              "format": "uuid",
+              "title": "Endpoint Id",
+              "type": "string"
+            },
+            "endpoint_path": {
+              "title": "Endpoint Path",
+              "type": "string"
+            },
+            "endpoint_slug": {
+              "title": "Endpoint Slug",
+              "type": "string"
+            },
+            "transport": {
+              "const": "streamable-http",
+              "title": "Transport",
+              "type": "string"
+            }
+          },
+          "required": [
+            "endpoint_id",
+            "endpoint_slug",
+            "endpoint_path",
+            "transport",
+            "advertised_url"
+          ],
+          "title": "AgentTargetAssignmentResponse",
+          "type": "object"
+        },
+        "AgentTargetResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "assignment": {
+              "$ref": "#/components/schemas/AgentTargetAssignmentResponse"
+            },
+            "runtime_profile": {
+              "$ref": "#/components/schemas/AgentRuntimeProfileResponse"
+            },
+            "target_id": {
+              "title": "Target Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "target_id",
+            "runtime_profile",
+            "assignment"
+          ],
+          "title": "AgentTargetResponse",
+          "type": "object"
+        },
+        "BridgeSessionStatus": {
+          "enum": [
+            "starting",
+            "active",
+            "closing",
+            "closed",
+            "failed"
+          ],
+          "title": "BridgeSessionStatus",
+          "type": "string"
+        },
+        "ConfiguredKeyResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "configured": {
+              "const": true,
+              "title": "Configured",
+              "type": "boolean"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "configured"
+          ],
+          "title": "ConfiguredKeyResponse",
+          "type": "object"
+        },
+        "CreateHostSessionRequest": {
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Title"
+            }
+          },
+          "title": "CreateHostSessionRequest",
+          "type": "object"
+        },
+        "EffectiveCapability": {
+          "additionalProperties": false,
+          "properties": {
+            "availability": {
+              "enum": [
+                "available",
+                "unavailable",
+                "unknown",
+                "disabled",
+                "unsupported"
+              ],
+              "title": "Availability",
+              "type": "string"
+            },
+            "enabled": {
+              "title": "Enabled",
+              "type": "boolean"
+            },
+            "implemented": {
+              "title": "Implemented",
+              "type": "boolean"
+            },
+            "reason": {
+              "enum": [
+                "local_available",
+                "local_disabled",
+                "not_implemented",
+                "remote_verified",
+                "remote_unknown",
+                "remote_unsupported",
+                "runtime_unavailable"
+              ],
+              "title": "Reason",
+              "type": "string"
+            },
+            "remote_support": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Remote Support"
+            }
+          },
+          "required": [
+            "implemented",
+            "enabled",
+            "availability",
+            "reason"
+          ],
+          "title": "EffectiveCapability",
+          "type": "object"
+        },
+        "EndpointMode": {
+          "enum": [
+            "passthrough",
+            "aggregate"
+          ],
+          "title": "EndpointMode",
+          "type": "string"
+        },
+        "ErrorRaisedEventResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "created_at": {
+              "format": "date-time",
+              "title": "Created At",
+              "type": "string"
+            },
+            "details": {
+              "additionalProperties": true,
+              "title": "Details",
+              "type": "object"
+            },
+            "event_id": {
+              "title": "Event Id",
+              "type": "string"
+            },
+            "kind": {
+              "const": "error.raised",
+              "title": "Kind",
+              "type": "string"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "session_id": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "event_id",
+            "session_id",
+            "created_at",
+            "kind",
+            "message",
+            "details"
+          ],
+          "title": "ErrorRaisedEventResponse",
+          "type": "object"
+        },
+        "GatewayCapabilities": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "const": true,
+              "default": true,
+              "title": "Enabled",
+              "type": "boolean"
+            },
+            "mcp_apps_protocol_passthrough": {
+              "const": true,
+              "default": true,
+              "title": "Mcp Apps Protocol Passthrough",
+              "type": "boolean"
+            },
+            "session_inspection": {
+              "title": "Session Inspection",
+              "type": "boolean"
+            },
+            "topology_mutation": {
+              "const": false,
+              "default": false,
+              "title": "Topology Mutation",
+              "type": "boolean"
+            },
+            "topology_read": {
+              "title": "Topology Read",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "topology_read",
+            "session_inspection"
+          ],
+          "title": "GatewayCapabilities",
+          "type": "object"
+        },
+        "GatewayStatusResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "advertised_base_url": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Advertised Base Url"
+            },
+            "lifecycle_state": {
+              "const": "running",
+              "default": "running",
+              "title": "Lifecycle State",
+              "type": "string"
+            },
+            "published_endpoint_count": {
+              "title": "Published Endpoint Count",
+              "type": "integer"
+            },
+            "published_endpoint_slugs": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Published Endpoint Slugs",
+              "type": "array"
+            },
+            "topology_mode": {
+              "const": "frozen_seeded",
+              "default": "frozen_seeded",
+              "title": "Topology Mode",
+              "type": "string"
+            },
+            "version": {
+              "title": "Version",
+              "type": "string"
+            }
+          },
+          "required": [
+            "version",
+            "advertised_base_url",
+            "published_endpoint_count",
+            "published_endpoint_slugs"
+          ],
+          "title": "GatewayStatusResponse",
+          "type": "object"
+        },
+        "HistoryPageQuery": {
+          "additionalProperties": false,
+          "properties": {
+            "limit": {
+              "default": 100,
+              "maximum": 500.0,
+              "minimum": 1.0,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "offset": {
+              "default": 0,
+              "minimum": 0.0,
+              "title": "Offset",
+              "type": "integer"
+            },
+            "order": {
+              "default": "latest",
+              "enum": [
+                "oldest",
+                "latest"
+              ],
+              "title": "Order",
+              "type": "string"
+            }
+          },
+          "title": "HistoryPageQuery",
+          "type": "object"
+        },
+        "HistoryText": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "text",
+              "default": "text",
+              "title": "Kind",
+              "type": "string"
+            },
+            "text": {
+              "title": "Text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "title": "HistoryText",
+          "type": "object"
+        },
+        "HistoryToolCall": {
+          "additionalProperties": false,
+          "properties": {
+            "arguments": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              "title": "Arguments",
+              "type": "object"
+            },
+            "kind": {
+              "const": "tool_call",
+              "default": "tool_call",
+              "title": "Kind",
+              "type": "string"
+            },
+            "tool_call_id": {
+              "minLength": 1,
+              "title": "Tool Call Id",
+              "type": "string"
+            },
+            "tool_name": {
+              "minLength": 1,
+              "title": "Tool Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "tool_call_id",
+            "tool_name",
+            "arguments"
+          ],
+          "title": "HistoryToolCall",
+          "type": "object"
+        },
+        "HistoryUnsupportedContent": {
+          "additionalProperties": false,
+          "properties": {
+            "content_type": {
+              "minLength": 1,
+              "title": "Content Type",
+              "type": "string"
+            },
+            "kind": {
+              "const": "unsupported",
+              "default": "unsupported",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          "required": [
+            "content_type"
+          ],
+          "title": "HistoryUnsupportedContent",
+          "type": "object"
+        },
+        "HostErrorResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "enum": [
+                "invalid_request",
+                "run_not_found",
+                "internal_error",
+                "session_not_found",
+                "remote_session_not_found",
+                "runtime_binding_changed",
+                "runtime_unavailable",
+                "runtime_contract_error",
+                "target_busy",
+                "unsupported_operation",
+                "run_state_unknown"
+              ],
+              "title": "Code",
+              "type": "string"
+            },
+            "message": {
+              "title": "Message",
+              "type": "string"
+            },
+            "run_id": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Id"
+            },
+            "session_id": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "title": "HostErrorResponse",
+          "type": "object"
+        },
+        "HostReconcileResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "run_id": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            },
+            "session_id": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            },
+            "settled": {
+              "title": "Settled",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "session_id",
+            "run_id",
+            "settled"
+          ],
+          "title": "HostReconcileResponse",
+          "type": "object"
+        },
+        "HostSessionPageResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "has_more": {
+              "title": "Has More",
+              "type": "boolean"
+            },
+            "limit": {
+              "maximum": 200.0,
+              "minimum": 1.0,
+              "title": "Limit",
+              "type": "integer"
+            },
+            "offset": {
+              "minimum": 0.0,
+              "title": "Offset",
+              "type": "integer"
+            },
+            "sessions": {
+              "items": {
+                "$ref": "#/components/schemas/HostSessionResponse"
+              },
+              "title": "Sessions",
+              "type": "array"
+            }
+          },
+          "required": [
+            "sessions",
+            "limit",
+            "offset",
+            "has_more"
+          ],
+          "title": "HostSessionPageResponse",
+          "type": "object"
+        },
+        "HostSessionResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "binding_state": {
+              "enum": [
+                "unknown",
+                "available",
+                "missing",
+                "runtime_changed",
+                "unavailable"
+              ],
+              "title": "Binding State",
+              "type": "string"
+            },
+            "created_at": {
+              "format": "date-time",
+              "title": "Created At",
+              "type": "string"
+            },
+            "session_id": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            },
+            "target_id": {
+              "minLength": 1,
+              "title": "Target Id",
+              "type": "string"
+            },
+            "target_run": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AgentSessionRunStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Title"
+            }
+          },
+          "required": [
+            "session_id",
+            "target_id",
+            "created_at",
+            "binding_state"
+          ],
+          "title": "HostSessionResponse",
+          "type": "object"
+        },
+        "HostStopResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "accepted": {
+              "title": "Accepted",
+              "type": "boolean"
+            },
+            "run_id": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            },
+            "session_id": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            },
+            "settlement": {
+              "const": "unconfirmed",
+              "default": "unconfirmed",
+              "title": "Settlement",
+              "type": "string"
+            }
+          },
+          "required": [
+            "session_id",
+            "run_id",
+            "accepted"
+          ],
+          "title": "HostStopResponse",
+          "type": "object"
+        },
+        "JsonValue": {},
+        "ManagedEndpointBindingResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "binding_id": {
+              "format": "uuid",
+              "title": "Binding Id",
+              "type": "string"
+            },
+            "binding_revision_id": {
+              "format": "uuid",
+              "title": "Binding Revision Id",
+              "type": "string"
+            },
+            "enabled": {
+              "title": "Enabled",
+              "type": "boolean"
+            },
+            "namespace": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Namespace"
+            },
+            "priority": {
+              "title": "Priority",
+              "type": "integer"
+            },
+            "upstream_revision_id": {
+              "format": "uuid",
+              "title": "Upstream Revision Id",
+              "type": "string"
+            },
+            "upstream_server_id": {
+              "format": "uuid",
+              "title": "Upstream Server Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "binding_id",
+            "binding_revision_id",
+            "upstream_server_id",
+            "upstream_revision_id",
+            "namespace",
+            "priority",
+            "enabled"
+          ],
+          "title": "ManagedEndpointBindingResponse",
+          "type": "object"
+        },
+        "ManagedEndpointResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "advertised_url": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Advertised Url"
+            },
+            "bindings": {
+              "items": {
+                "$ref": "#/components/schemas/ManagedEndpointBindingResponse"
+              },
+              "title": "Bindings",
+              "type": "array"
+            },
+            "current_revision": {
+              "$ref": "#/components/schemas/RevisionMetadataResponse"
+            },
+            "display_name": {
+              "title": "Display Name",
+              "type": "string"
+            },
+            "enabled": {
+              "title": "Enabled",
+              "type": "boolean"
+            },
+            "endpoint_id": {
+              "format": "uuid",
+              "title": "Endpoint Id",
+              "type": "string"
+            },
+            "endpoint_path": {
+              "title": "Endpoint Path",
+              "type": "string"
+            },
+            "metadata": {
+              "additionalProperties": true,
+              "title": "Metadata",
+              "type": "object"
+            },
+            "mode": {
+              "$ref": "#/components/schemas/EndpointMode"
+            },
+            "slug": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          "required": [
+            "endpoint_id",
+            "slug",
+            "display_name",
+            "mode",
+            "bindings",
+            "enabled",
+            "metadata",
+            "current_revision",
+            "endpoint_path",
+            "advertised_url"
+          ],
+          "title": "ManagedEndpointResponse",
+          "type": "object"
+        },
+        "ManagedUpstreamResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "connection": {
+              "discriminator": {
+                "mapping": {
+                  "sse": "#/components/schemas/SseConnectionResponse",
+                  "stdio": "#/components/schemas/StdioConnectionResponse",
+                  "streamable-http": "#/components/schemas/StreamableHttpConnectionResponse"
+                },
+                "propertyName": "transport"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/StreamableHttpConnectionResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/SseConnectionResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/StdioConnectionResponse"
+                }
+              ],
+              "title": "Connection"
+            },
+            "current_revision": {
+              "$ref": "#/components/schemas/RevisionMetadataResponse"
+            },
+            "display_name": {
+              "title": "Display Name",
+              "type": "string"
+            },
+            "enabled": {
+              "title": "Enabled",
+              "type": "boolean"
+            },
+            "metadata": {
+              "additionalProperties": true,
+              "title": "Metadata",
+              "type": "object"
+            },
+            "server_id": {
+              "format": "uuid",
+              "title": "Server Id",
+              "type": "string"
+            },
+            "slug": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          "required": [
+            "server_id",
+            "slug",
+            "display_name",
+            "connection",
+            "enabled",
+            "metadata",
+            "current_revision"
+          ],
+          "title": "ManagedUpstreamResponse",
+          "type": "object"
+        },
+        "ProductCapabilitiesResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "agent_host": {
+              "$ref": "#/components/schemas/AgentHostCapabilitySnapshot"
+            },
+            "gateway": {
+              "$ref": "#/components/schemas/GatewayCapabilities"
+            }
+          },
+          "required": [
+            "gateway",
+            "agent_host"
+          ],
+          "title": "ProductCapabilitiesResponse",
+          "type": "object"
+        },
+        "ReadinessResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "const": "ready",
+              "default": "ready",
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "title": "ReadinessResponse",
+          "type": "object"
+        },
+        "ResourceContentResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "blob": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Blob"
+            },
+            "metadata": {
+              "additionalProperties": true,
+              "title": "Metadata",
+              "type": "object"
+            },
+            "mime_type": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mime Type"
+            },
+            "text": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Text"
+            },
+            "uri": {
+              "title": "Uri",
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri"
+          ],
+          "title": "ResourceContentResponse",
+          "type": "object"
+        },
+        "ResourceReadEventResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "created_at": {
+              "format": "date-time",
+              "title": "Created At",
+              "type": "string"
+            },
+            "event_id": {
+              "title": "Event Id",
+              "type": "string"
+            },
+            "kind": {
+              "const": "resource.read",
+              "title": "Kind",
+              "type": "string"
+            },
+            "read": {
+              "$ref": "#/components/schemas/ResourceReadRecordResponse"
+            },
+            "session_id": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "event_id",
+            "session_id",
+            "created_at",
+            "kind",
+            "read"
+          ],
+          "title": "ResourceReadEventResponse",
+          "type": "object"
+        },
+        "ResourceReadRecordResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "contents": {
+              "items": {
+                "$ref": "#/components/schemas/ResourceContentResponse"
+              },
+              "title": "Contents",
+              "type": "array"
+            },
+            "loaded_at": {
+              "format": "date-time",
+              "title": "Loaded At",
+              "type": "string"
+            },
+            "metadata": {
+              "additionalProperties": true,
+              "title": "Metadata",
+              "type": "object"
+            },
+            "requested_uri": {
+              "title": "Requested Uri",
+              "type": "string"
+            }
+          },
+          "required": [
+            "requested_uri",
+            "contents",
+            "loaded_at"
+          ],
+          "title": "ResourceReadRecordResponse",
+          "type": "object"
+        },
+        "RevisionMetadataResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "created_at": {
+              "format": "date-time",
+              "title": "Created At",
+              "type": "string"
+            },
+            "revision_id": {
+              "format": "uuid",
+              "title": "Revision Id",
+              "type": "string"
+            },
+            "revision_number": {
+              "title": "Revision Number",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "revision_id",
+            "revision_number",
+            "created_at"
+          ],
+          "title": "RevisionMetadataResponse",
+          "type": "object"
+        },
+        "RuntimeCapabilityObservation": {
+          "additionalProperties": false,
+          "properties": {
+            "availability": {
+              "enum": [
+                "available",
+                "unavailable",
+                "unknown"
+              ],
+              "title": "Availability",
+              "type": "string"
+            },
+            "checked_at": {
+              "format": "date-time",
+              "title": "Checked At",
+              "type": "string"
+            },
+            "reason": {
+              "enum": [
+                "discovery_verified",
+                "discovery_unsupported",
+                "invalid_response",
+                "authentication_failed",
+                "runtime_unavailable",
+                "probe_timeout",
+                "probe_failed"
+              ],
+              "title": "Reason",
+              "type": "string"
+            },
+            "support": {
+              "$ref": "#/components/schemas/RuntimeSupport"
+            }
+          },
+          "required": [
+            "availability",
+            "reason"
+          ],
+          "title": "RuntimeCapabilityObservation",
+          "type": "object"
+        },
+        "RuntimeSupport": {
+          "additionalProperties": false,
+          "properties": {
+            "compatibility_streaming": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Compatibility Streaming"
+            },
+            "run_status": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Status"
+            },
+            "run_stop": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Stop"
+            },
+            "session_create": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Create"
+            },
+            "session_history": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session History"
+            },
+            "session_reopen": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Reopen"
+            },
+            "session_streaming": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Streaming"
+            }
+          },
+          "title": "RuntimeSupport",
+          "type": "object"
+        },
+        "SequencedSessionEventResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "event": {
+              "discriminator": {
+                "mapping": {
+                  "error.raised": "#/components/schemas/ErrorRaisedEventResponse",
+                  "resource.read": "#/components/schemas/ResourceReadEventResponse",
+                  "session.started": "#/components/schemas/SessionStartedEventResponse",
+                  "tool.call.completed": "#/components/schemas/ToolCallCompletedEventResponse",
+                  "tool.call.started": "#/components/schemas/ToolCallStartedEventResponse",
+                  "tool.discovered": "#/components/schemas/ToolDiscoveredEventResponse",
+                  "upstream.availability.changed": "#/components/schemas/UpstreamAvailabilityChangedEventResponse"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SessionStartedEventResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/ToolDiscoveredEventResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/ToolCallStartedEventResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/ToolCallCompletedEventResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/ResourceReadEventResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/ErrorRaisedEventResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/UpstreamAvailabilityChangedEventResponse"
+                }
+              ],
+              "title": "Event"
+            },
+            "sequence": {
+              "title": "Sequence",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "sequence",
+            "event"
+          ],
+          "title": "SequencedSessionEventResponse",
+          "type": "object"
+        },
+        "SessionEventPageResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/SequencedSessionEventResponse"
+              },
+              "title": "Items",
+              "type": "array"
+            },
+            "next_after": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Next After"
+            }
+          },
+          "required": [
+            "items",
+            "next_after"
+          ],
+          "title": "SessionEventPageResponse",
+          "type": "object"
+        },
+        "SessionPageResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/SessionResponse"
+              },
+              "title": "Items",
+              "type": "array"
+            },
+            "next_cursor": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Next Cursor"
+            }
+          },
+          "required": [
+            "items",
+            "next_cursor"
+          ],
+          "title": "SessionPageResponse",
+          "type": "object"
+        },
+        "SessionResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "closed_at": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Closed At"
+            },
+            "created_at": {
+              "format": "date-time",
+              "title": "Created At",
+              "type": "string"
+            },
+            "endpoint_id": {
+              "format": "uuid",
+              "title": "Endpoint Id",
+              "type": "string"
+            },
+            "endpoint_revision_id": {
+              "format": "uuid",
+              "title": "Endpoint Revision Id",
+              "type": "string"
+            },
+            "error_message": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error Message"
+            },
+            "last_activity_at": {
+              "format": "date-time",
+              "title": "Last Activity At",
+              "type": "string"
+            },
+            "session_id": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            },
+            "status": {
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "session_id",
+            "endpoint_id",
+            "endpoint_revision_id",
+            "status",
+            "created_at",
+            "last_activity_at",
+            "closed_at",
+            "error_message"
+          ],
+          "title": "SessionResponse",
+          "type": "object"
+        },
+        "SessionSnapshotResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "active_tool_calls": {
+              "items": {
+                "$ref": "#/components/schemas/ToolCallRecordResponse"
+              },
+              "title": "Active Tool Calls",
+              "type": "array"
+            },
+            "discovered_tools": {
+              "items": {
+                "$ref": "#/components/schemas/ToolDescriptorResponse"
+              },
+              "title": "Discovered Tools",
+              "type": "array"
+            },
+            "event_count": {
+              "title": "Event Count",
+              "type": "integer"
+            },
+            "last_error": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last Error"
+            },
+            "resource_reads": {
+              "items": {
+                "$ref": "#/components/schemas/ResourceReadRecordResponse"
+              },
+              "title": "Resource Reads",
+              "type": "array"
+            },
+            "session_id": {
+              "title": "Session Id",
+              "type": "string"
+            },
+            "status": {
+              "title": "Status",
+              "type": "string"
+            },
+            "updated_at": {
+              "format": "date-time",
+              "title": "Updated At",
+              "type": "string"
+            },
+            "upstream": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/UpstreamInitializationResponse"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "upstream_availability": {
+              "items": {
+                "$ref": "#/components/schemas/UpstreamAvailabilityResponse"
+              },
+              "title": "Upstream Availability",
+              "type": "array"
+            }
+          },
+          "required": [
+            "session_id",
+            "status",
+            "upstream",
+            "upstream_availability",
+            "discovered_tools",
+            "active_tool_calls",
+            "resource_reads",
+            "last_error",
+            "event_count",
+            "updated_at"
+          ],
+          "title": "SessionSnapshotResponse",
+          "type": "object"
+        },
+        "SessionStartedEventResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "created_at": {
+              "format": "date-time",
+              "title": "Created At",
+              "type": "string"
+            },
+            "event_id": {
+              "title": "Event Id",
+              "type": "string"
+            },
+            "kind": {
+              "const": "session.started",
+              "title": "Kind",
+              "type": "string"
+            },
+            "session_id": {
+              "title": "Session Id",
+              "type": "string"
+            },
+            "upstream": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/UpstreamInitializationResponse"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "event_id",
+            "session_id",
+            "created_at",
+            "kind"
+          ],
+          "title": "SessionStartedEventResponse",
+          "type": "object"
+        },
+        "SseConnectionResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "headers": {
+              "items": {
+                "$ref": "#/components/schemas/ConfiguredKeyResponse"
+              },
+              "title": "Headers",
+              "type": "array"
+            },
+            "transport": {
+              "const": "sse",
+              "title": "Transport",
+              "type": "string"
+            },
+            "url": {
+              "title": "Url",
+              "type": "string"
+            }
+          },
+          "required": [
+            "transport",
+            "url",
+            "headers"
+          ],
+          "title": "SseConnectionResponse",
+          "type": "object"
+        },
+        "StartHostSessionRunRequest": {
+          "additionalProperties": false,
+          "properties": {
+            "input_text": {
+              "minLength": 1,
+              "pattern": "\\S",
+              "title": "Input Text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "input_text"
+          ],
+          "title": "StartHostSessionRunRequest",
+          "type": "object"
+        },
+        "StdioConnectionResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "args": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Args",
+              "type": "array"
+            },
+            "command": {
+              "title": "Command",
+              "type": "string"
+            },
+            "cwd": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cwd"
+            },
+            "env": {
+              "items": {
+                "$ref": "#/components/schemas/ConfiguredKeyResponse"
+              },
+              "title": "Env",
+              "type": "array"
+            },
+            "transport": {
+              "const": "stdio",
+              "title": "Transport",
+              "type": "string"
+            }
+          },
+          "required": [
+            "transport",
+            "command",
+            "args",
+            "cwd",
+            "env"
+          ],
+          "title": "StdioConnectionResponse",
+          "type": "object"
+        },
+        "StreamableHttpConnectionResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "headers": {
+              "items": {
+                "$ref": "#/components/schemas/ConfiguredKeyResponse"
+              },
+              "title": "Headers",
+              "type": "array"
+            },
+            "timeout_seconds": {
+              "title": "Timeout Seconds",
+              "type": "number"
+            },
+            "transport": {
+              "const": "streamable-http",
+              "title": "Transport",
+              "type": "string"
+            },
+            "url": {
+              "title": "Url",
+              "type": "string"
+            }
+          },
+          "required": [
+            "transport",
+            "url",
+            "headers",
+            "timeout_seconds"
+          ],
+          "title": "StreamableHttpConnectionResponse",
+          "type": "object"
+        },
+        "ToolCallCompletedEventResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "call": {
+              "$ref": "#/components/schemas/ToolCallRecordResponse"
+            },
+            "created_at": {
+              "format": "date-time",
+              "title": "Created At",
+              "type": "string"
+            },
+            "event_id": {
+              "title": "Event Id",
+              "type": "string"
+            },
+            "kind": {
+              "const": "tool.call.completed",
+              "title": "Kind",
+              "type": "string"
+            },
+            "session_id": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "event_id",
+            "session_id",
+            "created_at",
+            "kind",
+            "call"
+          ],
+          "title": "ToolCallCompletedEventResponse",
+          "type": "object"
+        },
+        "ToolCallRecordResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "arguments": {
+              "additionalProperties": true,
+              "title": "Arguments",
+              "type": "object"
+            },
+            "call_id": {
+              "title": "Call Id",
+              "type": "string"
+            },
+            "completed_at": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Completed At"
+            },
+            "result": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ToolCallResultResponse"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "started_at": {
+              "format": "date-time",
+              "title": "Started At",
+              "type": "string"
+            },
+            "status": {
+              "title": "Status",
+              "type": "string"
+            },
+            "tool_name": {
+              "title": "Tool Name",
+              "type": "string"
+            }
+          },
+          "required": [
+            "call_id",
+            "tool_name",
+            "status",
+            "started_at"
+          ],
+          "title": "ToolCallRecordResponse",
+          "type": "object"
+        },
+        "ToolCallResultResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "content": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "title": "Content",
+              "type": "array"
+            },
+            "is_error": {
+              "default": false,
+              "title": "Is Error",
+              "type": "boolean"
+            },
+            "metadata": {
+              "additionalProperties": true,
+              "title": "Metadata",
+              "type": "object"
+            },
+            "structured_content": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Structured Content"
+            }
+          },
+          "title": "ToolCallResultResponse",
+          "type": "object"
+        },
+        "ToolCallStartedEventResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "call": {
+              "$ref": "#/components/schemas/ToolCallRecordResponse"
+            },
+            "created_at": {
+              "format": "date-time",
+              "title": "Created At",
+              "type": "string"
+            },
+            "event_id": {
+              "title": "Event Id",
+              "type": "string"
+            },
+            "kind": {
+              "const": "tool.call.started",
+              "title": "Kind",
+              "type": "string"
+            },
+            "session_id": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "event_id",
+            "session_id",
+            "created_at",
+            "kind",
+            "call"
+          ],
+          "title": "ToolCallStartedEventResponse",
+          "type": "object"
+        },
+        "ToolDescriptorResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "annotations": {
+              "additionalProperties": true,
+              "title": "Annotations",
+              "type": "object"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Description"
+            },
+            "input_schema": {
+              "additionalProperties": true,
+              "title": "Input Schema",
+              "type": "object"
+            },
+            "metadata": {
+              "additionalProperties": true,
+              "title": "Metadata",
+              "type": "object"
+            },
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "output_schema": {
+              "anyOf": [
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Output Schema"
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Title"
+            },
+            "ui_resource_uri": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ui Resource Uri"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "ToolDescriptorResponse",
+          "type": "object"
+        },
+        "ToolDiscoveredEventResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "created_at": {
+              "format": "date-time",
+              "title": "Created At",
+              "type": "string"
+            },
+            "event_id": {
+              "title": "Event Id",
+              "type": "string"
+            },
+            "kind": {
+              "const": "tool.discovered",
+              "title": "Kind",
+              "type": "string"
+            },
+            "session_id": {
+              "title": "Session Id",
+              "type": "string"
+            },
+            "tool": {
+              "$ref": "#/components/schemas/ToolDescriptorResponse"
+            }
+          },
+          "required": [
+            "event_id",
+            "session_id",
+            "created_at",
+            "kind",
+            "tool"
+          ],
+          "title": "ToolDiscoveredEventResponse",
+          "type": "object"
+        },
+        "TopologyResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "advertised_base_url": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Advertised Base Url"
+            },
+            "endpoints": {
+              "items": {
+                "$ref": "#/components/schemas/ManagedEndpointResponse"
+              },
+              "title": "Endpoints",
+              "type": "array"
+            },
+            "upstreams": {
+              "items": {
+                "$ref": "#/components/schemas/ManagedUpstreamResponse"
+              },
+              "title": "Upstreams",
+              "type": "array"
+            }
+          },
+          "required": [
+            "advertised_base_url",
+            "upstreams",
+            "endpoints"
+          ],
+          "title": "TopologyResponse",
+          "type": "object"
+        },
+        "UpstreamAvailabilityChangedEventResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "availability": {
+              "$ref": "#/components/schemas/UpstreamAvailabilityResponse"
+            },
+            "created_at": {
+              "format": "date-time",
+              "title": "Created At",
+              "type": "string"
+            },
+            "event_id": {
+              "title": "Event Id",
+              "type": "string"
+            },
+            "kind": {
+              "const": "upstream.availability.changed",
+              "title": "Kind",
+              "type": "string"
+            },
+            "session_id": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "event_id",
+            "session_id",
+            "created_at",
+            "kind",
+            "availability"
+          ],
+          "title": "UpstreamAvailabilityChangedEventResponse",
+          "type": "object"
+        },
+        "UpstreamAvailabilityResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "binding_revision_id": {
+              "title": "Binding Revision Id",
+              "type": "string"
+            },
+            "error_message": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error Message"
+            },
+            "failure_kind": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Failure Kind"
+            },
+            "identity": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/UpstreamInitializationResponse"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "namespace": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Namespace"
+            },
+            "status": {
+              "title": "Status",
+              "type": "string"
+            },
+            "updated_at": {
+              "format": "date-time",
+              "title": "Updated At",
+              "type": "string"
+            },
+            "upstream_revision_id": {
+              "title": "Upstream Revision Id",
+              "type": "string"
+            },
+            "upstream_server_id": {
+              "title": "Upstream Server Id",
+              "type": "string"
+            }
+          },
+          "required": [
+            "binding_revision_id",
+            "upstream_revision_id",
+            "upstream_server_id",
+            "status",
+            "updated_at"
+          ],
+          "title": "UpstreamAvailabilityResponse",
+          "type": "object"
+        },
+        "UpstreamInitializationResponse": {
+          "additionalProperties": false,
+          "properties": {
+            "instructions": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Instructions"
+            },
+            "protocol_version": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Protocol Version"
+            },
+            "raw_capabilities": {
+              "additionalProperties": true,
+              "title": "Raw Capabilities",
+              "type": "object"
+            },
+            "server_name": {
+              "title": "Server Name",
+              "type": "string"
+            },
+            "server_version": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Server Version"
+            },
+            "supports_resources": {
+              "default": false,
+              "title": "Supports Resources",
+              "type": "boolean"
+            },
+            "supports_tools": {
+              "default": true,
+              "title": "Supports Tools",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "server_name"
+          ],
+          "title": "UpstreamInitializationResponse",
+          "type": "object"
+        }
+      }
+    },
+    "info": {
+      "title": "Mabrid",
+      "version": "0.1.0"
+    },
+    "openapi": "3.1.0",
+    "paths": {
+      "/api/v1/agent-host/target": {
+        "get": {
+          "operationId": "get_target_api_v1_agent_host_target_get",
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/AgentTargetResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "404": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "422": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            }
+          },
+          "summary": "Get Target",
+          "tags": [
+            "agent-host-management"
+          ]
+        }
+      },
+      "/api/v1/capabilities": {
+        "get": {
+          "operationId": "capabilities_api_v1_capabilities_get",
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProductCapabilitiesResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            }
+          },
+          "summary": "Capabilities",
+          "tags": [
+            "Capabilities"
+          ]
+        }
+      },
+      "/api/v1/gateway/sessions": {
+        "get": {
+          "operationId": "list_sessions_api_v1_gateway_sessions_get",
+          "parameters": [
+            {
+              "in": "query",
+              "name": "endpoint_id",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Endpoint Id"
+              }
+            },
+            {
+              "in": "query",
+              "name": "status",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/BridgeSessionStatus"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Status"
+              }
+            },
+            {
+              "in": "query",
+              "name": "cursor",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Cursor"
+              }
+            },
+            {
+              "in": "query",
+              "name": "limit",
+              "required": false,
+              "schema": {
+                "default": 50,
+                "maximum": 200,
+                "minimum": 1,
+                "title": "Limit",
+                "type": "integer"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SessionPageResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "400": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "404": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "422": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "500": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            }
+          },
+          "summary": "List Sessions",
+          "tags": [
+            "gateway-management"
+          ]
+        }
+      },
+      "/api/v1/gateway/sessions/{session_id}": {
+        "get": {
+          "operationId": "get_session_api_v1_gateway_sessions__session_id__get",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "session_id",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "title": "Session Id",
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SessionResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "400": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "404": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "422": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "500": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            }
+          },
+          "summary": "Get Session",
+          "tags": [
+            "gateway-management"
+          ]
+        }
+      },
+      "/api/v1/gateway/sessions/{session_id}/events": {
+        "get": {
+          "operationId": "list_session_events_api_v1_gateway_sessions__session_id__events_get",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "session_id",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "title": "Session Id",
+                "type": "string"
+              }
+            },
+            {
+              "in": "query",
+              "name": "after",
+              "required": false,
+              "schema": {
+                "default": 0,
+                "minimum": 0,
+                "title": "After",
+                "type": "integer"
+              }
+            },
+            {
+              "in": "query",
+              "name": "limit",
+              "required": false,
+              "schema": {
+                "default": 100,
+                "maximum": 500,
+                "minimum": 1,
+                "title": "Limit",
+                "type": "integer"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SessionEventPageResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "400": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "404": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "422": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "500": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            }
+          },
+          "summary": "List Session Events",
+          "tags": [
+            "gateway-management"
+          ]
+        }
+      },
+      "/api/v1/gateway/sessions/{session_id}/snapshot": {
+        "get": {
+          "operationId": "get_session_snapshot_api_v1_gateway_sessions__session_id__snapshot_get",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "session_id",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "title": "Session Id",
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SessionSnapshotResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "400": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "404": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "422": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "500": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            }
+          },
+          "summary": "Get Session Snapshot",
+          "tags": [
+            "gateway-management"
+          ]
+        }
+      },
+      "/api/v1/gateway/status": {
+        "get": {
+          "operationId": "get_status_api_v1_gateway_status_get",
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/GatewayStatusResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "400": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "404": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "422": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "500": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            }
+          },
+          "summary": "Get Status",
+          "tags": [
+            "gateway-management"
+          ]
+        }
+      },
+      "/api/v1/gateway/topology": {
+        "get": {
+          "operationId": "get_topology_api_v1_gateway_topology_get",
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/TopologyResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "400": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "404": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "422": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            },
+            "500": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            }
+          },
+          "summary": "Get Topology",
+          "tags": [
+            "gateway-management"
+          ]
+        }
+      },
+      "/api/v1/host/sessions": {
+        "get": {
+          "operationId": "list_sessions_api_v1_host_sessions_get",
+          "parameters": [
+            {
+              "in": "query",
+              "name": "limit",
+              "required": false,
+              "schema": {
+                "default": 20,
+                "maximum": 200,
+                "minimum": 1,
+                "title": "Limit",
+                "type": "integer"
+              }
+            },
+            {
+              "in": "query",
+              "name": "offset",
+              "required": false,
+              "schema": {
+                "default": 0,
+                "minimum": 0,
+                "title": "Offset",
+                "type": "integer"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostSessionPageResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "404": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Not Found"
+            },
+            "409": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Conflict"
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Unprocessable Entity"
+            },
+            "500": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Internal Server Error"
+            },
+            "502": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Bad Gateway"
+            },
+            "503": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Service Unavailable"
+            }
+          },
+          "summary": "List Sessions",
+          "tags": [
+            "Host"
+          ]
+        },
+        "post": {
+          "operationId": "create_session_api_v1_host_sessions_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateHostSessionRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "201": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostSessionResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "404": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Not Found"
+            },
+            "409": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Conflict"
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Unprocessable Entity"
+            },
+            "500": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Internal Server Error"
+            },
+            "502": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Bad Gateway"
+            },
+            "503": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Service Unavailable"
+            }
+          },
+          "summary": "Create Session",
+          "tags": [
+            "Host"
+          ]
+        }
+      },
+      "/api/v1/host/sessions/{session_id}": {
+        "get": {
+          "operationId": "get_session_api_v1_host_sessions__session_id__get",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "session_id",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "title": "Session Id",
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostSessionResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "404": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Not Found"
+            },
+            "409": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Conflict"
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Unprocessable Entity"
+            },
+            "500": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Internal Server Error"
+            },
+            "502": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Bad Gateway"
+            },
+            "503": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Service Unavailable"
+            }
+          },
+          "summary": "Get Session",
+          "tags": [
+            "Host"
+          ]
+        }
+      },
+      "/api/v1/host/sessions/{session_id}/history": {
+        "get": {
+          "operationId": "get_history_api_v1_host_sessions__session_id__history_get",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "session_id",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "title": "Session Id",
+                "type": "string"
+              }
+            },
+            {
+              "in": "query",
+              "name": "limit",
+              "required": false,
+              "schema": {
+                "default": 100,
+                "maximum": 500,
+                "minimum": 1,
+                "title": "Limit",
+                "type": "integer"
+              }
+            },
+            {
+              "in": "query",
+              "name": "offset",
+              "required": false,
+              "schema": {
+                "default": 0,
+                "minimum": 0,
+                "title": "Offset",
+                "type": "integer"
+              }
+            },
+            {
+              "in": "query",
+              "name": "order",
+              "required": false,
+              "schema": {
+                "default": "latest",
+                "pattern": "^(oldest|latest)$",
+                "title": "Order",
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/AgentHistoryPage"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "404": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Not Found"
+            },
+            "409": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Conflict"
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Unprocessable Entity"
+            },
+            "500": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Internal Server Error"
+            },
+            "502": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Bad Gateway"
+            },
+            "503": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Service Unavailable"
+            }
+          },
+          "summary": "Get History",
+          "tags": [
+            "Host"
+          ]
+        }
+      },
+      "/api/v1/host/sessions/{session_id}/runs": {
+        "post": {
+          "operationId": "start_run_api_v1_host_sessions__session_id__runs_post",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "session_id",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "title": "Session Id",
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartHostSessionRunRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "content": {
+                "text/event-stream": {
+                  "schema": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "404": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Not Found"
+            },
+            "409": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Conflict"
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Unprocessable Entity"
+            },
+            "500": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Internal Server Error"
+            },
+            "502": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Bad Gateway"
+            },
+            "503": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Service Unavailable"
+            }
+          },
+          "summary": "Start Run",
+          "tags": [
+            "Host"
+          ]
+        }
+      },
+      "/api/v1/host/sessions/{session_id}/runs/{run_id}/cancel": {
+        "post": {
+          "operationId": "cancel_run_api_v1_host_sessions__session_id__runs__run_id__cancel_post",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "session_id",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "title": "Session Id",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "run_id",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "title": "Run Id",
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostStopResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "404": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Not Found"
+            },
+            "409": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Conflict"
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Unprocessable Entity"
+            },
+            "500": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Internal Server Error"
+            },
+            "502": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Bad Gateway"
+            },
+            "503": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Service Unavailable"
+            }
+          },
+          "summary": "Cancel Run",
+          "tags": [
+            "Host"
+          ]
+        }
+      },
+      "/api/v1/host/sessions/{session_id}/runs/{run_id}/reconcile": {
+        "post": {
+          "operationId": "reconcile_run_api_v1_host_sessions__session_id__runs__run_id__reconcile_post",
+          "parameters": [
+            {
+              "in": "path",
+              "name": "session_id",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "title": "Session Id",
+                "type": "string"
+              }
+            },
+            {
+              "in": "path",
+              "name": "run_id",
+              "required": true,
+              "schema": {
+                "format": "uuid",
+                "title": "Run Id",
+                "type": "string"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostReconcileResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "404": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Not Found"
+            },
+            "409": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Conflict"
+            },
+            "422": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Unprocessable Entity"
+            },
+            "500": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Internal Server Error"
+            },
+            "502": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Bad Gateway"
+            },
+            "503": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HostErrorResponse"
+                  }
+                }
+              },
+              "description": "Service Unavailable"
+            }
+          },
+          "summary": "Reconcile Run",
+          "tags": [
+            "Host"
+          ]
+        }
+      },
+      "/health": {
+        "get": {
+          "operationId": "health_health_get",
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "title": "Response Health Health Get",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            }
+          },
+          "summary": "Health"
+        }
+      },
+      "/ready": {
+        "get": {
+          "operationId": "ready_ready_get",
+          "responses": {
+            "200": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ReadinessResponse"
+                  }
+                }
+              },
+              "description": "Successful Response"
+            },
+            "503": {
+              "content": {
+                "application/problem+json": {
+                  "schema": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "code": {
+                        "title": "Code",
+                        "type": "string"
+                      },
+                      "detail": {
+                        "title": "Detail",
+                        "type": "string"
+                      },
+                      "status": {
+                        "title": "Status",
+                        "type": "integer"
+                      },
+                      "title": {
+                        "title": "Title",
+                        "type": "string"
+                      },
+                      "type": {
+                        "title": "Type",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code"
+                    ],
+                    "title": "ProblemDetails",
+                    "type": "object"
+                  }
+                }
+              },
+              "description": "Management or readiness failure."
+            }
+          },
+          "summary": "Ready",
+          "tags": [
+            "readiness"
+          ]
+        }
+      }
+    }
+  },
+  "stream": {
+    "automatic_resubmission": false,
+    "disconnect": "cleanup, not confirmed user cancellation",
+    "event_id": "event_id",
+    "event_name": "event.kind",
+    "last_event_id": "rejected as unsupported_operation",
+    "media_type": "text/event-stream",
+    "method": "POST",
+    "replay": false,
+    "sequence": "contiguous per Run, starting at 1",
+    "terminal_kinds": [
+      "run.completed",
+      "run.cancelled",
+      "run.failed"
+    ]
+  }
+}

@@ -1,0 +1,119 @@
+[
+  {"name": "create-session", "schema": "CreateHostSessionRequest", "value": {"title": "First conversation"}},
+  {"name": "new-input-only", "schema": "StartHostSessionRunRequest", "value": {"input_text": "Inspect the current value."}},
+  {"name": "session-with-unsettled-target", "schema": "HostSessionResponse", "value": {
+    "session_id": "10000000-0000-4000-8000-000000000001", "target_id": "hermes", "title": "First conversation",
+    "created_at": "2026-10-10T12:00:00Z", "binding_state": "available",
+    "target_run": {"session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "state": "unsettled"}
+  }},
+  {"name": "local-session-page", "schema": "HostSessionPageResponse", "value": {
+    "sessions": [{"session_id": "10000000-0000-4000-8000-000000000001", "target_id": "hermes", "title": "First conversation", "created_at": "2026-10-10T12:00:00Z", "binding_state": "unknown", "target_run": null}],
+    "limit": 20, "offset": 0, "has_more": false
+  }},
+  {"name": "runtime-owned-history", "schema": "AgentHistoryPage", "value": {
+    "session_id": "10000000-0000-4000-8000-000000000001",
+    "messages": [
+      {"message_id": "message-1", "role": "user", "content": [{"kind": "text", "text": "Inspect the current value."}], "tool_call_id": null, "tool_name": null, "created_at": null},
+      {"message_id": "message-2", "role": "assistant", "content": [{"kind": "text", "text": "Inspecting."}, {"kind": "tool_call", "tool_call_id": "call-1", "tool_name": "inspect", "arguments": {"value": 42}}], "tool_call_id": null, "tool_name": null, "created_at": null},
+      {"message_id": "message-3", "role": "tool", "content": [{"kind": "text", "text": "The value is 42."}], "tool_call_id": "call-1", "tool_name": "inspect", "created_at": null},
+      {"message_id": "message-4", "role": "unsupported", "content": [{"kind": "unsupported", "content_type": "image"}], "tool_call_id": null, "tool_name": null, "created_at": null}
+    ],
+    "query": {"limit": 100, "offset": 0, "order": "latest"}, "has_more": null
+  }},
+  {"name": "stop-accepted-not-terminal", "schema": "HostStopResponse", "value": {
+    "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "accepted": true, "settlement": "unconfirmed"
+  }},
+  {"name": "reconcile-still-unknown", "schema": "HostReconcileResponse", "value": {
+    "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "settled": false
+  }},
+  {"name": "safe-admission-error", "schema": "HostErrorResponse", "value": {
+    "code": "run_state_unknown", "message": "Run settlement is unknown; overlapping execution is not allowed.", "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001"
+  }},
+  {"name": "run-started", "schema": "HostStreamEvent", "value": {
+    "event_id": "30000000-0000-4000-8000-000000000001", "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "sequence": 1, "created_at": "2026-10-10T12:00:01Z",
+    "event": {"kind": "run.started", "target_id": "hermes"}
+  }},
+  {"name": "tool-started", "schema": "HostStreamEvent", "value": {
+    "event_id": "30000000-0000-4000-8000-000000000002", "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "sequence": 2, "created_at": "2026-10-10T12:00:02Z",
+    "event": {"kind": "tool.started", "tool_invocation_id": "40000000-0000-4000-8000-000000000001", "tool_name": "inspect", "arguments": {"value": 42}}
+  }},
+  {"name": "tool-completed", "schema": "HostStreamEvent", "value": {
+    "event_id": "30000000-0000-4000-8000-000000000003", "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "sequence": 3, "created_at": "2026-10-10T12:00:03Z",
+    "event": {"kind": "tool.completed", "tool_invocation_id": "40000000-0000-4000-8000-000000000001", "tool_name": "inspect", "result": {"content": [{"type": "text", "text": "The value is 42."}], "structured_content": {"value": 42}, "is_error": false, "metadata": {}}}
+  }},
+  {"name": "widget-created", "schema": "HostStreamEvent", "value": {
+    "event_id": "30000000-0000-4000-8000-000000000004", "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "sequence": 4, "created_at": "2026-10-10T12:00:04Z",
+    "event": {"kind": "widget.created", "widget": {
+      "widget_id": "50000000-0000-4000-8000-000000000001", "tool_invocation_id": "40000000-0000-4000-8000-000000000001", "tool_name": "inspect",
+      "tool_result": {"content": [{"type": "text", "text": "The value is 42."}], "structured_content": {"value": 42}, "is_error": false, "metadata": {}},
+      "application_resource_uri": "ui://fixture/inspect",
+      "resource_contents": [{"uri": "ui://fixture/inspect", "mime_type": "text/html;profile=mcp-app", "text": "<main>42</main>", "blob": null, "metadata": {"ui": {"csp": {"connectDomains": [], "resourceDomains": []}}}}],
+      "resource_metadata": {}
+    }}
+  }},
+  {"name": "assistant-delta", "schema": "HostStreamEvent", "value": {
+    "event_id": "30000000-0000-4000-8000-000000000005", "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "sequence": 5, "created_at": "2026-10-10T12:00:05Z",
+    "event": {"kind": "assistant.text.delta", "delta": "The value is 42."}
+  }},
+  {"name": "assistant-text-completed", "schema": "HostStreamEvent", "value": {
+    "event_id": "30000000-0000-4000-8000-000000000006", "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "sequence": 6, "created_at": "2026-10-10T12:00:06Z",
+    "event": {"kind": "assistant.text.completed", "text": "The value is 42."}
+  }},
+  {"name": "run-completed", "schema": "HostStreamEvent", "value": {
+    "event_id": "30000000-0000-4000-8000-000000000007", "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "sequence": 7, "created_at": "2026-10-10T12:00:07Z",
+    "event": {"kind": "run.completed", "output_text": "The value is 42.", "usage": {"input_tokens": 10, "output_tokens": 5}}
+  }},
+  {"name": "alternate-tool-failed", "schema": "HostStreamEvent", "value": {
+    "event_id": "30000000-0000-4000-8000-000000000008", "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "sequence": 3, "created_at": "2026-10-10T12:00:03Z",
+    "event": {"kind": "tool.failed", "tool_invocation_id": "40000000-0000-4000-8000-000000000001", "tool_name": "inspect", "error_code": "upstream_transport", "error_message": "Tool invocation failed.", "result": null}
+  }},
+  {"name": "alternate-widget-failed", "schema": "HostStreamEvent", "value": {
+    "event_id": "30000000-0000-4000-8000-000000000009", "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "sequence": 4, "created_at": "2026-10-10T12:00:04Z",
+    "event": {"kind": "widget.failed", "tool_invocation_id": "40000000-0000-4000-8000-000000000001", "tool_name": "inspect", "tool_result": {"content": [{"type": "text", "text": "The value is 42."}], "structured_content": {"value": 42}, "is_error": false, "metadata": {}}, "application_resource_uri": "ui://fixture/inspect", "error_message": "Widget resource is unavailable."}
+  }},
+  {"name": "alternate-run-cancelled", "schema": "HostStreamEvent", "value": {
+    "event_id": "30000000-0000-4000-8000-000000000010", "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "sequence": 7, "created_at": "2026-10-10T12:00:07Z",
+    "event": {"kind": "run.cancelled"}
+  }},
+  {"name": "alternate-run-failed-unknown", "schema": "HostStreamEvent", "value": {
+    "event_id": "30000000-0000-4000-8000-000000000011", "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001", "sequence": 7, "created_at": "2026-10-10T12:00:07Z",
+    "event": {"kind": "run.failed", "error": {"code": "run_state_unknown", "message": "Run settlement is unknown; overlapping execution is not allowed.", "session_id": "10000000-0000-4000-8000-000000000001", "run_id": "20000000-0000-4000-8000-000000000001"}}
+  }},
+  {"name": "capabilities-disabled-host", "schema": "ProductCapabilitiesResponse", "value": {
+    "gateway": {"enabled": true, "topology_read": true, "session_inspection": true, "topology_mutation": false, "mcp_apps_protocol_passthrough": true},
+    "agent_host": {"enabled": false, "target_id": null, "native_runtime": null, "compatibility_runtime": null, "max_concurrent_runs": 1, "features": {
+      "session_list": {"implemented": true, "enabled": false, "remote_support": null, "availability": "disabled", "reason": "local_disabled"},
+      "session_create": {"implemented": true, "enabled": false, "remote_support": null, "availability": "disabled", "reason": "local_disabled"},
+      "session_reopen": {"implemented": true, "enabled": false, "remote_support": null, "availability": "disabled", "reason": "local_disabled"},
+      "session_history": {"implemented": true, "enabled": false, "remote_support": null, "availability": "disabled", "reason": "local_disabled"},
+      "session_streaming": {"implemented": true, "enabled": false, "remote_support": null, "availability": "disabled", "reason": "local_disabled"},
+      "run_cancel": {"implemented": true, "enabled": false, "remote_support": null, "availability": "disabled", "reason": "local_disabled"},
+      "run_reconcile": {"implemented": true, "enabled": false, "remote_support": null, "availability": "disabled", "reason": "local_disabled"},
+      "tool_activity": {"implemented": true, "enabled": false, "remote_support": null, "availability": "disabled", "reason": "local_disabled"},
+      "widgets": {"implemented": true, "enabled": false, "remote_support": null, "availability": "disabled", "reason": "local_disabled"},
+      "compatibility_streaming": {"implemented": true, "enabled": false, "remote_support": null, "availability": "disabled", "reason": "local_disabled"},
+      "host_actions": {"implemented": false, "enabled": false, "remote_support": null, "availability": "unsupported", "reason": "not_implemented"},
+      "event_replay": {"implemented": false, "enabled": false, "remote_support": null, "availability": "unsupported", "reason": "not_implemented"},
+      "remote_session_import": {"implemented": false, "enabled": false, "remote_support": null, "availability": "unsupported", "reason": "not_implemented"}
+    }}
+  }},
+  {"name": "runtime-unknown-support", "schema": "RuntimeCapabilityObservation", "value": {
+    "availability": "available", "reason": "discovery_verified", "checked_at": "2026-10-10T12:00:00Z",
+    "support": {"session_create": null, "session_reopen": null, "session_history": null, "session_streaming": null, "run_status": null, "run_stop": null, "compatibility_streaming": null}
+  }},
+  {"name": "remote-history-unsupported", "schema": "EffectiveCapability", "value": {
+    "implemented": true, "enabled": true, "remote_support": false, "availability": "unsupported", "reason": "remote_unsupported"
+  }},
+  {"name": "runtime-outage", "schema": "EffectiveCapability", "value": {
+    "implemented": true, "enabled": true, "remote_support": null, "availability": "unavailable", "reason": "runtime_unavailable"
+  }},
+  {"name": "selected-streaming-available", "schema": "EffectiveCapability", "value": {
+    "implemented": true, "enabled": true, "remote_support": true, "availability": "available", "reason": "remote_verified"
+  }},
+  {"name": "selected-history-unknown", "schema": "EffectiveCapability", "value": {
+    "implemented": true, "enabled": true, "remote_support": null, "availability": "unknown", "reason": "remote_unknown"
+  }},
+  {"name": "management-validation-error", "schema": "ProblemDetails", "value": {
+    "type": "urn:mabrid:problem:invalid-request", "title": "Invalid request", "status": 422, "detail": "The request parameters are invalid.", "code": "invalid_request"
+  }}
+]

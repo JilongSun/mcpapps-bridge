@@ -7,13 +7,17 @@ from fastapi import APIRouter
 from mabrid.server.composition import AgentHostManagementView
 
 from .dto import AgentTargetResponse
-from .errors import ManagementProblem, problem
+from .errors import ManagementProblem, problem, problem_responses
 
 
 def create_agent_host_management_router(
     management: AgentHostManagementView | None,
 ) -> APIRouter:
-    router = APIRouter(prefix="/api/v1/agent-host", tags=["agent-host-management"])
+    router = APIRouter(
+        prefix="/api/v1/agent-host",
+        tags=["agent-host-management"],
+        responses=problem_responses(404, 422),
+    )
 
     @router.get("/target", response_model=AgentTargetResponse)
     async def get_target() -> AgentTargetResponse:

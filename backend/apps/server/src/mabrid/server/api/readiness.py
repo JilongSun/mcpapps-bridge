@@ -8,13 +8,13 @@ from mabrid.server.composition import GatewayManagementComposition
 from mabrid.server.logging import get_logger
 
 from .management.dto import ReadinessResponse
-from .management.errors import ManagementProblem, problem
+from .management.errors import ManagementProblem, problem, problem_responses
 
 logger = get_logger(__name__)
 
 
 def create_readiness_router(management: GatewayManagementComposition) -> APIRouter:
-    router = APIRouter(tags=["readiness"])
+    router = APIRouter(tags=["readiness"], responses=problem_responses(503))
 
     @router.get("/ready", response_model=ReadinessResponse)
     async def ready() -> ReadinessResponse:

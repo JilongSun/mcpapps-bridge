@@ -22,7 +22,7 @@ from .dto import (
     SessionSnapshotResponse,
     TopologyResponse,
 )
-from .errors import ManagementProblem, problem
+from .errors import ManagementProblem, problem, problem_responses
 
 logger = get_logger(__name__)
 
@@ -30,7 +30,11 @@ logger = get_logger(__name__)
 def create_gateway_management_router(
     management: GatewayManagementComposition,
 ) -> APIRouter:
-    router = APIRouter(prefix="/api/v1/gateway", tags=["gateway-management"])
+    router = APIRouter(
+        prefix="/api/v1/gateway",
+        tags=["gateway-management"],
+        responses=problem_responses(400, 404, 422, 500),
+    )
 
     @router.get("/status", response_model=GatewayStatusResponse)
     async def get_status() -> GatewayStatusResponse:

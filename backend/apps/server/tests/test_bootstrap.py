@@ -30,6 +30,7 @@ from pydantic import SecretStr
 from sqlalchemy import inspect
 
 from mabrid.server.api import create_app
+from mabrid.server.api.frontend_contract import frontend_contract
 from mabrid.server.composition import GatewayManagementComposition, bootstrap_server
 from mabrid.server.config import (
     BridgeRuntimeConfig,
@@ -162,6 +163,7 @@ async def test_production_capabilities_use_selected_interfaces_without_changing_
 
     async def serve(server: uvicorn.Server) -> None:
         assert isinstance(server.config.app, FastAPI)
+        assert frontend_contract(server.config.app) == frontend_contract()
         assert requests == []
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=server.config.app), base_url="http://mabrid.test"

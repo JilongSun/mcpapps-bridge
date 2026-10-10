@@ -2,7 +2,7 @@
 
 - Decision: [ADR 0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md)
 - Reviewed: 2026-10-10
-- State: Native use cases, persistence, production HTTP/SSE, safe public DTOs, cancellation/disconnection behavior, and conservative capabilities implemented with controlled tests; final schema freeze remains pending.
+- State: Native use cases, persistence, production HTTP/SSE, safe public DTOs, lifecycle, capabilities, and the v0.1 frontend contract are implemented and frozen with controlled tests; release integration and distribution remain separate gates.
 
 ## Evidence and Integration Selection
 
@@ -42,7 +42,7 @@ History returns `object: "list"`, `session_id`, `data`, and `pagination` contain
 defaults differ depending on whether `limit` was supplied: the Mabrid integration must therefore
 always send all three explicit pagination parameters.
 
-The draft Mabrid history query defaults to `limit=100`, `offset=0`, `order="latest"`, with limits
+The Mabrid history query defaults to `limit=100`, `offset=0`, `order="latest"`, with limits
 between 1 and 500. A page retains chronological message order; selecting the latest window does
 not reverse the transcript. The public `has_more` may be unknown and must not be invented from a
 full page alone. The frontend may request another bounded window to determine whether more exists.
@@ -330,7 +330,7 @@ are not returned. Existing management and OpenAI error contracts are unchanged.
 | 503 | `runtime_unavailable`, `unsupported_operation` |
 
 OpenAPI describes successful Run delivery as `text/event-stream` and admission errors as
-`application/json`. This implemented contract is not the batch-8 schema freeze.
+`application/json`. These shapes are included in the frozen v0.1 frontend contract described below.
 
 ## Effective Capabilities and Remote Availability
 
@@ -411,7 +411,30 @@ capability is never permission to bypass shared Target ownership or force-releas
 
 Startup, `/health`, and `/ready` never invoke these probes. Remote Host outages do not change local
 Gateway readiness or MCP Apps passthrough. A disabled Host does not erase the capability route or
-perform remote requests. This is the implemented batch-7 contract, not the batch-8 schema freeze.
+perform remote requests. These capability shapes are included in the batch-8 freeze.
+
+## Frozen v0.1 Frontend Contract
+
+[The committed machine-readable baseline](../contracts/v0.1/frontend-contract.json) contains the
+first-party OpenAPI document, standalone Host SSE JSON Schema, safe Host errors, and stream rules.
+It covers Host, capabilities, read-only management, Target assignment, and local status. OpenAI
+compatibility and MCP transport are separate protocol contracts, not alternative frontend DTOs.
+[The example corpus](../contracts/v0.1/examples.json) includes all eleven event payload kinds,
+normal and alternate terminal flows, native history and unsupported content, recovery metadata,
+stop/reconcile responses, capabilities, and safe errors. Examples are presentation fixtures, not
+a replacement transcript or serialized runtime control state.
+
+[The offline exporter](../../backend/apps/server/src/mabrid/server/api/frontend_contract.py) reuses
+the production routers/public models without entering lifespan or contacting infrastructure.
+Frozen tests compare current schemas and production deployment variants against the baseline,
+validate references and exact example JSON, verify SSE event/id encoding, and reject snapshot
+drift. Intentional changes require reviewed model, behavior, example, and snapshot updates together.
+The freeze establishes a frontend baseline, not an irrevocable pre-release API or stable SDK.
+
+See [Frontend Readiness and Migration Handoff](frontend-readiness.md) for export/check commands,
+the six-prerequisite evidence matrix, owner migration and post-migration review, and remaining
+release gates. The contract-readiness milestone is complete; no frontend implementation is part
+of this batch.
 
 ## Controlled Validation and Remaining Work
 
@@ -448,6 +471,8 @@ responses, fresh observations after timeout, and joined cleanup on request cance
 bootstrap/main tests exercise the actual adapters and HTTP route with controlled remote responses;
 startup and readiness produce no remote requests, and native outage leaves Gateway readiness and
 independently available compatibility behavior intact. No live runtime was invoked.
-The following remain implementation gates:
-
-- Final OpenAPI/SSE schema freeze and ADR 0016's complete frontend readiness gate.
+The freeze additionally validates every event payload, exact public examples, reference integrity,
+read-only route partitions, correct management problem-details media types, production schema
+equality, and schema drift detection. ADR 0016's six frontend prerequisites are satisfied by
+controlled evidence. Live deployment integration, frontend/renderer implementation, and OCI/static
+asset distribution remain release gates, not unfinished frontend-contract work.
