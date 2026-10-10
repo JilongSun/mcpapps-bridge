@@ -1,8 +1,8 @@
 # Host Session Contract Baseline
 
 - Decision: [ADR 0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md)
-- Reviewed: 2026-10-09
-- State: Native use cases, persistence, production HTTP/SSE, safe public DTOs, and cancellation/disconnection behavior implemented with controlled tests; capabilities and final schema freeze remain pending.
+- Reviewed: 2026-10-10
+- State: Native use cases, persistence, production HTTP/SSE, safe public DTOs, cancellation/disconnection behavior, and conservative capabilities implemented with controlled tests; final schema freeze remains pending.
 
 ## Evidence and Integration Selection
 
@@ -228,7 +228,7 @@ Binding availability is separate from persisted identity. Local listing reports 
 `runtime_changed` for a different deployment binding, without a remote probe. Successful create
 and reopen report `available` for that operation; they do not certify future runtime availability.
 Missing or unavailable remote operations return typed errors rather than substitute sessions or
-empty history. Effective capabilities and availability reporting belong to batch 7.
+empty history. Effective capabilities and availability are reported separately as described below.
 
 ## First-Party HTTP and SSE
 
@@ -332,6 +332,87 @@ are not returned. Existing management and OpenAI error contracts are unchanged.
 OpenAPI describes successful Run delivery as `text/event-stream` and admission errors as
 `application/json`. This implemented contract is not the batch-8 schema freeze.
 
+## Effective Capabilities and Remote Availability
+
+`GET /api/v1/capabilities` is a registered, read-only product endpoint with HTTP 200 and
+`Cache-Control: no-store`, including when Agent Host is disabled or its runtime is unavailable.
+[The HTTP adapter](../../backend/apps/server/src/mabrid/server/api/capabilities.py) separates local
+Gateway capabilities from the [Agent Host capability use case](../../backend/packages/application/src/mabrid/application/agent_host/application/capabilities.py).
+The response contains `gateway` and `agent_host`; it is not a replacement for `/health`, `/ready`,
+Session binding metadata, or Run admission.
+
+Gateway fields report local implementation and deployment composition: protocol passthrough is
+implemented, topology/session inspection is exposed when management is composed, and topology
+mutation is not exposed in v0.1. These are not claims that any upstream is connected or that a
+particular widget is renderable. Agent Host reports its enabled state, optional local Target ID,
+independent native/compatibility runtime observations, and `max_concurrent_runs: 1`.
+
+Each effective Host feature has four distinct facts:
+
+| Field | Meaning |
+| --- | --- |
+| `implemented` | The local backend implements the behavior |
+| `enabled` | This deployment selects the behavior; no remote support claim |
+| `remote_support` | Explicit supported/unsupported evidence, or null for unknown/not applicable |
+| `availability` and `reason` | Effective current classification and safe explanation code |
+
+Effective availability is `disabled` for unselected behavior, `unsupported` for unimplemented or
+explicitly remote-unsupported behavior, `unavailable` for a failed current runtime probe,
+`unknown` for missing evidence, and `available` for selected local behavior or verified matching
+remote declarations. Unknown support never becomes true from a local runtime profile or enabled
+configuration. An enabled interface without a probe remains unknown, not disabled.
+
+The feature set covers local Session listing, native create/reopen/history/streaming, Run cancel
+and reconciliation, tool activity, widget presentation, and compatibility streaming. Native history
+requires reopen/history support; native streaming requires reopen/streaming support. Cancel requires
+stop and status support, while reconciliation uses status support. Streaming alone does not imply
+remote stop. Tool/widget presentation depends on selected native streaming, and widgets additionally
+require the deployment's MCP Apps composition. Widget presentation means live backend payloads,
+not a finished renderer, historical widget reconstruction, or support for Host follow-up actions.
+`host_actions`, `event_replay`, and `remote_session_import` remain explicitly unimplemented,
+disabled, and unsupported even if Hermes advertises related behavior.
+
+The pinned Hermes source advertises `GET /v1/capabilities`, with named feature booleans and endpoint
+method/path descriptors. Native discovery resolves `v1/capabilities` against the explicit native
+`apiRoot`; compatibility discovery resolves `capabilities` against its own configured OpenAI base
+URL. Reverse-proxy prefixes are preserved. The two addresses are probed independently: compatibility
+success cannot prove native availability, and native failure does not make compatibility unavailable.
+Native declarations from an unselected interface cannot silently enable that interface.
+
+The adapters strictly validate the raw capability document and normalize only relevant support
+facts. An explicitly false feature is unsupported. Missing feature flags or missing/mismatched
+endpoint descriptors are unknown, not fabricated support or a fallback interface selection.
+Raw model identifiers, provider descriptions, URLs, deployment bindings, secrets, and response
+bodies are not public capability fields. Runtime observations include an aware `checked_at`,
+`availability`, safe `reason`, and normalized `support`.
+
+| Runtime observation | Classification |
+| --- | --- |
+| Valid capability document | Available discovery endpoint; declared support assessed separately |
+| 404, 405, or 501 discovery response | Unknown; `discovery_unsupported` |
+| Invalid document or feature types | Unknown; `invalid_response` |
+| 401 or 403 | Unavailable; `authentication_failed` |
+| Other unsuccessful HTTP response or transport failure | Unavailable; `runtime_unavailable` |
+| Bounded probe timeout | Unavailable; `probe_timeout` |
+| Unexpected probe exception | Unknown; `probe_failed` |
+
+Both probes run in a request-scoped task group, each bounded to three seconds by default. They are
+cancelled and joined on request cancellation, with no background watcher or detached subscription.
+Every capability request obtains fresh observations; no previous successful support is cached or
+reused after a failed probe. Adapter clients remain owned by server composition and use the existing
+shutdown order. No dependency, migration, configuration setting, or new client lifecycle is needed.
+
+`remote_verified` means current validated runtime declarations, not a synthetic Run, an LLM health
+test, a particular remote Session's existence, or a guarantee that the next operation succeeds.
+No discovery request creates a Session, reads its transcript, starts a Run, requests stop, executes
+a tool, or loads a widget resource. Runtime operation errors remain authoritative at use time.
+Busy and durable unknown-Run state are separate admission/settlement constraints; an available
+capability is never permission to bypass shared Target ownership or force-release its lease.
+
+Startup, `/health`, and `/ready` never invoke these probes. Remote Host outages do not change local
+Gateway readiness or MCP Apps passthrough. A disabled Host does not erase the capability route or
+perform remote requests. This is the implemented batch-7 contract, not the batch-8 schema freeze.
+
 ## Controlled Validation and Remaining Work
 
 The existing Agent Host tests now validate session/history separation, input-only continuation,
@@ -361,7 +442,12 @@ native provider is paused. Controlled ASGI probes verify cancel acknowledgement 
 cross-Session control rejection, disconnection before and after a remote handle, header-send
 failure, durable unknown-state retention, recovery metadata, and verified reconciliation. Gateway
 health/readiness remains independent of native Host selection.
+Capability tests verify strict discovery, explicit false and missing support, endpoint matching,
+proxy paths, independent native/compatibility selection, disabled Host/widgets, read-only safe
+responses, fresh observations after timeout, and joined cleanup on request cancellation. Production
+bootstrap/main tests exercise the actual adapters and HTTP route with controlled remote responses;
+startup and readiness produce no remote requests, and native outage leaves Gateway readiness and
+independently available compatibility behavior intact. No live runtime was invoked.
 The following remain implementation gates:
 
-- Conservative capabilities and remote runtime availability.
 - Final OpenAPI/SSE schema freeze and ADR 0016's complete frontend readiness gate.

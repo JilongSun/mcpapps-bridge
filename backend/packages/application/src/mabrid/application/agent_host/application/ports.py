@@ -7,6 +7,7 @@ from typing import Protocol
 from uuid import UUID
 
 from ..contracts import AgentAdapterEvent, AgentRuntimeProfile, StartRunCommand
+from ..contracts.capabilities import RuntimeCapabilityObservation
 from ..contracts.session import (
     AgentSessionRecord,
     CreateAgentSessionCommand,
@@ -28,6 +29,10 @@ class AgentRuntime(Protocol):
     def profile(self) -> AgentRuntimeProfile: ...
 
     def run(self, command: StartRunCommand) -> AsyncGenerator[AgentAdapterEvent, None]: ...
+
+
+class RuntimeCapabilityProbe(Protocol):
+    async def inspect_capabilities(self) -> RuntimeCapabilityObservation: ...
 
 
 class ManagedAgentRuntime(AgentRuntime, Protocol):

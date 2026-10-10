@@ -20,8 +20,12 @@ from .service import AgentHostService, AgentRunError
 from .sessions import AgentSessionService, restore_target_run_ownership
 from .activity import AgentToolActivityObserverFactory, InMemoryToolActivityStore
 from .session_errors import AgentSessionError
+from .capabilities import AgentHostCapabilityService
+from .ports import RuntimeCapabilityProbe
 
 __all__ = [
+    "AgentHostCapabilityService",
+    "RuntimeCapabilityProbe",
     "AgentToolActivityObserverFactory",
     "InMemoryToolActivityStore",
     "AgentRunSettlement",

@@ -5,7 +5,9 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import cast
 
-from openai import AsyncOpenAI, omit
+import httpx
+
+from openai import AsyncOpenAI, omit, APIStatusError, APIConnectionError
 from openai.types.chat import ChatCompletionMessageParam
 
 from ...contracts import (
@@ -20,7 +22,12 @@ from ...contracts import (
     StartRunCommand,
     TokenUsage,
 )
-from .capability_document import HermesCapabilityDocument
+from .capability_document import (
+    HermesCapabilityDocument,
+    capability_observation,
+    capability_http_failure,
+)
+from ...contracts.capabilities import RuntimeCapabilityObservation
 
 STANDARD_FINISH_REASONS = {
     "stop",
@@ -68,6 +75,20 @@ class HermesChatCompletionsAdapter:
             "/capabilities",
             cast_to=HermesCapabilityDocument,
         )
+
+    async def inspect_capabilities(self) -> RuntimeCapabilityObservation:
+        try:
+            response = await self._client.get("/capabilities", cast_to=httpx.Response)
+            verified = HermesCapabilityDocument.model_validate_json(response.content, strict=True)
+        except APIStatusError as exc:
+            return capability_http_failure(exc.status_code)
+        except APIConnectionError:
+            return RuntimeCapabilityObservation(
+                availability="unavailable", reason="runtime_unavailable"
+            )
+        except (ValueError, AttributeError, TypeError):
+            return RuntimeCapabilityObservation(availability="unknown", reason="invalid_response")
+        return capability_observation(verified)
 
     async def run(self, command: StartRunCommand) -> AsyncGenerator[AgentAdapterEvent, None]:
         stream = await self._client.chat.completions.create(

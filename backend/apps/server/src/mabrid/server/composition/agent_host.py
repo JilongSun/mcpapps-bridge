@@ -14,6 +14,7 @@ from uuid import UUID
 from mabrid.application.agent_host import (
     AgentEndpointAssignment,
     AgentHostService,
+    AgentHostCapabilityService,
     AgentSessionService,
     AgentTarget,
     InMemoryOperationRunAttributionRegistry,
@@ -63,6 +64,7 @@ class AgentHostComposition:
     capabilities: HostCapabilityComposition
     sessions: AgentSessionService | None
     session_runtime: HermesSessionAdapter | None
+    capability_service: AgentHostCapabilityService
 
     async def close(self) -> None:
         with anyio.CancelScope(shield=True):
@@ -145,6 +147,12 @@ async def compose_agent_host(
             capabilities=capabilities,
             sessions=capabilities.sessions,
             session_runtime=session_runtime,
+            capability_service=AgentHostCapabilityService(
+                target_id=target.target_id,
+                native_probe=session_runtime,
+                compatibility_probe=runtime,
+                mcp_apps_enabled=config.mcp_apps_enabled,
+            ),
         )
     except BaseException:
         with anyio.CancelScope(shield=True):
@@ -164,7 +172,7 @@ async def compose_agent_host(
     return composition
 
 
-def _build_agent_runtime(config: RuntimeHermesAgentConfig) -> ManagedAgentRuntime:
+def _build_agent_runtime(config: RuntimeHermesAgentConfig) -> HermesChatCompletionsAdapter:
     if config.integration != "hermes":
         raise ValueError(f"Unsupported Agent Runtime integration: {config.integration}")
     if config.interface != "openai-chat-completions":

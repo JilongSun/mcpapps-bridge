@@ -8,6 +8,9 @@ import pytest
 from pydantic import ValidationError
 from mabrid.bridge import ToolCallStarted
 from mabrid.application.agent_host import (
+    AgentHostCapabilityService,
+    RuntimeCapabilityObservation,
+    RuntimeSupport,
     AgentAdapterCompleted,
     AgentAdapterEvent,
     AgentAdapterTextDelta,
@@ -44,6 +47,138 @@ from mabrid.application.agent_host.contracts.session import (
 )
 
 
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "verified",
+        "unknown",
+        "unsupported",
+        "outage",
+        "compatibility_only",
+        "disabled",
+        "widgets_disabled",
+    ],
+)
+async def test_effective_capabilities_separate_local_selection_and_remote_evidence(
+    mode: str,
+) -> None:
+    class Probe:
+        calls = 0
+
+        async def inspect_capabilities(self) -> RuntimeCapabilityObservation:
+            self.calls += 1
+            support = (
+                True
+                if mode not in {"unknown", "unsupported", "outage"}
+                else False
+                if mode == "unsupported"
+                else None
+            )
+            return RuntimeCapabilityObservation(
+                availability="unavailable" if mode == "outage" else "available",
+                reason="runtime_unavailable" if mode == "outage" else "discovery_verified",
+                support=RuntimeSupport(
+                    session_create=support,
+                    session_reopen=support,
+                    session_history=support,
+                    session_streaming=support,
+                    run_status=support,
+                    run_stop=support,
+                    compatibility_streaming=True,
+                ),
+            )
+
+    native, compatibility = Probe(), Probe()
+    service = AgentHostCapabilityService(
+        target_id=None if mode == "disabled" else "fixture",
+        native_probe=None if mode == "compatibility_only" else native,
+        compatibility_probe=compatibility,
+        mcp_apps_enabled=mode != "widgets_disabled",
+    )
+    snapshot = await service.snapshot()
+    assert snapshot.enabled == (mode != "disabled")
+    expected = {
+        "verified": "available",
+        "unknown": "unknown",
+        "unsupported": "unsupported",
+        "outage": "unavailable",
+        "compatibility_only": "disabled",
+        "disabled": "disabled",
+        "widgets_disabled": "available",
+    }[mode]
+    for feature in (
+        snapshot.features.session_create,
+        snapshot.features.session_history,
+        snapshot.features.session_streaming,
+        snapshot.features.run_cancel,
+        snapshot.features.run_reconcile,
+        snapshot.features.tool_activity,
+    ):
+        assert feature.availability == expected and feature.implemented
+    assert snapshot.features.widgets.availability == (
+        "disabled" if mode == "widgets_disabled" else expected
+    )
+    assert snapshot.features.session_list.availability == (
+        "disabled" if mode in {"disabled", "compatibility_only"} else "available"
+    )
+    assert snapshot.features.compatibility_streaming.availability == (
+        "disabled" if mode == "disabled" else "unavailable" if mode == "outage" else "available"
+    )
+    for feature in (
+        snapshot.features.host_actions,
+        snapshot.features.event_replay,
+        snapshot.features.remote_session_import,
+    ):
+        assert (
+            feature.availability == "unsupported"
+            and not feature.implemented
+            and not feature.enabled
+        )
+    assert native.calls == (0 if mode in {"disabled", "compatibility_only"} else 1)
+    assert compatibility.calls == (0 if mode == "disabled" else 1)
+    assert snapshot.max_concurrent_runs == 1
+
+
+async def test_capability_probes_are_bounded_joined_and_not_cached() -> None:
+    import anyio
+
+    class Probe:
+        calls = 0
+        closed = False
+
+        async def inspect_capabilities(self) -> RuntimeCapabilityObservation:
+            self.calls += 1
+            if self.calls == 1:
+                return RuntimeCapabilityObservation(
+                    availability="available",
+                    reason="discovery_verified",
+                    support=RuntimeSupport(session_streaming=True, session_reopen=True),
+                )
+            try:
+                await anyio.Event().wait()
+                raise AssertionError("unreachable")
+            finally:
+                self.closed = True
+
+    native, compatibility = Probe(), Probe()
+    service = AgentHostCapabilityService(
+        target_id="fixture",
+        native_probe=native,
+        compatibility_probe=compatibility,
+        probe_timeout_seconds=0.02,
+    )
+    assert (await service.snapshot()).features.session_streaming.availability == "available"
+    with anyio.fail_after(0.3):
+        snapshot = await service.snapshot()
+    assert snapshot.native_runtime is not None and snapshot.compatibility_runtime is not None
+    assert (
+        snapshot.native_runtime.reason == snapshot.compatibility_runtime.reason == "probe_timeout"
+    )
+    assert snapshot.features.session_streaming.availability == "unavailable"
+    assert snapshot.features.session_streaming.remote_support is None
+    assert native.closed and compatibility.closed
+
+
 def test_session_contract_separates_binding_history_and_new_input() -> None:
     session = AgentSessionRecord(
         target_id="fixture-target",
@@ -78,6 +213,79 @@ def test_session_contract_separates_binding_history_and_new_input() -> None:
     assert history.has_more is None
     assert history.messages[1].content[0].kind == "unsupported"
     assert AgentHistoryPage.model_validate_json(history.model_dump_json()) == history
+
+
+async def test_enabled_interfaces_without_discovery_are_unknown_not_disabled() -> None:
+    snapshot = await AgentHostCapabilityService(
+        target_id="fixture", native_enabled=True, compatibility_enabled=True
+    ).snapshot()
+    assert snapshot.features.session_list.availability == "available"
+    assert (
+        snapshot.features.session_streaming.enabled
+        and snapshot.features.session_streaming.availability == "unknown"
+    )
+    assert (
+        snapshot.features.compatibility_streaming.enabled
+        and snapshot.features.compatibility_streaming.availability == "unknown"
+    )
+    assert snapshot.native_runtime is None and snapshot.compatibility_runtime is None
+
+
+async def test_streaming_support_does_not_imply_remote_stop_or_replay() -> None:
+    class Probe:
+        async def inspect_capabilities(self) -> RuntimeCapabilityObservation:
+            return RuntimeCapabilityObservation(
+                availability="available",
+                reason="discovery_verified",
+                support=RuntimeSupport(
+                    session_reopen=True, session_streaming=True, run_stop=False, run_status=None
+                ),
+            )
+
+    snapshot = await AgentHostCapabilityService(
+        target_id="fixture", native_probe=Probe()
+    ).snapshot()
+    assert snapshot.features.session_streaming.availability == "available"
+    assert snapshot.features.run_cancel.remote_support is False
+    assert snapshot.features.run_cancel.availability == "unsupported"
+    assert snapshot.features.run_reconcile.availability == "unknown"
+    assert snapshot.features.event_replay.availability == "unsupported"
+
+
+async def test_capability_request_cancellation_propagates_and_joins_both_probes() -> None:
+    import anyio
+
+    class Probe:
+        def __init__(self) -> None:
+            self.started = anyio.Event()
+            self.closed = False
+
+        async def inspect_capabilities(self) -> RuntimeCapabilityObservation:
+            self.started.set()
+            try:
+                await anyio.Event().wait()
+                raise AssertionError("unreachable")
+            finally:
+                self.closed = True
+
+    native, compatibility = Probe(), Probe()
+    service = AgentHostCapabilityService(
+        target_id="fixture", native_probe=native, compatibility_probe=compatibility
+    )
+    returned = False
+
+    async def read() -> None:
+        nonlocal returned
+        await service.snapshot()
+        returned = True
+
+    with anyio.fail_after(0.5):
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(read)
+            await native.started.wait()
+            await compatibility.started.wait()
+            tasks.cancel_scope.cancel()
+    assert native.closed and compatibility.closed and not returned
 
 
 @pytest.mark.parametrize(

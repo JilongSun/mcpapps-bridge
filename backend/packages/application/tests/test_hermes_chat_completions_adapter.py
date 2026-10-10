@@ -117,6 +117,111 @@ def native_session_transport() -> httpx.MockTransport:
     return httpx.MockTransport(handle)
 
 
+@pytest.mark.parametrize("interface", ["native", "compatibility"])
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "verified",
+        "omitted",
+        "false",
+        "wrong_endpoint",
+        "invalid",
+        "invalid_boolean",
+        "unauthorized",
+        "outage",
+        "missing",
+    ],
+)
+async def test_runtime_discovery_is_read_only_and_keeps_unknown_support(
+    interface: str, mode: str
+) -> None:
+    requests: list[httpx.Request] = []
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        assert request.method == "GET" and request.url.path == "/proxy/hermes/v1/capabilities"
+        assert request.headers["authorization"] == "Bearer fixture-key"
+        if mode in {"unauthorized", "outage", "missing"}:
+            return httpx.Response(
+                {"unauthorized": 401, "outage": 503, "missing": 404}[mode], text="private-secret"
+            )
+        features = {
+            "session_resources": True,
+            "session_chat_streaming": True,
+            "run_status": True,
+            "run_stop": True,
+            "chat_completions_streaming": True,
+        }
+        if mode == "omitted":
+            features = {}
+        elif mode == "false":
+            features = dict.fromkeys(features, False)
+        document = {
+            "object": "wrong" if mode == "invalid" else "hermes.api_server.capabilities",
+            "platform": "hermes-agent",
+            "model": "private-model",
+            "auth": {"type": "bearer", "required": True},
+            "runtime": {"mode": "server_agent", "tool_execution": "server", "split_runtime": False},
+            "features": features,
+            "endpoints": {
+                name: {"method": method, "path": path}
+                for name, method, path in (
+                    ("session_create", "POST", "/api/sessions"),
+                    ("session", "GET", "/api/sessions/{session_id}"),
+                    ("session_messages", "GET", "/api/sessions/{session_id}/messages"),
+                    ("session_chat_stream", "POST", "/api/sessions/{session_id}/chat/stream"),
+                    ("run_status", "GET", "/v1/runs/{run_id}"),
+                    ("run_stop", "POST", "/v1/runs/{run_id}/stop"),
+                    ("chat_completions", "POST", "/v1/chat/completions"),
+                )
+            },
+        }
+        if mode == "wrong_endpoint":
+            document["endpoints"] = {}
+        if mode == "invalid_boolean":
+            document["features"] = {"run_stop": "true"}
+        return httpx.Response(200, json=document)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+    adapter = (
+        HermesSessionAdapter(
+            api_root="http://hermes.test/proxy/hermes",
+            api_key="fixture-key",
+            runtime_binding_id="fixture",
+            client=client,
+        )
+        if interface == "native"
+        else HermesChatCompletionsAdapter(
+            base_url="http://hermes.test/proxy/hermes/v1",
+            api_key="fixture-key",
+            client=AsyncOpenAI(
+                base_url="http://hermes.test/proxy/hermes/v1",
+                api_key="fixture-key",
+                http_client=client,
+                max_retries=0,
+            ),
+        )
+    )
+    try:
+        observation = await adapter.inspect_capabilities()
+        assert len(requests) == 1
+        if mode in {"verified", "omitted", "false", "wrong_endpoint"}:
+            assert observation.availability == "available"
+            expected = True if mode == "verified" else False if mode == "false" else None
+            assert all(value is expected for value in observation.support.model_dump().values())
+        else:
+            assert observation.availability == (
+                "unavailable" if mode in {"unauthorized", "outage"} else "unknown"
+            )
+            assert all(value is None for value in observation.support.model_dump().values())
+        assert (
+            "private-secret" not in observation.model_dump_json()
+            and "private-model" not in observation.model_dump_json()
+        )
+    finally:
+        await adapter.close()
+
+
 async def test_native_session_wire_fixture_preserves_history_and_pending_stop(
     native_session_transport: httpx.MockTransport,
 ) -> None:

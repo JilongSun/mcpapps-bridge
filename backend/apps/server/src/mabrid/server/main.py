@@ -72,6 +72,9 @@ async def serve_runtime(args: argparse.Namespace) -> None:
         host_session_events=(
             result.agent_host.capabilities.session_events if result.agent_host is not None else None
         ),
+        agent_host_capabilities=(
+            result.agent_host.capability_service if result.agent_host is not None else None
+        ),
         gateway_management=result.gateway_management,
         agent_host_management=(
             result.agent_host.management if result.agent_host is not None else None

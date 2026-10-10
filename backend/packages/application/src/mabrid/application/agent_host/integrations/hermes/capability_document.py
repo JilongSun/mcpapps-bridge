@@ -7,6 +7,8 @@ from typing import Literal
 from openai import BaseModel
 from pydantic import ConfigDict
 
+from ...contracts.capabilities import RuntimeCapabilityObservation, RuntimeSupport
+
 
 class HermesCapabilityDocumentModel(BaseModel):
     model_config = ConfigDict(extra="allow", frozen=True)
@@ -57,3 +59,52 @@ class HermesCapabilityDocument(HermesCapabilityDocumentModel):
     runtime: HermesRuntimeDescriptor
     features: HermesFeatureSet
     endpoints: dict[str, HermesEndpointDescriptor]
+
+
+def capability_observation(document: HermesCapabilityDocument) -> RuntimeCapabilityObservation:
+    def declared(feature: str, endpoint: str, method: str, path: str) -> bool | None:
+        if feature not in document.features.model_fields_set:
+            return None
+        if getattr(document.features, feature) is False:
+            return False
+        descriptor = document.endpoints.get(endpoint)
+        if descriptor is None or (descriptor.method, descriptor.path) != (method, path):
+            return None
+        return True
+
+    return RuntimeCapabilityObservation(
+        availability="available",
+        reason="discovery_verified",
+        support=RuntimeSupport(
+            session_create=declared("session_resources", "session_create", "POST", "/api/sessions"),
+            session_reopen=declared(
+                "session_resources", "session", "GET", "/api/sessions/{session_id}"
+            ),
+            session_history=declared(
+                "session_resources",
+                "session_messages",
+                "GET",
+                "/api/sessions/{session_id}/messages",
+            ),
+            session_streaming=declared(
+                "session_chat_streaming",
+                "session_chat_stream",
+                "POST",
+                "/api/sessions/{session_id}/chat/stream",
+            ),
+            run_status=declared("run_status", "run_status", "GET", "/v1/runs/{run_id}"),
+            run_stop=declared("run_stop", "run_stop", "POST", "/v1/runs/{run_id}/stop"),
+            compatibility_streaming=declared(
+                "chat_completions_streaming", "chat_completions", "POST", "/v1/chat/completions"
+            ),
+        ),
+    )
+
+
+def capability_http_failure(status: int) -> RuntimeCapabilityObservation:
+    if status in {404, 405, 501}:
+        return RuntimeCapabilityObservation(availability="unknown", reason="discovery_unsupported")
+    return RuntimeCapabilityObservation(
+        availability="unavailable",
+        reason="authentication_failed" if status in {401, 403} else "runtime_unavailable",
+    )

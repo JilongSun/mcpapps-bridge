@@ -1,6 +1,8 @@
 """Public facade for the provider-neutral Agent Host application."""
 
 from .application import (
+    AgentHostCapabilityService,
+    RuntimeCapabilityProbe,
     AgentHostService,
     AgentToolActivityObserverFactory,
     InMemoryToolActivityStore,
@@ -24,6 +26,11 @@ from .application import (
     RuntimeSessionRunControl,
 )
 from .contracts import (
+    AgentHostCapabilitySnapshot,
+    AgentHostFeatures,
+    EffectiveCapability,
+    RuntimeCapabilityObservation,
+    RuntimeSupport,
     AgentHistoryMessage,
     ToolActivityEvent,
     ToolInvocationStarted,
@@ -78,6 +85,13 @@ from .contracts import (
 )
 
 __all__ = [
+    "AgentHostCapabilityService",
+    "RuntimeCapabilityProbe",
+    "AgentHostCapabilitySnapshot",
+    "AgentHostFeatures",
+    "EffectiveCapability",
+    "RuntimeCapabilityObservation",
+    "RuntimeSupport",
     "AgentSessionRunStatus",
     "AgentRunCancelled",
     "AgentToolActivityObserverFactory",

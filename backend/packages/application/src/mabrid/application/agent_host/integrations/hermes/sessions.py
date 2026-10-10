@@ -44,6 +44,12 @@ from .session_documents import (
     HermesSessionStreamPayload,
 )
 from ...contracts import TokenUsage
+from ...contracts.capabilities import RuntimeCapabilityObservation
+from .capability_document import (
+    HermesCapabilityDocument,
+    capability_observation,
+    capability_http_failure,
+)
 
 JSON_ARGUMENTS = TypeAdapter(dict[str, JsonValue])
 
@@ -77,6 +83,23 @@ class HermesSessionAdapter:
 
     async def close(self) -> None:
         await self._client.aclose()
+
+    async def inspect_capabilities(self) -> RuntimeCapabilityObservation:
+        try:
+            response = await self._client.get(
+                self._root.join("v1/capabilities"), headers=self._headers
+            )
+        except httpx.HTTPError:
+            return RuntimeCapabilityObservation(
+                availability="unavailable", reason="runtime_unavailable"
+            )
+        if not response.is_success:
+            return capability_http_failure(response.status_code)
+        try:
+            document = HermesCapabilityDocument.model_validate_json(response.content, strict=True)
+        except ValueError:
+            return RuntimeCapabilityObservation(availability="unknown", reason="invalid_response")
+        return capability_observation(document)
 
     async def create_session(self, command: CreateAgentSessionCommand) -> RuntimeAgentSession:
         response = await self._request(

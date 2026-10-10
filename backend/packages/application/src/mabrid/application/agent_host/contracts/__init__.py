@@ -3,6 +3,13 @@
 from .adapter_events import AgentAdapterCompleted, AgentAdapterEvent, AgentAdapterTextDelta
 from .attribution import OperationRunAttribution
 from .base import AgentHostModel
+from .capabilities import (
+    AgentHostCapabilitySnapshot,
+    AgentHostFeatures,
+    EffectiveCapability,
+    RuntimeCapabilityObservation,
+    RuntimeSupport,
+)
 from .activity import (
     ToolActivityEvent,
     ToolInvocationStarted,
@@ -56,6 +63,11 @@ from .session import (
 )
 
 __all__ = [
+    "AgentHostCapabilitySnapshot",
+    "AgentHostFeatures",
+    "EffectiveCapability",
+    "RuntimeCapabilityObservation",
+    "RuntimeSupport",
     "AgentSessionRunStatus",
     "AgentRunCancelled",
     "ToolActivityEvent",

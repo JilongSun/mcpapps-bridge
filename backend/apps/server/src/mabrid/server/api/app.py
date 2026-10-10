@@ -11,7 +11,11 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from mabrid.bridge import create_mcp_asgi_app
-from mabrid.application.agent_host import AgentHostService, AgentSessionService
+from mabrid.application.agent_host import (
+    AgentHostService,
+    AgentSessionService,
+    AgentHostCapabilityService,
+)
 from mabrid.application.gateway.sessions import GatewaySessionCoordinator
 from mabrid.application.gateway import GatewayMcpSessionBroker
 from mabrid.application.host import HostEventStream, HostSessionEventStream
@@ -26,6 +30,7 @@ from mabrid.server.api.management.gateway import create_gateway_management_route
 from mabrid.server.api.openai_compat import create_openai_compatibility_router
 from mabrid.server.api.host import create_host_router, host_error_response
 from mabrid.server.api.readiness import create_readiness_router
+from mabrid.server.api.capabilities import create_capabilities_router
 from mabrid.server.logging import get_logger
 
 if TYPE_CHECKING:
@@ -41,6 +46,7 @@ def create_app(
     host_events: HostEventStream | None = None,
     agent_sessions: AgentSessionService | None = None,
     host_session_events: HostSessionEventStream | None = None,
+    agent_host_capabilities: AgentHostCapabilityService | None = None,
     gateway_management: GatewayManagementComposition | None = None,
     agent_host_management: AgentHostManagementView | None = None,
 ) -> FastAPI:
@@ -91,6 +97,21 @@ def create_app(
 
     app.mount("/mcp", create_mcp_asgi_app(GatewayMcpSessionBroker(manager)))
     app.include_router(create_host_router(agent_sessions, host_session_events))
+    app.include_router(
+        create_capabilities_router(
+            agent_host_capabilities
+            or AgentHostCapabilityService(
+                target_id=agent_host.target.target_id
+                if agent_host
+                else agent_sessions.target_id
+                if agent_sessions
+                else None,
+                native_enabled=agent_sessions is not None and host_session_events is not None,
+                compatibility_enabled=agent_host is not None,
+            ),
+            management_enabled=gateway_management is not None,
+        )
+    )
     if agent_host is not None:
         app.include_router(create_openai_compatibility_router(agent_host, host_events))
     if gateway_management is not None:

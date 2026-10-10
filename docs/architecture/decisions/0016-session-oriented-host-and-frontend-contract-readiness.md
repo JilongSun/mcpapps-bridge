@@ -239,12 +239,13 @@ to its implementation sequence.
 
 ## Implementation Status
 
-As of 2026-10-09, this decision is **Partial**: source verification, typed session/history and
+As of 2026-10-10, this decision is **Partial**: source verification, typed session/history and
 control ports, public schema drafts, native session use cases, SQLite bindings, typed capability
 assembly, observer policy, timely tool/widget presentation, first-party HTTP/SSE, safe public DTOs,
-and controlled cancellation/disconnection tests exist. Deployment can explicitly select native
-session ports and invoke registered Host routes, but effective capabilities and final schema freeze
-remain pending. The frontend readiness gate is not complete.
+controlled cancellation/disconnection tests, and conservative capability/availability reporting
+exist. Deployment can explicitly select native session ports, invoke registered Host routes, and
+inspect effective capabilities independently of Gateway readiness. Final schema freeze remains
+pending. The frontend readiness gate is not complete.
 
 The selected native interface and its evidence are recorded in the
 [Host session contract baseline](../host-session-contract.md). Hermes session resources and
@@ -259,7 +260,7 @@ submission are not required by this selection.
 | 4. Capability assembly and observer policy | Completed | Thin typed application assembly, explicit native deployment configuration, durable ownership restoration before all ingress, ordered and bounded Host observers, tool/widget settlement, failure/cancellation isolation, early-close lease retention, and reverse-order client cleanup tests |
 | 5. Tool activity and timely presentation | Completed | Run-owned invocation UUIDs and results, ordered activity projection independent of MCP Apps, notification-driven native/compatibility presentation during provider pauses, widget failure with visible tool results, contiguous delivery, joined reader cleanup, native early-close lease retention, and OpenAI wire isolation |
 | 6. First-party HTTP | Completed | Production session/history/control routes, pre-header admission, safe local-identity tool/widget SSE, shared Target busy/unknown handling, acknowledgement-ordered user cancellation, ASGI disconnect/header-send cleanup, recoverable Target Run metadata, verified reconciliation, and OpenAI/OpenAPI regression tests |
-| 7. Capabilities and remote availability | Pending | Effective support and availability separate from Gateway readiness |
+| 7. Capabilities and remote availability | Completed | Registered product capability endpoint, typed local/selected/remote/effective facts, strictly validated read-only Hermes discovery, independent native/compatibility observations, unknown/unsupported/outage states, bounded fresh probes with joined cancellation, safe public fields, and production Gateway-readiness independence tests |
 | 8. Contract freeze | Pending | Final schemas/examples, complete readiness checks, and owner-led migration handoff |
 
 The existing text Run, Hermes/OpenAI streaming, Gateway attribution, fresh resources, and widget
@@ -283,5 +284,10 @@ safe terminal failures within the stream, and exposes Session-bound cancel/recon
 Accepted user stop before observed completion produces cancellation only after verified exit and
 local settlement. Disconnect is not user cancellation; unknown state retains durable ownership,
 discoverable through safe local Target Run metadata. There is no SSE replay or automatic retry.
-Effective capabilities and schema freeze remain pending; these six batches do not authorize
-frontend implementation.
+Effective capabilities are now exposed through `/api/v1/capabilities`, with independent native and
+compatibility observations rather than treating local runtime profiles as remote support. Missing
+declarations remain unknown, explicit false remains unsupported, and current discovery failures do
+not reuse cached success. Probe requests are read-only, bounded, joined, and excluded from startup
+and Gateway health/readiness. Their verified declarations do not certify LLM execution or bypass
+Run admission. Final schema freeze remains pending; these seven batches do not authorize frontend
+implementation.
