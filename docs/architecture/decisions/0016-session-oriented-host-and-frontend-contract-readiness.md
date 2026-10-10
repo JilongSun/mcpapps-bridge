@@ -118,11 +118,12 @@ Existing management paths stay intact. The planned first-party namespace is `/ap
 | `POST /api/v1/host/sessions/{session_id}/runs` | Admit new input and return the composed presentation stream over SSE |
 | `GET /api/v1/capabilities` | Report the effective product capability surface |
 
-These paths are planned contracts, not implemented endpoints. Exact request, pagination, history,
-event, and error schemas are frozen after the concrete runtime interface is verified. The frontend
-uses `fetch` for POST-based SSE; a WebSocket is not required for this one-way presentation stream.
-Cancellation transport must be decided before schema freeze; it must not imply remote stopping
-when the runtime integration cannot provide it.
+At acceptance these were planned contracts, not implemented endpoints. Current implementation
+status and additional control routes are recorded below and in the Host session contract baseline.
+Exact request, pagination, history, event, and error schemas are frozen after the concrete runtime
+interface is verified. The frontend uses `fetch` for POST-based SSE; a WebSocket is not required for
+this one-way presentation stream. Cancellation transport must be decided before schema freeze; it
+must not imply remote stopping when the runtime integration cannot provide it.
 
 MCP `/mcp/{endpoint_slug}`, standard OpenAI `/v1/*`, first-party Host, and read-only management
 remain distinct inbound adapters. OpenAI SSE cannot carry private widget envelopes. Gateway
@@ -240,9 +241,10 @@ to its implementation sequence.
 
 As of 2026-10-09, this decision is **Partial**: source verification, typed session/history and
 control ports, public schema drafts, native session use cases, SQLite bindings, typed capability
-assembly, observer policy, timely tool/widget presentation, and controlled integration tests exist. Deployment can explicitly select
-native session ports, but effective capabilities and first-party HTTP do not yet advertise them or
-mark the frontend readiness gate complete.
+assembly, observer policy, timely tool/widget presentation, first-party HTTP/SSE, safe public DTOs,
+and controlled cancellation/disconnection tests exist. Deployment can explicitly select native
+session ports and invoke registered Host routes, but effective capabilities and final schema freeze
+remain pending. The frontend readiness gate is not complete.
 
 The selected native interface and its evidence are recorded in the
 [Host session contract baseline](../host-session-contract.md). Hermes session resources and
@@ -256,14 +258,14 @@ submission are not required by this selection.
 | 3. Durable bindings and native integration | Completed | Native Hermes adapter, SQLite migration/repository, create/reopen/history/continuation, effective-reference CAS, durable unsettled Runs, bounded stop/status settlement, and controlled restart tests |
 | 4. Capability assembly and observer policy | Completed | Thin typed application assembly, explicit native deployment configuration, durable ownership restoration before all ingress, ordered and bounded Host observers, tool/widget settlement, failure/cancellation isolation, early-close lease retention, and reverse-order client cleanup tests |
 | 5. Tool activity and timely presentation | Completed | Run-owned invocation UUIDs and results, ordered activity projection independent of MCP Apps, notification-driven native/compatibility presentation during provider pauses, widget failure with visible tool results, contiguous delivery, joined reader cleanup, native early-close lease retention, and OpenAI wire isolation |
-| 6. First-party HTTP | Pending | Actual session routes, composed SSE, admission/errors, cancellation, and disconnect semantics |
+| 6. First-party HTTP | Completed | Production session/history/control routes, pre-header admission, safe local-identity tool/widget SSE, shared Target busy/unknown handling, acknowledgement-ordered user cancellation, ASGI disconnect/header-send cleanup, recoverable Target Run metadata, verified reconciliation, and OpenAI/OpenAPI regression tests |
 | 7. Capabilities and remote availability | Pending | Effective support and availability separate from Gateway readiness |
 | 8. Contract freeze | Pending | Final schemas/examples, complete readiness checks, and owner-led migration handoff |
 
 The existing text Run, Hermes/OpenAI streaming, Gateway attribution, fresh resources, and widget
 composition remain ADR 0015 prerequisites. Server bootstrap can select native session ports with
-explicit API-root and deployment-binding configuration; the first-party Host router is not
-registered. Startup restores durable unresolved Target ownership before native or compatibility
+explicit API-root and deployment-binding configuration; the first-party Host router is registered
+with explicit unsupported responses when native ports are disabled. Startup restores durable unresolved Target ownership before native or compatibility
 ingress, including when native configuration is absent or its binding has changed. Both Run
 services settle attributed Gateway tools and optional widgets before successful terminal events.
 Host observer exceptions and timeouts do not rewrite MCP results; attributable workflow failures
@@ -275,6 +277,11 @@ Application presentation now consumes Agent, tool, and optional widget notificat
 of assistant deltas. Native session presentation shares this merger and retains local Session/Run
 identity without forwarding runtime handles. Controlled tests verify provider pauses, tool results
 with widget failure, normal completion, early closure, reader failure, and consumer cancellation.
-OpenAI wire contracts still exclude tool/widget envelopes. First-party HTTP error and widget DTOs,
-admission, cancellation/disconnection policy, effective capabilities, and schema freeze remain
-pending; timely delivery alone does not authorize frontend implementation.
+OpenAI wire contracts still exclude tool/widget envelopes. First-party HTTP now projects explicit
+public DTOs, validates admission before SSE headers, returns safe JSON errors before admission and
+safe terminal failures within the stream, and exposes Session-bound cancel/reconcile routes.
+Accepted user stop before observed completion produces cancellation only after verified exit and
+local settlement. Disconnect is not user cancellation; unknown state retains durable ownership,
+discoverable through safe local Target Run metadata. There is no SSE replay or automatic retry.
+Effective capabilities and schema freeze remain pending; these six batches do not authorize
+frontend implementation.

@@ -2,7 +2,7 @@
 
 - Decision: [ADR 0016](decisions/0016-session-oriented-host-and-frontend-contract-readiness.md)
 - Reviewed: 2026-10-09
-- State: Native use cases, persistence, deployment assembly, observer settlement, and timely Run presentation implemented with controlled tests; not a frozen HTTP API.
+- State: Native use cases, persistence, production HTTP/SSE, safe public DTOs, and cancellation/disconnection behavior implemented with controlled tests; capabilities and final schema freeze remain pending.
 
 ## Evidence and Integration Selection
 
@@ -87,7 +87,8 @@ Important boundaries:
 - The session stream's completion path can still emit `run.completed` after an interrupt. The
   adapter cannot infer cancellation merely from a stop receipt or an event name. A Mabrid
   user-cancelled terminal state requires verified remote exit and a defined ordering against normal
-  completion. Confirmed cancellation is not advertised before that policy is implemented.
+  completion. The first-party acknowledgement-ordering policy is defined below; a stop receipt
+  alone never produces a cancelled terminal event.
 - Status records are process-local and expire. A missing status or unreachable runtime after
   disconnection means unknown execution state, not safe permission for another attributed Run.
 
@@ -204,15 +205,9 @@ Chat Completion chunks and `[DONE]`.
 
 Closing presentation triggers source cleanup; it does not prove remote stopping. Native unknown
 execution retains durable ownership until verified reconciliation, including after tool/widget
-events have already been delivered. Switching UI selection, HTTP cancellation transport, and
-cancelled terminal-state ordering remain router/lifecycle work, not conclusions of these local
-cleanup tests. Runtime errors still cross the native source as typed application errors for the
-HTTP batch to translate.
-
-These are application presentation contracts, not registered first-party SSE routes or frozen
-HTTP DTOs. The HTTP batch must project widget payloads without their internal Gateway routing
-keys, define safe error DTOs, and establish admission and disconnection behavior. Run-local stores
-do not reconstruct old widgets, expose a resume cursor, or promise reconnection replay.
+events have already been delivered. Runtime errors cross the native source as typed application
+errors that the HTTP adapter maps to safe public failures. Run-local stores do not reconstruct old
+widgets, expose a resume cursor, or promise reconnection replay.
 
 ## Typed Boundaries and Public Drafts
 
@@ -225,16 +220,117 @@ changing the existing text `AgentRuntime` port.
 
 [Hermes wire documents](../../backend/packages/application/src/mabrid/application/agent_host/integrations/hermes/session_documents.py)
 are isolated inside the integration. Their forward-compatible extra fields are not public Host
-fields. [Host HTTP schema drafts](../../backend/apps/server/src/mabrid/server/api/host_contracts.py)
+fields. [Host HTTP contracts](../../backend/apps/server/src/mabrid/server/api/host_contracts.py)
 reject unrecognized request fields and expose session metadata and binding availability without
 remote session/run IDs or Gateway routing keys.
 
-The planned paths in ADR 0016 remain unchanged. These models establish the session/history portion
-of that contract; timely application presentation does not register routes or freeze the public
-tool/widget SSE family. Binding
-availability is separate from persisted identity, and a stored handle does not imply a reachable
-remote conversation. The final router batch must establish HTTP status mappings, admission before
-SSE headers, stream errors, and cancellation transport using the verified application behavior.
+Binding availability is separate from persisted identity. Local listing reports `unknown`, or
+`runtime_changed` for a different deployment binding, without a remote probe. Successful create
+and reopen report `available` for that operation; they do not certify future runtime availability.
+Missing or unavailable remote operations return typed errors rather than substitute sessions or
+empty history. Effective capabilities and availability reporting belong to batch 7.
+
+## First-Party HTTP and SSE
+
+[The Host router](../../backend/apps/server/src/mabrid/server/api/host.py) is registered in the
+production server independently of OpenAI, MCP, and management routes. It remains registered when
+native sessions are disabled and returns `unsupported_operation` rather than disappearing.
+
+| Method and path | Successful response |
+| --- | --- |
+| `POST /api/v1/host/sessions` | 201 session metadata; optional `title` only |
+| `GET /api/v1/host/sessions` | 200 local page; `limit=20` (1..200), `offset=0`, boolean `has_more` |
+| `GET /api/v1/host/sessions/{session_id}` | 200 remotely verified session metadata |
+| `GET /api/v1/host/sessions/{session_id}/history` | 200 runtime-owned normalized history with explicit pagination |
+| `POST /api/v1/host/sessions/{session_id}/runs` | 200 POST-based SSE; nonblank `input_text` only |
+| `POST /api/v1/host/sessions/{session_id}/runs/{run_id}/cancel` | 202 stop receipt with `accepted` and `settlement: "unconfirmed"` |
+| `POST /api/v1/host/sessions/{session_id}/runs/{run_id}/reconcile` | 200 local identifiers and `settled` boolean |
+
+Session metadata includes `target_run`, either null or local Session/Run UUIDs and an `active` or
+`unsettled` state for the Target's durable native Session Run, even when another Session is selected. This lets
+a reconnecting client discover unresolved ownership without private remote handles. It is a
+current snapshot, not a durable Run-result or transcript store. Null means no native lease was
+found, not proof that compatibility ingress has no active Run; admission always checks the shared
+coordinator. Session switching and history
+loading do not stop a Run; starting a second Run is rejected across all Sessions and compatibility
+ingress while the shared Target remains owned.
+
+The Run route reads and validates the native start before sending successful SSE headers. Local
+and remote Session checks, deployment-binding checks, shared coordination, durable claiming, and
+remote handle recording therefore happen before `run.started` is presented. Admission monitors
+client disconnection and closes the source. Uncertain accepted submission without a recoverable
+remote handle preserves a durable unresolved Run and cannot safely be retried.
+
+[Public SSE projection](../../backend/apps/server/src/mabrid/server/api/host_stream.py) explicitly
+selects public fields rather than serializing internal Host envelopes. Every data frame has local
+`event_id`, `session_id`, `run_id`, contiguous positive `sequence`, aware `created_at`, and a
+discriminated `event` payload. The SSE `event` matches payload `kind`; SSE `id` is the event UUID.
+The payload family is:
+
+- `run.started`, `assistant.text.delta`, and `assistant.text.completed`;
+- `tool.started`, `tool.completed`, and `tool.failed` with invocation identity and results;
+- `widget.created` and `widget.failed` linked to their tool invocation; and
+- one terminal `run.completed`, `run.cancelled`, or `run.failed` for a connected consumer.
+
+Tool results and arguments, widget resource contents, MIME types, structured content, and renderer
+metadata remain visible. Widget failure retains the tool result. Projection omits remote control
+handles, deployment bindings, and Gateway routing keys, and replaces internal diagnostic exception
+messages with safe fixed messages. Runtime/tool/resource-owned content remains content, not a
+promise that arbitrary upstream payloads have been scrubbed of sensitive text.
+
+The mature `sse-starlette` response owns source cleanup even if sending headers fails before its
+body generator begins. It uses `Cache-Control: no-store`, disables proxy buffering, and bounds
+individual sends to five seconds. Before emitting a successful terminal frame it closes and
+settles the source; unknown cleanup becomes `run.failed`, not false success. Headers cannot change
+after admission: typed source failures become safe `run.failed` data frames. A disconnected client
+cannot be promised a final frame. Cleanup cancels and joins presentation readers and retains unknown
+durable ownership when remote or local exit cannot be verified.
+
+SSE IDs are not replay cursors. `Last-Event-ID` on Run submission is rejected as unsupported.
+There is no detached Run subscription, automatic resubmission, or durable event replay. Reopen
+metadata and runtime history after reconnecting; discover unresolved local ownership through
+`target_run` and reconcile it before new execution. History loading does not regenerate widgets.
+
+## Cancellation and Reconciliation
+
+Both control routes validate the supplied local Session and Run against the current durable lease
+and deployment binding. A different Session cannot control that Run. No remote handles enter the
+request or response. Stop acceptance does not release ownership or produce terminal cancellation.
+
+For a locally open stream, an accepted stop receipt observed **before** native completion marks
+user cancellation. After native completion and local tool/widget settlement, presentation emits
+`run.cancelled` rather than `run.completed`. If completion was observed first, a later stop returns
+`accepted: false` and does not replace completion. A receipt that returns only after completion was
+observed also cannot change that outcome. This is Mabrid's acknowledgement-ordering policy, not a
+claim that Hermes emitted a distinct native cancelled event or discarded its transcript.
+
+Disconnect and send failure are cleanup paths, not explicit user-cancel acknowledgements. They
+may request remote stop, but never fabricate `run.cancelled`. Unconfirmed cleanup retains a lease
+and blocks overlap. Reconciliation returns false while a local stream is open, no remote handle
+is known, or remote status is nonterminal/unknown. It releases ownership only after verified remote
+terminal status and local settlement. `settled: true` means overlap is safe, not that the original
+Run succeeded or that its terminal event can be replayed. There is no public force-unlock route
+when submission or status remains unknown. Control of an already released or mismatched local Run
+returns `run_not_found`.
+
+## Safe Error Contract
+
+Host validation and failures use `HostErrorResponse`: an allowlisted code, fixed safe message, and
+optional local Session/Run UUIDs. Validation does not echo rejected input or Pydantic diagnostics.
+Unexpected infrastructure failures are `internal_error`; raw provider bodies and exception strings
+are not returned. Existing management and OpenAI error contracts are unchanged.
+
+| HTTP status before SSE admission | Host codes |
+| --- | --- |
+| 404 | `session_not_found`, `remote_session_not_found`, `run_not_found` |
+| 409 | `runtime_binding_changed`, `target_busy`, `run_state_unknown` |
+| 422 | `invalid_request` |
+| 500 | `internal_error` |
+| 502 | `runtime_contract_error` |
+| 503 | `runtime_unavailable`, `unsupported_operation` |
+
+OpenAPI describes successful Run delivery as `text/event-stream` and admission errors as
+`application/json`. This implemented contract is not the batch-8 schema freeze.
 
 ## Controlled Validation and Remaining Work
 
@@ -259,8 +355,13 @@ behavior through the actual Hermes native adapter and SQLite, then verifies norm
 durable unknown-state retention after early closure. Counting-reader fixtures verify cleanup on
 normal completion, early close, consumer cancellation, and tool/widget reader exceptions. OpenAI
 wire tests verify that tool activity does not leak into standard response chunks.
+First-party HTTP tests exercise production wiring, two-Session input-only continuation, shared
+admission, safe validation/errors, public payload projection, and tool/widget delivery while the
+native provider is paused. Controlled ASGI probes verify cancel acknowledgement ordering,
+cross-Session control rejection, disconnection before and after a remote handle, header-send
+failure, durable unknown-state retention, recovery metadata, and verified reconciliation. Gateway
+health/readiness remains independent of native Host selection.
 The following remain implementation gates:
 
-- First-party HTTP routes, public widget/error DTOs, admission, cancellation, and disconnect behavior.
 - Conservative capabilities and remote runtime availability.
 - Final OpenAPI/SSE schema freeze and ADR 0016's complete frontend readiness gate.
