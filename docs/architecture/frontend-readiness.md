@@ -78,17 +78,19 @@ read, modified, or validated during this milestone.
 The next work can proceed in this order:
 
 1. Manually commit the completed contract batch and retain that commit as the review baseline.
-2. Perform the owner-controlled repository/directory/remote migration, preserving Git history and
-   the existing `mabrid` code identity. Do not combine it with a second namespace rewrite or runtime
-   behavior changes. Local configuration, secrets, SQLite state, interpreter paths, and editor
-   settings need deliberate handling; do not publish them or reset persisted bindings/leases merely
-   to make a renamed checkout start.
-3. Review the code in the migrated repository before the frontend rewrite. Compare against the
-   baseline and rerun contract drift, architecture, type, lint, and backend tests in the new location.
+2. Perform the owner-controlled remote repository rename and update About and the checkout's
+   remote URL, preserving Git history and the existing `mabrid` code identity. The owner explicitly
+   retains the local `mcpapps-bridge` root directory for the active editor session; no directory
+   move or fresh clone is required. Do not combine hosting migration with another namespace rewrite
+   or runtime behavior changes. Preserve local configuration, secrets, SQLite state, interpreter
+   paths, and editor settings; do not publish them or reset persisted bindings/leases.
+3. Review the code after remote migration before the frontend rewrite. Compare against the
+   baseline and rerun contract drift, architecture, type, lint, and backend tests in the retained checkout.
    Review findings and required fixes should remain separate from mechanical migration changes.
-4. Discuss expansion points as explicit follow-up decisions, not unfinished work hidden inside this
-   completed milestone. SDK replacement, Tauri packaging, further runtime integrations, remote
-   conversation import, and Host follow-up actions do not automatically enter v0.1 scope.
+4. Discuss expansion points solely to clarify the owner's thinking and fill technical knowledge
+   gaps. Even an agreed direction or a known change is not implementation authorization. SDK
+   replacement, Tauri packaging, further runtime integrations, remote conversation import, and Host
+   follow-up actions do not automatically enter v0.1 scope; implementation needs a separate request.
 5. Start the frontend rewrite as a separate, explicitly requested task against the frozen contract.
    Product design and implementation can now focus on Sessions/history, live Run presentation,
    widgets/sandboxing, read-only Gateway management, inspection, and connection/capability status.
@@ -100,6 +102,48 @@ Target/session identity and deployment binding; restart recovery and uncertain s
 cancellation ordering, reader/client cleanup, and durable lease release; protocol/resource fidelity;
 Host DTO privacy and safe errors; configuration/secret ownership; and production/image startup.
 Existing hardcoded debug workflow parameters are intentional owner tooling, not migration cleanup.
+
+### Remote Migration Checklist
+
+Repository-local Mabrid identity is complete; the hosting step is still the owner's action. The
+recommended About text and current product positioning are recorded in
+[ADR 0009](decisions/0009-mabrid-product-identity.md). This does not introduce a plugin implementation
+or require a README.
+
+1. Review and commit this preparation batch; record the baseline commit and confirm the worktree
+   is clean before changing hosting settings. Keep local secrets/configuration and database files
+   out of the commit. Do not create a new repository to simulate a rename.
+2. Rename the existing GitHub repository to `mabrid` in its settings, retaining the owner and
+   repository history. This is not an organization/ownership transfer. Check the target name's
+   availability rather than assuming it is available.
+3. Update About with the reviewed product description. Do not advertise published SDKs, plugins,
+   or a completed frontend. Remote metadata is not changed by the preparation commit.
+4. In the existing checkout, update the remote using the new repository URL from GitHub. Preserve
+   the current SSH/HTTPS authentication style, then verify with fetch and branch inspection:
+
+   ```sh
+   git remote set-url origin <new-repository-url>
+   git fetch origin
+   git branch -vv
+   ```
+
+   Also inspect any explicitly configured push URL and update it when necessary. Do not rely on
+   old-name redirects as the permanent remote configuration, force-push, or rewrite history.
+5. Check external links, badges, webhooks, CI integrations, and any published site/package/image
+   references that actually exist. Standard repository redirects do not cover every product URL
+   or integration: GitHub Pages project-site URLs and workflow calls to an Action hosted in a renamed
+   repository need explicit attention if present. Do not reuse the old repository name, which would
+   invalidate GitHub's redirects. Do not invent distribution changes for unpublished artifacts.
+6. Keep the local directory and VS Code session as they are. A later move, after the session is
+   complete, should account for interpreter/virtual-environment paths, launch settings, and local
+   tools; it is not part of this migration. Keep `agentHost.runtime.sessions.bindingId` stable when
+   only repository hosting changes; changing it denotes another runtime deployment, not a rename.
+
+After hosting migration, run the existing contract check and backend test gates, then begin the
+owner's code review. No broad code refactor or expansion implementation is bundled into these steps.
+
+GitHub's redirect limits and remote-update recommendation are documented in
+[Renaming a Repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/renaming-a-repository).
 
 ## Remaining Release Gates
 

@@ -1,7 +1,7 @@
 [project]
 name = "mabrid-server"
 version = "0.1.0"
-description = "Internal deployable MCP gateway server composition."
+description = "Mabrid MCP Apps gateway and Agent Host server."
 requires-python = ">=3.12"
 dependencies = [
   "aiosqlite>=0.22.1",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import tomllib
 from pathlib import Path
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +31,33 @@ FORBIDDEN_IMPORTS = {
         "yaml",
     },
 }
+
+
+def test_product_identity_does_not_depend_on_checkout_directory_name() -> None:
+    projects = {
+        BACKEND_ROOT: "mabrid-workspace",
+        BACKEND_ROOT / "packages" / "bridge": "mabrid-bridge",
+        BACKEND_ROOT / "packages" / "application": "mabrid-application",
+        BACKEND_ROOT / "apps" / "server": "mabrid-server",
+    }
+    for root, name in projects.items():
+        metadata = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+        assert metadata["project"]["name"] == name
+        assert "Mabrid" in metadata["project"]["description"]
+        if name == "mabrid-server":
+            assert metadata["project"]["scripts"] == {"mabrid": "mabrid.server.main:main"}
+    for source_root in SOURCE_ROOTS.values():
+        assert source_root.is_dir()
+        for path in source_root.rglob("*.py"):
+            source = path.read_text(encoding="utf-8")
+            for legacy_identity in (
+                "mcpapps-bridge",
+                "mcp_gateway_core",
+                "mcp_gateway_service",
+                "mcp_gateway_server",
+                "cembrid",
+            ):
+                assert legacy_identity not in source, str(path.relative_to(BACKEND_ROOT))
 
 
 def test_lower_packages_do_not_import_outer_layers() -> None:

@@ -25,7 +25,7 @@ Implementation states:
 | [0006](decisions/0006-core-service-and-server-packages.md) | Accepted | Implemented | Protocol core, application services, and the deployable server are separate dependency-ordered workspace packages |
 | [0007](decisions/0007-cembrid-identity-and-deployment-shells.md) | Accepted; brand superseded by 0009 | Partial | Retain Web/OCI and Tauri desktop service shells; its Cembrid identity is superseded |
 | [0008](decisions/0008-restart-applied-managed-topology.md) | Accepted; v0.1 scope amended by 0014 | Pending | Retain restart-applied topology mutation as the basis for a post-v0.1 writable management milestone |
-| [0009](decisions/0009-mabrid-product-identity.md) | Accepted; code migration timing amended by 0013 | Partial | Mabrid code identity migrates with the backend refactor; repository and remote migration remain deferred |
+| [0009](decisions/0009-mabrid-product-identity.md) | Accepted; timing amended by 0013 and 2026-10-10 owner sequence | Partial | Repository-local Mabrid identity is complete; remote rename/About/update awaits owner action; the local checkout is intentionally retained and frontend identity follows its rewrite |
 | [0010](decisions/0010-application-contexts-and-capability-composition.md) | Accepted; amended by 0011, 0012, 0013, 0014, 0015, and 0016 | Partial | v0.1 contexts, typed assembly, native bindings, widget presentation, effective capabilities, and frozen contracts exist; deployed frontend workflow remains release work; product Host actions are deferred |
 | [0011](decisions/0011-single-agent-target-and-endpoint-assignment.md) | Accepted; amended by 0012, 0014, 0015, and 0016 | Partial | Single Target, endpoint ownership, Run coordination, durable Sessions, restart ownership, and frozen controls complete the backend prerequisite; deployed endpoint/agent validation remains release work |
 | [0012](decisions/0012-agent-runtime-profiles-and-integration-composition.md) | Accepted; amended by 0015 and 0016 | Partial | Profiles, selected Hermes native interfaces, typed discovery, explicit deployment selection, effective support/availability, and frozen frontend contracts exist; external deployment certification remains release work |
@@ -63,6 +63,13 @@ expansion-point discussion, and the explicitly requested frontend rewrite. See
 [Frontend Readiness and Migration Handoff](frontend-readiness.md) for artifacts, evidence,
 verification commands, review priorities, and release gates. This completed backend batch does not
 perform migration, start frontend work, or expand v0.1 scope.
+
+Repository-local Mabrid identity preparation is complete. The hosting migration now means renaming
+the existing remote repository, updating About, and changing the retained checkout's remote URL;
+the local `mcpapps-bridge` directory is not moved during the active editor session. The owner reviews
+the code after that hosting step. Subsequent expansion discussions clarify ideas and knowledge only:
+even identified or agreed changes require a separate implementation request. No remote rename,
+ownership transfer, frontend edit, or expansion implementation is performed by this preparation.
 
 Real MCP transport integration, OCI assembly, static frontend serving, and release-image startup
 validation remain release work. First-party Agent Host and read-only management frontend workflows

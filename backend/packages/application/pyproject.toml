@@ -1,7 +1,7 @@
 [project]
 name = "mabrid-application"
 version = "0.0.0"
-description = "Internal MCP gateway and Agent Host application services."
+description = "Mabrid MCP Apps gateway, Agent Host, and widget application services."
 requires-python = ">=3.12"
 dependencies = [
   "anyio>=4,<5",

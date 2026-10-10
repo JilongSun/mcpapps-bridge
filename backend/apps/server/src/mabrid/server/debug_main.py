@@ -17,9 +17,9 @@ from mabrid.server.logging import LogMode, configure_logging
 configure_logging(LogMode.DEBUG)
 
 # ── Debug overrides — edit these lines ───────────────────────────────────
-# Set _DEBUG_UPSTREAM to an upstream name defined in mcpapps-bridge.yaml
+# Set _DEBUG_UPSTREAM to an upstream name defined in mabrid.yaml
 # to bypass the YAML default, e.g. _DEBUG_UPSTREAM = "mock_stdio"
-_DEBUG_CONFIG: str | None = None  # e.g. "mcpapps-bridge.yaml"
+_DEBUG_CONFIG: str | None = None  # e.g. "mabrid.yaml"
 _DEBUG_UPSTREAM = ""  # set to "" to use YAML default
 _DEBUG_HTTPX_TIMEOUT: float | None = (
     9999.999  # seconds, None = use YAML default; set e.g. 30.0 to override

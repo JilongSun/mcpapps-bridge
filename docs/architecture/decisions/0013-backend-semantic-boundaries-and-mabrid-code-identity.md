@@ -49,6 +49,13 @@ The repository directory, GitHub repository name, and Git remote are renamed man
 owner after the v0.1 scope is complete. That hosting migration does not require another Python API
 rename.
 
+The owner updated this timing on 2026-10-10 after ADR 0016's backend contract milestone: remote
+repository renaming may proceed before the frontend and distribution release work. The local
+`mcpapps-bridge` checkout directory remains unchanged for the active editor session; moving it is
+not a prerequisite. Repository-local identity preparation is complete, and the existing Mabrid
+namespaces and runtime deployment binding remain unchanged. The current sequence is recorded in
+[ADR 0009](0009-mabrid-product-identity.md).
+
 ### Preserve the dependency direction
 
 The accepted production dependency graph remains:
@@ -198,7 +205,7 @@ mechanical file moves.
 
 ## Implementation Status
 
-As of 2026-09-01, this decision is implemented:
+Implemented 2026-09-01; identity and hosting status reviewed 2026-10-10:
 
 - Python namespaces and distributions are `mabrid.bridge`, `mabrid.application`, and
   `mabrid.server`, with no compatibility aliases.
@@ -213,4 +220,5 @@ As of 2026-09-01, this decision is implemented:
 - SQLite adapters are organized by topology, sessions, and schema, and migrations are reset to one
   implemented pre-v0.1 baseline.
 - Product-owned CLI, Web, configuration default, database default, and package identities use
-  Mabrid. Repository and Git remote migration remain owner-controlled after v0.1 scope completion.
+  Mabrid. Repository hosting and Git remote changes remain owner-controlled under the updated
+  ADR 0009 sequence; the local checkout directory is intentionally retained for the active session.

@@ -40,8 +40,11 @@ backend/
 ```
 
 The package directories are implementation locations. The stable code identities are
-`mabrid.bridge`, `mabrid.application`, and `mabrid.server`. The repository directory and Git
-remote retain their pre-v0.1 names until the owner performs the hosting migration.
+`mabrid.bridge`, `mabrid.application`, and `mabrid.server`. Repository-local identity migration is
+complete. The owner will rename the remote repository separately; the local `mcpapps-bridge`
+checkout directory is deliberately retained while the current editor session is active. Neither
+the checkout directory name nor the remote URL determines Python imports or runtime Session
+bindings. See [ADR 0009](decisions/0009-mabrid-product-identity.md) for the current sequence.
 
 ## Dependency Direction
 
